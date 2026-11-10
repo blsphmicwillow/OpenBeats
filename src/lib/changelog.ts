@@ -25,6 +25,16 @@ export const CHANGELOG: ChangelogEntry[] = [
         ],
       },
       {
+        title: 'Mixing, automation and editing',
+        items: [
+          'Mixer routing in Rust: free routing to any track, multiple sends, pre-fader sends, mute/solo and a sidechain ducker, with routing cycles refused.',
+          'Automation lanes for any parameter: linear, hold, eased and S-curve segments, min/max re-ranging, looping and bipolar ranges.',
+          'Piano-roll tools: strum, arpeggiate, flam, and twelve scales for highlighting and snapping.',
+          'Playlist tools: slice, chop, quantize clip starts, trim, duplicate and consolidate.',
+          'Modular effect graph: gain, low-pass, high-pass and drive nodes with summed fan-in and cycle rejection.',
+        ],
+      },
+      {
         title: 'Studio',
         items: [
           'Channel rack with step sequencer, per-channel knobs, audition previews and live meters.',

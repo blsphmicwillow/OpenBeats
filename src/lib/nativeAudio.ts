@@ -288,3 +288,201 @@ export async function nativeNormaliseGains(
   if (!isNative()) return null;
   return nativeInvoke<number[]>('normalise_clip_gains', { peaks, asGroup });
 }
+
+/* ------------------------------------------------------------------ *
+ * Mixer routing, automation and editing tools (all local Rust)
+ * ------------------------------------------------------------------ */
+
+export interface NativeSend {
+  to: number;
+  amount: number;
+  pre_fader?: boolean;
+}
+
+export interface NativeMixerStrip {
+  id: number;
+  gain: number;
+  mute: boolean;
+  solo: boolean;
+  route?: number | null;
+  sends: NativeSend[];
+  sidechain?: number | null;
+}
+
+export interface NativeMixerRender {
+  outputs: [number, number][];
+  master: [number, number];
+}
+
+export interface NativeAutomationPoint {
+  time: number;
+  value: number;
+  curve?: 'linear' | 'hold' | 'ease_in' | 'ease_out' | 's_curve';
+}
+
+export interface NativeAutomationLane {
+  target: string;
+  default: number;
+  min: number;
+  max: number;
+  loop_len?: number | null;
+  points: NativeAutomationPoint[];
+}
+
+export interface NativeToolNote {
+  pitch: number;
+  start: number;
+  len: number;
+  vel: number;
+}
+
+export interface NativeClipSpan {
+  start: number;
+  len: number;
+}
+
+export type NativeArpMode = 'up' | 'down' | 'up_down' | 'as_played';
+
+export type NativeScale =
+  | 'major'
+  | 'natural_minor'
+  | 'harmonic_minor'
+  | 'melodic_minor'
+  | 'dorian'
+  | 'phrygian'
+  | 'lydian'
+  | 'mixolydian'
+  | 'pentatonic_major'
+  | 'pentatonic_minor'
+  | 'blues'
+  | 'chromatic';
+
+/** Resolves mixer routing; rejects cycles and unknown destinations. */
+export async function nativeMixerOrder(strips: NativeMixerStrip[]): Promise<number[] | null> {
+  if (!isNative()) return null;
+  return nativeInvoke<number[]>('mixer_order', { strips });
+}
+
+/** Mixes one frame per strip through the Rust routing graph. */
+export async function nativeMixerRender(
+  strips: NativeMixerStrip[],
+  inputs: [number, number][],
+): Promise<NativeMixerRender | null> {
+  if (!isNative()) return null;
+  return nativeInvoke<NativeMixerRender>('mixer_render', { strips, inputs });
+}
+
+/** Value of an automation lane at a position in 16th steps. */
+export async function nativeAutomationValue(
+  lane: NativeAutomationLane,
+  time: number,
+): Promise<number | null> {
+  if (!isNative()) return null;
+  return nativeInvoke<number>('automation_value', { lane, time });
+}
+
+/** One automation value per step. */
+export async function nativeAutomationSample(
+  lane: NativeAutomationLane,
+  steps: number,
+): Promise<number[] | null> {
+  if (!isNative()) return null;
+  return nativeInvoke<number[]>('automation_sample', { lane, steps });
+}
+
+/** Every automated parameter at `time`, keyed by target. */
+export async function nativeAutomationApply(
+  lanes: NativeAutomationLane[],
+  time: number,
+): Promise<Record<string, number> | null> {
+  if (!isNative()) return null;
+  return nativeInvoke<Record<string, number>>('automation_apply', {
+    set: { lanes },
+    time,
+  });
+}
+
+export async function nativeStrum(
+  notes: NativeToolNote[],
+  start: number,
+  tension = 0,
+  velocity = 0,
+): Promise<NativeToolNote[] | null> {
+  if (!isNative()) return null;
+  return nativeInvoke<NativeToolNote[]>('strum_notes', { notes, start, tension, velocity });
+}
+
+export async function nativeArpeggiate(
+  notes: NativeToolNote[],
+  mode: NativeArpMode,
+  rate: number,
+  octaves = 1,
+): Promise<NativeToolNote[] | null> {
+  if (!isNative()) return null;
+  return nativeInvoke<NativeToolNote[]>('arpeggiate_notes', { notes, mode, rate, octaves });
+}
+
+export async function nativeFlam(
+  notes: NativeToolNote[],
+  offset: number,
+  repeats = 2,
+  velocityDecay = 0.3,
+): Promise<NativeToolNote[] | null> {
+  if (!isNative()) return null;
+  return nativeInvoke<NativeToolNote[]>('flam_notes', {
+    notes,
+    offset,
+    repeats,
+    velocityDecay,
+  });
+}
+
+export async function nativeScaleNotes(
+  root: number,
+  scale: NativeScale,
+  octaves = 1,
+): Promise<number[] | null> {
+  if (!isNative()) return null;
+  return nativeInvoke<number[]>('scale_notes', { root, scale, octaves });
+}
+
+export async function nativeSnapToScale(
+  pitch: number,
+  root: number,
+  scale: NativeScale,
+): Promise<number | null> {
+  if (!isNative()) return null;
+  return nativeInvoke<number>('snap_note_to_scale', { pitch, root, scale });
+}
+
+export async function nativeSliceClip(
+  start: number,
+  len: number,
+  at: number,
+): Promise<[NativeClipSpan, NativeClipSpan] | null> {
+  if (!isNative()) return null;
+  return nativeInvoke<[NativeClipSpan, NativeClipSpan]>('slice_clip', { start, len, at });
+}
+
+export async function nativeChopClip(
+  start: number,
+  len: number,
+  pieces: number,
+): Promise<NativeClipSpan[] | null> {
+  if (!isNative()) return null;
+  return nativeInvoke<NativeClipSpan[]>('chop_clip', { start, len, pieces });
+}
+
+export async function nativeQuantizeClipStart(
+  start: number,
+  grid: number,
+): Promise<number | null> {
+  if (!isNative()) return null;
+  return nativeInvoke<number>('quantize_clip_start', { start, grid });
+}
+
+/** Evaluation order of a modular effect graph (Patcher-style). */
+export async function nativeEffectGraphOrder(graph: unknown): Promise<number[] | null> {
+  if (!isNative()) return null;
+  return nativeInvoke<number[]>('effect_graph_order', { graph });
+}

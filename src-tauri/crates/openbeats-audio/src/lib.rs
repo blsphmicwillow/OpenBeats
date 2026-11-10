@@ -15,24 +15,34 @@
 //!                 -> CPAL output stream            [feature = "device"]
 //! ```
 
+pub mod automation;
 pub mod chord;
 pub mod clips;
 pub mod command;
 pub mod dsp;
+pub mod effect_graph;
 pub mod logger;
+pub mod mixer;
 pub mod notes;
+pub mod piano_tools;
+pub mod playlist_tools;
 pub mod sequencer;
 pub mod synth;
 
 #[cfg(feature = "device")]
 pub mod engine;
 
+pub use automation::{AutomationLane, AutomationPoint, AutomationSet, Curve};
 pub use chord::{chord_for, suggest_progression, Chord};
 pub use clips::{expand_clip, PlaybackClip, PlaybackPattern};
 pub use command::{parse_command, ParsedCommand};
 pub use dsp::{Compressor, Eq3, Limiter, Transmitter};
+pub use effect_graph::{ModularGraph, NodeKind};
 pub use logger::AudioLogger;
+pub use mixer::{MixError, MixerGraph, MixerStrip, Send, Sidechain};
 pub use notes::{display_name, normalize_gains, note_name, note_names};
+pub use piano_tools::{arpeggiate, flam, strum, ArpMode, Scale, ToolNote};
+pub use playlist_tools::{chop, duplicate, quantize_start, slice, trim, ClipSpan};
 pub use sequencer::{PlaybackChannel, PlaybackNote, PlaybackProject, Sequencer};
 pub use synth::{Preset, VoicePool};
 

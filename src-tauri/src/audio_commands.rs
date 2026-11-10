@@ -5,10 +5,19 @@
 
 use std::sync::Mutex;
 
+use openbeats_audio::automation::{AutomationLane, AutomationSet};
 use openbeats_audio::chord::{chord_for, suggest_progression, Chord};
 use openbeats_audio::command::{parse_command, ParsedCommand};
+use openbeats_audio::effect_graph::ModularGraph;
 use openbeats_audio::engine::{EngineSnapshot, NativeEngine};
+use openbeats_audio::mixer::{MixError, MixerGraph, MixerStrip};
 use openbeats_audio::notes::{normalize_gains, note_name};
+use openbeats_audio::piano_tools::{
+    arpeggiate, flam, scale_pitches, snap_to_scale, strum, ArpMode, Scale, StrumOptions, ToolNote,
+};
+use openbeats_audio::playlist_tools::{
+    chop as chop_span, quantize_start, slice as slice_span, ClipSpan,
+};
 use openbeats_audio::sequencer::PlaybackProject;
 use serde::Serialize;
 use tauri::{AppHandle, Manager, State};
@@ -210,4 +219,140 @@ pub fn chord_suggestions(root: u8, minor: bool) -> Vec<String> {
 #[tauri::command]
 pub fn normalise_clip_gains(peaks: Vec<f32>, as_group: bool) -> Vec<f32> {
     normalize_gains(&peaks, as_group)
+}
+
+/// The mixed output for every strip plus the master.
+#[derive(Serialize)]
+pub struct MixerRender {
+    pub outputs: Vec<[f32; 2]>,
+    pub master: [f32; 2],
+}
+
+/// Resolves mixer routing to a mixing order, rejecting cycles.
+#[tauri::command]
+pub fn mixer_order(strips: Vec<MixerStrip>) -> Result<Vec<usize>, String> {
+    MixerGraph::new(strips)
+        .order()
+        .map_err(|err: MixError| err.to_string())
+}
+
+/// Mixes one frame per strip, honouring sends, mute, solo and routing.
+#[tauri::command]
+pub fn mixer_render(strips: Vec<MixerStrip>, inputs: Vec<[f32; 2]>) -> Result<MixerRender, String> {
+    let graph = MixerGraph::new(strips);
+    let frames: Vec<(f32, f32)> = inputs.iter().map(|frame| (frame[0], frame[1])).collect();
+    let (outputs, master) = graph.render(&frames).map_err(|err| err.to_string())?;
+    Ok(MixerRender {
+        outputs: outputs.iter().map(|(l, r)| [*l, *r]).collect(),
+        master: [master.0, master.1],
+    })
+}
+
+/// Reads an automation lane at a position in 16th steps.
+#[tauri::command]
+pub fn automation_value(lane: AutomationLane, time: f32) -> f32 {
+    lane.value_at(time)
+}
+
+/// Samples an automation lane once per step.
+#[tauri::command]
+pub fn automation_sample(lane: AutomationLane, steps: u32) -> Vec<f32> {
+    lane.sample_steps(steps)
+}
+
+/// Every automated parameter's value at `time`, keyed by target name.
+#[tauri::command]
+pub fn automation_apply(set: AutomationSet, time: f32) -> std::collections::BTreeMap<String, f32> {
+    let mut values = std::collections::BTreeMap::new();
+    set.apply(time, &mut values);
+    values
+}
+
+/// Piano-roll Strum tool.
+#[tauri::command]
+pub fn strum_notes(notes: Vec<ToolNote>, start: f32, tension: f32, velocity: f32) -> Vec<ToolNote> {
+    strum(
+        &notes,
+        StrumOptions {
+            start,
+            tension,
+            velocity,
+        },
+    )
+}
+
+/// Piano-roll Arpeggiator tool.
+#[tauri::command]
+pub fn arpeggiate_notes(
+    notes: Vec<ToolNote>,
+    mode: ArpMode,
+    rate: f32,
+    octaves: u8,
+) -> Vec<ToolNote> {
+    arpeggiate(&notes, mode, rate, octaves)
+}
+
+/// Piano-roll Flam tool.
+#[tauri::command]
+pub fn flam_notes(
+    notes: Vec<ToolNote>,
+    offset: f32,
+    repeats: u8,
+    velocity_decay: f32,
+) -> Vec<ToolNote> {
+    flam(&notes, offset, repeats, velocity_decay)
+}
+
+/// Pitches of a scale, for piano-roll highlighting.
+#[tauri::command]
+pub fn scale_notes(root: u8, scale: Scale, octaves: u8) -> Vec<u8> {
+    scale_pitches(root, scale, octaves)
+}
+
+/// Snaps a pitch into the given scale.
+#[tauri::command]
+pub fn snap_note_to_scale(pitch: u8, root: u8, scale: Scale) -> u8 {
+    snap_to_scale(pitch, root, scale)
+}
+
+/// Splits a playlist clip in two at `at` steps.
+#[tauri::command]
+pub fn slice_clip(start: f32, len: f32, at: f32) -> Option<(ClipSpan, ClipSpan)> {
+    slice_span(ClipSpan::new(start, len), at)
+}
+
+/// Chops a playlist clip into `pieces` equal parts.
+#[tauri::command]
+pub fn chop_clip(start: f32, len: f32, pieces: u32) -> Vec<ClipSpan> {
+    chop_span(ClipSpan::new(start, len), pieces)
+}
+
+/// Quantizes a clip start to the nearest grid line.
+#[tauri::command]
+pub fn quantize_clip_start(start: f32, grid: f32) -> f32 {
+    quantize_start(start, grid)
+}
+
+/// Evaluation order of a modular effect graph, rejecting cycles.
+#[tauri::command]
+pub fn effect_graph_order(graph: ModularGraph) -> Result<Vec<usize>, String> {
+    graph.order().map_err(|err| err.to_string())
+}
+
+/// Renders samples through a modular effect graph.
+#[tauri::command]
+pub fn render_effect_graph(
+    mut graph: ModularGraph,
+    input: Vec<f32>,
+    sample_rate: f32,
+) -> Result<Vec<f32>, String> {
+    let mut out = Vec::with_capacity(input.len());
+    for sample in input {
+        out.push(
+            graph
+                .process(sample, sample_rate)
+                .map_err(|e| e.to_string())?,
+        );
+    }
+    Ok(out)
 }

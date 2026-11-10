@@ -20,6 +20,14 @@ This is the first official release. Everything below shipped in this build; ther
 - **VST3/CLAP hosting** on Windows and macOS through an out-of-process plugin host with crash recovery. Not available on Linux, where the plugin browser still works.
 - Local natural-language commands, all offline. No accounts, no cloud.
 
+### Mixing, automation and editing tools
+
+- **Mixer routing** in Rust: free routing to any track, multiple sends, pre-fader sends, mute/solo and a sidechain ducker, with routing cycles refused instead of producing feedback.
+- **Automation lanes** that drive any engine parameter: linear, hold, ease-in/out and S-curve segments, min/max re-ranging, looping and bipolar ranges.
+- **Piano-roll tools**: strum (direction, tension, velocity), arpeggiate (up/down/up-down, rate, octaves), flam, plus twelve scales for highlighting and note snapping.
+- **Playlist tools**: slice, chop, quantize clip starts, trim, duplicate and consolidate.
+- **Modular effect graph** (Patcher-style): gain, low-pass, high-pass and drive nodes with summed fan-in, topological evaluation and cycle rejection.
+
 ### Studio
 
 - Channel rack with step sequencer, per-channel knobs, audition previews and live meters.

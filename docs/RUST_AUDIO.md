@@ -20,10 +20,15 @@ unchanged — it was never ported, and that was deliberate.
 | Chord detection (piano roll label) + in-key chord suggestions | `src/chord.rs` | 7 unit tests |
 | Clip expansion: per-clip pan, pitch, stretch, fades, pattern looping | `src/clips.rs` | 10 unit tests |
 | Note names + clip normalisation (individual/group) | `src/notes.rs` | 6 unit tests |
+| Mixer routing, multi-send, pre-fader sends, sidechain ducker | `src/mixer.rs` | 11 unit tests |
+| Automation lanes: curves, ranges, looping, step sampling | `src/automation.rs` | 10 unit tests |
+| Piano-roll tools: strum, arpeggiate, flam, scales | `src/piano_tools.rs` | 12 unit tests |
+| Playlist tools: slice, chop, quantize, trim, duplicate | `src/playlist_tools.rs` | 10 unit tests |
+| Modular effect graph (Patcher-style) | `src/effect_graph.rs` | 8 unit tests |
 | Local natural-language command parser | `src/command.rs` | 8 unit tests |
 | fundsp master graph + diagnostic sine | `src/graph.rs` (`fundsp-graph` feature) | 3 unit tests |
 
-`cargo test -p openbeats-audio --features fundsp-graph` runs **65 tests** and is a
+`cargo test -p openbeats-audio --features fundsp-graph` runs **118 tests** and is a
 required CI step. The device layer is feature-gated so the maths builds and tests
 on machines without an audio backend.
 
@@ -68,6 +73,9 @@ velocity in both paths (`Clip.gain`).
   keeps using the channel pan.
 - **Transmitter detection input is the master sum**, not a selectable sidechain
   source, and hold/release are exposed through `set_detection` rather than the UI.
+- **The mixer graph, automation lanes and modular effect graph are not in the
+  CPAL callback yet.** They are implemented, tested and exposed over IPC, but the
+  audio thread still runs the fixed EQ → compressor → limiter chain.
 - **Offline bounce and Fix My Mix still use the Web Audio renderer.**
 - **No device hot-plug handling yet**; a stream error is counted in
   `EngineSnapshot::stream_errors` and surfaced to the UI.
