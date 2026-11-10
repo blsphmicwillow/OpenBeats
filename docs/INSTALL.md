@@ -134,20 +134,30 @@ yay -Rns openbeats-bin
 
 ```bash
 curl -L -o OpenBeats.AppImage \
-  https://github.com/blsphmicwillow/OpenBeats/releases/download/v1.0.0/OpenBeats_1.0.0_amd64.AppImage
+  https://github.com/blsphmicwillow/OpenBeats/releases/download/v1.0.3/OpenBeats_1.0.3_amd64.AppImage
 chmod +x OpenBeats.AppImage
 ./OpenBeats.AppImage
 ```
 
+The published 1.0.3 AppImage has SHA-256
+`47cea74824f4533915d2401e10ce9750030d80a030b9b670820b58447aee34a4`.
+It includes `X-AppImage-Version=1.0.3`, has an executable payload and bundles no
+`libfuse`. It installs and lists correctly with Shelly 3.0.6 and 3.2.1.
+
 The AppImage bundles WebKitGTK, GTK 3, GStreamer and the audio plugins used by
 Web Audio (`bundleMediaFramework`), so `gst-inspect-1.0` on the host is not
 needed. This applies to AppImages produced from the current packaging config;
-artifacts built before that change (including any 1.0.0 file published earlier)
-still rely on the host's GStreamer installation. The host must provide:
+artifacts built before that change still rely on the host's GStreamer
+installation. The host must provide:
 
 - a working X11 or Wayland session;
 - a PulseAudio-compatible server (`pipewire-pulse` or `pulseaudio`);
-- FUSE 2, **or** launch with `--appimage-extract-and-run`.
+- FUSE 3 (`sudo pacman -S fuse3` on Arch, `libfuse2` on Ubuntu 22.04+), **or**
+  launch with `--appimage-extract-and-run`.
+
+If an older Shelly reports `InvalidExe`, update Shelly first. Then install FUSE 3
+(`sudo pacman -S fuse3`) and retry, or run
+`./OpenBeats.AppImage --appimage-extract-and-run` to bypass the FUSE mount.
 
 The AppImage cannot bundle a system sound server. Every mainstream Linux desktop
 ships one; on a minimal install, install `pipewire-pulse` (or `pulseaudio`).

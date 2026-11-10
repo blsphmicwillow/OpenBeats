@@ -24,10 +24,13 @@ jobs:
         include:
           - label: Linux (deb + RPM + AppImage)
             platform: ubuntu-22.04
+            bundles: appimage,deb,rpm
           - label: Windows (msi + nsis)
             platform: windows-latest
+            bundles: msi,nsis
           - label: macOS (dmg, Apple silicon)
             platform: macos-latest
+            bundles: dmg,app
     runs-on: ${{ matrix.platform }}
     steps:
       - uses: actions/checkout@v4
@@ -132,11 +135,17 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
+          args: --bundles ${{ matrix.bundles }}
           tagName: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || '' }}
           releaseName: ${{ startsWith(github.ref, 'refs/tags/') && format('OpenBeats {0}', github.ref_name) || '' }}
           releaseBody: |
             Desktop installers for Linux, Windows and macOS. Full notes are in CHANGELOG.md and in the app's
             Changelog tab.
+
+            Linux AppImage: `chmod +x OpenBeats_1.0.3_amd64.AppImage`. If Shelly or your file manager reports
+            `InvalidExe`, install FUSE 3 (`sudo pacman -S fuse3`) or run
+            `./OpenBeats_1.0.3_amd64.AppImage --appimage-extract-and-run`. The 1.0.3 image has been tested
+            with Shelly 3.0.6 and 3.2.1.
           releaseDraft: false
           prerelease: false
           includeUpdaterJson: false
@@ -157,6 +166,7 @@ jobs:
 
           appimage="$(find src-tauri/target/release/bundle/appimage -maxdepth 1 -name '*.AppImage' -print -quit)"
           test -n "$appimage" || { echo '::error::No AppImage was produced'; exit 1; }
+          test -x "$appimage" || { echo '::error::AppImage is not executable'; exit 1; }
 
           work="$(mktemp -d)"
           trap 'rm -rf "$work"' EXIT
@@ -167,6 +177,10 @@ jobs:
           test -f "$desktop" || { echo '::error::AppImage has no desktop entry'; exit 1; }
           grep -q '^X-AppImage-Version=1.0.3$' "$desktop" || { echo '::error::AppImage desktop entry has no X-AppImage-Version'; exit 1; }
           grep -q '^Exec=openbeats$' "$desktop" || { echo '::error::AppImage desktop entry has an unexpected Exec'; exit 1; }
+          if find squashfs-root -iname 'libfuse*' -print -quit | grep -q .; then
+            echo '::error::AppImage must not bundle FUSE; use the host runtime'
+            exit 1
+          fi
 
           for plugin in \
             libgstpulseaudio.so libgstalsa.so libgstaudioparsers.so \

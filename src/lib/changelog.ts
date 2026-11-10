@@ -34,6 +34,13 @@ export const CHANGELOG: ChangelogEntry[] = [
         ],
       },
       {
+        title: 'Linux AppImage compatibility',
+        items: [
+          'The rebuilt 1.0.3 AppImage includes X-AppImage-Version=1.0.3, has an executable payload and bundles no libfuse; it installs and lists correctly with Shelly 3.0.6 and 3.2.1.',
+          'Linux release builds request appimage, deb and rpm explicitly. On Arch, install FUSE 3 with sudo pacman -S fuse3, or use --appimage-extract-and-run if FUSE is unavailable.',
+        ],
+      },
+      {
         title: 'FL Studio compatibility',
         items: [
           '.fxp presets expose plugin 4CC, name and parameter count as metadata; .fst presets are preview-only with readable strings; .flp projects are read-only pattern references.',

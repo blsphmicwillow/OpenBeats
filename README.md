@@ -108,6 +108,10 @@ chmod +x OpenBeats.AppImage
 If FUSE is unavailable, extract and run instead:
 `./OpenBeats.AppImage --appimage-extract-and-run`.
 
+Shelly 3.0.6 and 3.2.1 install this image directly. If an older Shelly reports
+`InvalidExe`, update Shelly first, then install FUSE 3 (`sudo pacman -S fuse3`)
+and retry; `--appimage-extract-and-run` also bypasses the FUSE mount.
+
 ### Debian / Ubuntu
 
 ```bash

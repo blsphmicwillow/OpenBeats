@@ -38,6 +38,14 @@ Linux, Windows and macOS installers are built by CI from the `v1.0.3` tag and at
 - The AppImage desktop entry now includes `X-AppImage-Version`, so desktop integration and update tools can read the
   installed version.
 
+### Linux AppImage compatibility
+
+- The rebuilt 1.0.3 AppImage carries `X-AppImage-Version=1.0.3`, has an executable payload and bundles no `libfuse`.
+  It installs and lists correctly with both Shelly 3.0.6 and Shelly 3.2.1.
+- Linux release builds now request `appimage,deb,rpm` explicitly instead of relying on Tauri's `all` target.
+- On Arch, install FUSE 3 with `sudo pacman -S fuse3`. If FUSE is unavailable, or an older package frontend rejects
+  the file, run `./OpenBeats_1.0.3_amd64.AppImage --appimage-extract-and-run`.
+
 ### FL Studio metadata
 
 - `.fxp` files expose their plugin 4CC, preset name and parameter count as metadata. FXP does not store parameter
