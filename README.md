@@ -2,9 +2,17 @@
 
 **An open-source beatmaking studio for the desktop.** Channel Rack, step sequencer, piano roll, playlist and mixer — built with a Rust/Tauri desktop shell and a React/Web Audio front end. Linux, Windows and macOS.
 
-![OpenBeats](artifacts/final-1.1.png)
+![OpenBeats studio](docs/screenshots/studio-default.png)
 
-> OpenBeats is an independent project. It is *inspired by* the workflow of classic pattern-based DAWs (channel rack → patterns → playlist → mixer); it ships no code, samples, presets or assets from FL Studio or any other commercial DAW.
+> OpenBeats is an independent project. It is *inspired by* the workflow of classic pattern-based DAWs (channel rack → patterns → playlist → mixer); it ships no code, samples, presets or assets from any commercial DAW.
+
+## Screenshots
+
+![OpenBeats studio](docs/screenshots/studio-default.png)
+
+Eleven built-in themes, Classic and Modern chrome, and an editable **My theme** with a colour wheel, HEX and RGB fields:
+
+![Theme and customisation](docs/screenshots/customisation.png)
 
 ---
 
@@ -195,6 +203,16 @@ version.
 - **Song / Pattern mode**, metronome, count-in, tempo and swing.
 - **Bounce** to 16/24-bit WAV at 44.1 or 48 kHz, with optional mastering targets.
 
+### Native audio engine (Rust)
+- **CPAL output** on the desktop: a sample-accurate sequencer, 16 procedural synth voices, and a master chain of 3-band EQ, compressor and limiter run in Rust instead of the WebView. The browser build keeps the Web Audio fallback.
+- **Transmitter** transient/sustain split with hold and release detection.
+- **Audio Logger** keeps the last 60 seconds of master output and writes it to WAV on demand.
+- **Chord detection**, in-key chord suggestions, **Chord Stamp**, and user key labels.
+- **Per-clip gain, pan, pitch, stretch and fades**, note names, clip normalisation, and **automation lanes** that can drive any engine parameter.
+- **Mixer routing in Rust**: free routing, multiple and pre-fader sends, mute/solo, sidechain ducking, with cycles refused.
+- **Editing tools** in Rust: strum, arpeggiate, flam, twelve scales, clip slice/chop/quantize/trim/duplicate, and a modular effect graph.
+- **VST3/CLAP hosting** on Windows and macOS through an out-of-process host with crash recovery. On Linux the plugin browser works and the app reports hosting as unavailable.
+
 ### Writing & mixing assistants (local DSP — no cloud, no accounts)
 - **Fix My Mix** — renders the master, measures peak / loudness / crest / stereo width and seven frequency bands, then explains what is fighting for space and applies corrective EQ, compression and a limiter as ordinary effects. A/B compares the corrected chain with the original.
 - **Mastering targets** — Spotify (−14 LUFS), Club (−9), SoundCloud (−13), YouTube (−14), applied on bounce with shelf EQ, glue compression and a true-peak-style ceiling.
@@ -211,7 +229,7 @@ version.
 - First launch opens a saved **Tutorial** project, not a blank song; the last project is restored after that.
 
 ### Interchange with other DAWs
-- **Multi-track MIDI import/export** — one track per channel, tempo and program changes, readable by FL Studio, Ableton, Logic, Cubase, Studio One, Bitwig and REAPER.
+- **Multi-track MIDI import/export** — one track per channel, tempo and program changes, readable by other DAWs including Ableton, Logic, Cubase, Studio One, Bitwig and REAPER.
 - **Ableton Live Set import** (`.als`) — gzipped XML, MIDI tracks and clips parsed locally.
 - **REAPER project import and export** (`.rpp`) — text project with tracks and MIDI items.
 - `.obeats` remains the lossless round-trip; WAV is the audio path. Details and fidelity limits: [docs/EXCHANGE.md](docs/EXCHANGE.md).
@@ -285,7 +303,9 @@ Theming and the colour editor: [docs/THEMING.md](docs/THEMING.md).
 The glass design review (glassmorphism vs Liquid Glass): [docs/GLASS.md](docs/GLASS.md).
 DAW interchange matrix: [docs/EXCHANGE.md](docs/EXCHANGE.md).
 Plugin support status and roadmap: [docs/PLUGINS.md](docs/PLUGINS.md).
-Native Rust/CPAL audio migration plan: [docs/RUST_AUDIO.md](docs/RUST_AUDIO.md).
+Native Rust/CPAL audio engine: [docs/RUST_AUDIO.md](docs/RUST_AUDIO.md).
+Feature parity reference: [docs/FEATURE_PARITY.md](docs/FEATURE_PARITY.md).
+Studio architecture and remaining gaps: [docs/STUDIO_ARCHITECTURE.md](docs/STUDIO_ARCHITECTURE.md).
 Release/signing process: [docs/BUILDING.md](docs/BUILDING.md#releases).
 
 ### Project layout
@@ -310,8 +330,8 @@ scripts/        icon generation and plugin validation/fetching
 - Installers are produced by CI. Building them requires the platform SDKs (Xcode on macOS, MSVC on Windows); cross-building installers is not supported.
 - The Linux packages built here target Ubuntu 24.04 (glibc 2.39). CI builds on Ubuntu 22.04 for a wider glibc range; rebuild there if you need older distributions.
 - The update checker **notifies** and links to the release. Silent in-app installation is prepared but needs a signed Tauri updater key pair (`TAURI_SIGNING_PRIVATE_KEY`, `plugins.updater.pubkey`) — see the build guide.
-- The audio engine is still **Web Audio inside the Tauri WebView**. The Rust layer is the desktop shell, not a native audio engine; the migration plan is in [docs/RUST_AUDIO.md](docs/RUST_AUDIO.md).
-- The plugin library downloads public GitHub Release assets only; it does **not** load them. Native hosting remains a separate engine milestone.
+- The desktop build plays through the **native Rust engine**; the browser build uses Web Audio. The two are not sample-identical yet, and the new mixer/automation graph is not wired into the audio callback.
+- **VST3/CLAP hosting** runs out of process on Windows and macOS. It is unavailable on Linux; the plugin browser still works and the app says so plainly.
 - The assistants are deterministic local DSP, not a hosted language model. Nothing is uploaded.
 - Not implemented yet: stem separation, a WASM wavetable synth, mixer folders, track freeze, PDC, per-clip effects, project snapshots, dockable panels, a spectral editor and a live-performance mode. See [ROADMAP.md](ROADMAP.md).
 

@@ -6,12 +6,12 @@
 use std::sync::Mutex;
 
 use openbeats_audio::automation::{AutomationLane, AutomationSet};
-use openbeats_audio::chord::{chord_for, suggest_progression, Chord};
+use openbeats_audio::chord::{chord_for, chord_stamp, suggest_progression, Chord};
 use openbeats_audio::command::{parse_command, ParsedCommand};
 use openbeats_audio::effect_graph::ModularGraph;
 use openbeats_audio::engine::{EngineSnapshot, NativeEngine};
 use openbeats_audio::mixer::{MixError, MixerGraph, MixerStrip};
-use openbeats_audio::notes::{normalize_gains, note_name};
+use openbeats_audio::notes::{normalize_gains, note_name, KeyLabels};
 use openbeats_audio::piano_tools::{
     arpeggiate, flam, scale_pitches, snap_to_scale, strum, ArpMode, Scale, StrumOptions, ToolNote,
 };
@@ -213,6 +213,27 @@ pub fn pitch_names(pitches: Vec<u8>) -> Vec<NamedNote> {
 #[tauri::command]
 pub fn chord_suggestions(root: u8, minor: bool) -> Vec<String> {
     suggest_progression(root, minor)
+}
+
+/// Chord Stamp: notes for a chord, ready to insert into a pattern.
+#[tauri::command]
+#[allow(clippy::too_many_arguments)]
+pub fn stamp_chord(
+    root: u8,
+    quality: String,
+    inversion: u8,
+    octave: u8,
+    start: f32,
+    len: f32,
+    vel: f32,
+) -> Vec<ToolNote> {
+    chord_stamp(root, &quality, inversion, octave, start, len, vel)
+}
+
+/// Piano-roll key labels: custom names with scientific defaults filled in.
+#[tauri::command]
+pub fn key_labels(labels: KeyLabels, pitches: Vec<u8>) -> Vec<(u8, String)> {
+    labels.labelled(&pitches)
 }
 
 /// Gain multipliers that normalise clip peaks individually or as a selection.

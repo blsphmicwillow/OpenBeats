@@ -429,4 +429,38 @@ mod tests {
         assert_eq!(pitches[0], 60);
         assert_eq!(pitches[7], 72);
     }
+
+    #[test]
+    fn chord_stamp_writes_a_major_triad() {
+        let notes = crate::chord::chord_stamp(0, "", 0, 4, 0.0, 4.0, 0.9);
+        assert_eq!(
+            notes.iter().map(|n| n.pitch).collect::<Vec<_>>(),
+            vec![60, 64, 67]
+        );
+        assert!(notes.iter().all(|n| (n.len - 4.0).abs() < 1e-6));
+        assert!(notes.iter().all(|n| (n.vel - 0.9).abs() < 1e-6));
+    }
+
+    #[test]
+    fn chord_stamp_first_inversion_raises_the_root() {
+        let notes = crate::chord::chord_stamp(0, "", 1, 4, 0.0, 1.0, 1.0);
+        assert_eq!(
+            notes.iter().map(|n| n.pitch).collect::<Vec<_>>(),
+            vec![64, 67, 72]
+        );
+    }
+
+    #[test]
+    fn chord_stamp_respects_octave_and_quality() {
+        let notes = crate::chord::chord_stamp(9, "m7", 0, 3, 0.0, 1.0, 1.0);
+        assert_eq!(
+            notes.iter().map(|n| n.pitch).collect::<Vec<_>>(),
+            vec![57, 60, 64, 67]
+        );
+    }
+
+    #[test]
+    fn chord_stamp_rejects_an_unknown_quality() {
+        assert!(crate::chord::chord_stamp(0, "nope", 0, 4, 0.0, 1.0, 1.0).is_empty());
+    }
 }

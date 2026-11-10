@@ -6,6 +6,8 @@
 
 use serde::{Deserialize, Serialize};
 
+use crate::piano_tools::ToolNote;
+
 const NOTE_NAMES: [&str; 12] = [
     "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B",
 ];
@@ -130,6 +132,50 @@ pub fn pitches_at(notes: &[(u8, f32, f32)], step: f32) -> Vec<u8> {
         .iter()
         .filter(|(_, start, len)| step >= *start && step < start + len)
         .map(|(pitch, _, _)| *pitch)
+        .collect()
+}
+
+/// The interval template for a chord suffix (`""`, `"m"`, `"7"`, ...).
+pub fn template_for(quality: &str) -> Option<&'static [u8]> {
+    TEMPLATES
+        .iter()
+        .find(|(suffix, _)| *suffix == quality)
+        .map(|(_, template)| *template)
+}
+
+/// Chord Stamp: the notes of a chord, ready to write into a pattern.
+///
+/// `octave` 4 puts a C-rooted chord at MIDI 60. Inversions rotate the lowest
+/// note up an octave, and pitches outside 0..=127 are dropped.
+#[allow(clippy::too_many_arguments)]
+pub fn chord_stamp(
+    root: u8,
+    quality: &str,
+    inversion: u8,
+    octave: u8,
+    start: f32,
+    len: f32,
+    vel: f32,
+) -> Vec<ToolNote> {
+    let Some(template) = template_for(quality) else {
+        return Vec::new();
+    };
+    let base = 12 * (octave as i32 + 1) + root as i32;
+    let mut pitches: Vec<i32> = template
+        .iter()
+        .map(|offset| base + *offset as i32)
+        .collect();
+    let inversion = (inversion as usize) % pitches.len().max(1);
+    for _ in 0..inversion {
+        if let Some(first) = pitches.first().copied() {
+            pitches.remove(0);
+            pitches.push(first + 12);
+        }
+    }
+    pitches
+        .into_iter()
+        .filter(|pitch| (0..=127).contains(pitch))
+        .map(|pitch| ToolNote::new(pitch as u8, start, len, vel))
         .collect()
 }
 

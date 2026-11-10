@@ -194,6 +194,8 @@ pub fn run() {
             audio_commands::pitch_names,
             audio_commands::chord_suggestions,
             audio_commands::normalise_clip_gains,
+            audio_commands::stamp_chord,
+            audio_commands::key_labels,
             // Mixer routing, automation and editing tools
             audio_commands::mixer_order,
             audio_commands::mixer_render,

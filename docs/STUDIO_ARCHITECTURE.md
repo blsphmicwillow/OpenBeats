@@ -1,4 +1,4 @@
-# FL Studio architecture parity
+# Studio architecture parity
 
 The manual pages requested for this milestone, what was actually readable, and
 what now exists in Rust. Everything here is local and offline.

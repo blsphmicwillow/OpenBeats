@@ -1,4 +1,4 @@
-# FL Studio feature parity (What's New changelog)
+# Feature parity (2026 changelog)
 
 Source: `https://www.image-line.com/fl-studio-learning/fl-studio-online-manual/html/WhatsNew.htm`
 (and the 2026 release notes), read on 2026-11-10 and cross-referenced against
