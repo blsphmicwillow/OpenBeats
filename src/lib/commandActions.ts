@@ -48,8 +48,8 @@ export function applyParsedCommand(command: ParsedCommand): string {
       store.addPattern();
       return 'New pattern';
     case 'export_wav':
-      void store.exportWav();
-      return 'Bouncing to WAV';
+      store.setUI({ exportOpen: true });
+      return 'Export audio';
     case 'set_tempo':
       if (command.value) {
         store.setBpm(Math.round(command.value));

@@ -128,3 +128,28 @@ pub async fn export_audio(
     .await
     .map_err(|e| format!("the export task failed: {e}"))?
 }
+
+/// Explicit save-dialog entry point used by the export window.
+///
+/// `export_audio` already prompts when `path` is null; this alias keeps the
+/// frontend contract obvious and always shows the native dialog.
+#[tauri::command]
+pub async fn export_audio_with_dialog(
+    app: AppHandle,
+    format: String,
+    quality: Option<u8>,
+    sample_rate: u32,
+    channels: u16,
+    pcm_base64: String,
+) -> Result<String, String> {
+    export_audio(
+        app,
+        format,
+        quality,
+        sample_rate,
+        channels,
+        pcm_base64,
+        None,
+    )
+    .await
+}

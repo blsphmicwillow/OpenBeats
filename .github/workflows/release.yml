@@ -65,7 +65,7 @@ jobs:
       # The DSP, sequencer and feature maths are pure Rust and must stay green.
       - name: Native engine tests
         working-directory: src-tauri
-        run: cargo test -p openbeats-audio --features fundsp-graph
+        run: cargo test -p openbeats-audio --features fundsp-graph,decode,mp3
 
       # plughost does not build on Linux, so its helper only ships on Windows and macOS.
       - name: Stage plugin host helper

@@ -38,7 +38,10 @@ import {
   stepsToSeconds,
   swingOffset,
 } from './audio/sequencer';
-import { downloadBlob, renderSongToWav } from './audio/export';
+import { downloadBlob, renderSongToBuffer, renderSongToWav } from './audio/export';
+import { masterBuffer, type MasterTarget } from './lib/mastering';
+import { nativeExportAudio } from './lib/nativeAudio';
+import { exportFormat, type ExportFormatId } from './lib/exportFormats';
 import { checkForUpdate } from './lib/updates';
 import { APP_VERSION, DEFAULT_UPDATE_REPO } from './lib/version';
 import { isNative, openTextNative, saveBinaryNative, saveTextNative } from './lib/native';
@@ -214,6 +217,7 @@ export interface AppState {
   openProjectFile(file: File): Promise<void>;
   openProjectNative(): Promise<void>;
   exportWav(): Promise<void>;
+  exportSong(opts: { format: ExportFormatId; quality: number; sampleRate: number; master: MasterTarget }): Promise<boolean>;
   importSongFile(file: File): Promise<void>;
   importSampleFiles(files: File[], replaceSelected?: boolean): Promise<void>;
   autosaveNow(): void;
@@ -231,6 +235,16 @@ let nextTime = 0;
 
 let lastCoalesceKey: string | null = null;
 let lastCoalesceAt = 0;
+
+function interleaveBuffer(buffer: AudioBuffer): Float32Array {
+  const channels = buffer.numberOfChannels;
+  const lanes = Array.from({ length: channels }, (_, c) => buffer.getChannelData(c));
+  const out = new Float32Array(buffer.length * channels);
+  for (let i = 0; i < buffer.length; i += 1) {
+    for (let c = 0; c < channels; c += 1) out[i * channels + c] = lanes[c][i];
+  }
+  return out;
+}
 
 function seedLibrary(): SavedProject[] {
   let list = loadStored<SavedProject[]>(LIBRARY_KEY) ?? [];
@@ -273,6 +287,7 @@ export const useApp = create<AppState>((set, get) => ({
     humOpen: false,
     inspireOpen: false,
     exchangeOpen: false,
+    exportOpen: false,
     projectHubOpen: false,
     pluginsOpen: false,
     update: null,
@@ -440,9 +455,16 @@ export const useApp = create<AppState>((set, get) => ({
   },
 
   seek(step) {
-    const wasPlaying = get().transport.playing;
-    get().stop();
     const target = Math.max(0, Math.round(step));
+    const wasPlaying = get().transport.playing;
+    if (wasPlaying && nativeActive) {
+      // Native playback keeps the stream open and seeks the sequencer, so a
+      // playhead drag does not click or drop the audio device.
+      void import('./lib/nativeAudio').then((mod) => mod.nativeSetPlayhead(target));
+      set((s) => ({ transport: { ...s.transport, step: target, anchorStep: target } }));
+      return;
+    }
+    get().stop();
     set((s) => ({ transport: { ...s.transport, step: target, anchorStep: target } }));
     if (wasPlaying) get().play(target);
   },
@@ -455,9 +477,17 @@ export const useApp = create<AppState>((set, get) => ({
   },
 
   toggleMetronome() {
+    const wasPlaying = get().transport.playing;
+    const step = get().transport.step;
     get().patchProject((p) => {
       p.metronome = !p.metronome;
     });
+    // The native snapshot carries the metronome flag, so restart the stream at
+    // the same step to apply it mid-playback.
+    if (wasPlaying) {
+      get().stop();
+      get().play(step);
+    }
   },
 
   setSwing(value) {
@@ -951,17 +981,56 @@ export const useApp = create<AppState>((set, get) => ({
   },
 
   async exportWav() {
-    get().stop();
+    await get().exportSong({
+      format: 'wav16',
+      quality: 5,
+      sampleRate: 44100,
+      master: get().settings.masterTarget,
+    });
+  },
+
+  async exportSong({ format, quality, sampleRate, master }) {
+    const state = get();
+    state.stop();
     set((s) => ({ ui: { ...s.ui, exporting: { progress: 0 } } }));
+    const name = state.project.name.replace(/[^\w\- ]+/g, '').trim() || 'openbeats';
     try {
-      const target = get().settings.masterTarget;
-      const blob = await renderSongToWav(get().project, { master: target });
-      const name = get().project.name.replace(/[^\w\- ]+/g, '').trim() || 'openbeats';
-      downloadBlob(blob, target === 'none' ? `${name}.wav` : `${name}-${target}.wav`);
-      get().toast(target === 'none' ? 'WAV bounced — check your downloads' : `Mastered for ${target} — WAV downloaded`);
+      if (!isNative()) {
+        if (format !== 'wav16') {
+          get().toast('That format needs the desktop build — the browser writes 16-bit WAV');
+          return false;
+        }
+        const blob = await renderSongToWav(state.project, { sampleRate, master });
+        downloadBlob(blob, master === 'none' ? `${name}.wav` : `${name}-${master}.wav`);
+        get().toast(master === 'none' ? 'WAV exported — check your downloads' : `Mastered for ${master} — WAV downloaded`);
+        return true;
+      }
+
+      const rendered = await renderSongToBuffer(state.project, { sampleRate });
+      const buffer = master === 'none' ? rendered : await masterBuffer(rendered, master);
+      const saved = await nativeExportAudio({
+        format,
+        quality,
+        sampleRate,
+        channels: buffer.numberOfChannels,
+        pcm: interleaveBuffer(buffer),
+      });
+      if (!saved) {
+        get().toast('The export was cancelled');
+        return false;
+      }
+      const file = saved.split(/[\\/]/).pop() || 'audio';
+      get().toast(`Saved ${file} — ${exportFormat(format).name}`);
+      return true;
     } catch (err) {
-      console.error(err);
-      get().toast('Bounce failed — see the console for details');
+      const message = err instanceof Error ? err.message : String(err);
+      if (/cancel/i.test(message)) {
+        get().toast('The export was cancelled');
+      } else {
+        console.error(err);
+        get().toast(message || 'Export failed — see the console for details');
+      }
+      return false;
     } finally {
       set((s) => ({ ui: { ...s.ui, exporting: null } }));
     }
@@ -1241,10 +1310,7 @@ function tick() {
 
 /** Preview a channel from the browser/rack, initialising audio on demand. */
 export function previewChannel(channel: Channel) {
-  const state = useApp.getState();
-  void state.initAudio().then(() => {
-    if (engine.ctx) engine.preview(channel);
-  });
+  previewPitch(channel, channel.root);
 }
 
 /* ------------------------------------------------------------------ *
@@ -1329,6 +1395,24 @@ function startWebAudioPlayback(start: number) {
 }
 
 export function previewPitch(channel: Channel, pitch: number) {
+  // Native builds audition through CPAL, independent of the transport; the
+  // Web Audio path is only for the browser demo.
+  if (nativeShell()) {
+    void import('./lib/nativeAudio').then(({ nativePlayTestNote }) =>
+      nativePlayTestNote({
+        preset: channel.preset,
+        pitch,
+        gain: channel.gain,
+        pan: channel.pan,
+        root: channel.root,
+        attack: channel.attack,
+        decay: channel.decay,
+        release: channel.release,
+        tone: channel.tone,
+      }),
+    );
+    return;
+  }
   const state = useApp.getState();
   void state.initAudio().then(() => {
     if (engine.ctx) engine.preview(channel, pitch);

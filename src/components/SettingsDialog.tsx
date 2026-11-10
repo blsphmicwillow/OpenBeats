@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useApp } from '../store';
+import { previewChannel, useApp } from '../store';
 import { Modal } from '../ui/Modal';
 import { THEMES, themeById } from '../themes';
 import { ThemeColorEditor } from './ThemeColorEditor';
@@ -10,6 +10,7 @@ import {
   clearRecovery,
   getAudioDevices,
   nativePlaybackState,
+  nativePlayMetronome,
   playNativeTestTone,
   readRecovery,
   recoverAudioLog,
@@ -21,6 +22,7 @@ import {
 } from '../lib/nativeAudio';
 import { KEY_ACTION_LABELS, comboFromEvent } from '../ui/keymapLabels';
 import { APP_VERSION } from '../lib/version';
+import { friendlyDeviceName, readDevMode, writeDevMode } from '../lib/deviceNames';
 import type { KeyAction, Settings, Theme } from '../model/types';
 
 type Tab = 'appearance' | 'accessibility' | 'workflow' | 'updates' | 'keys' | 'audio' | 'opensource';
@@ -771,7 +773,7 @@ function AudioTab() {
             onClick={async () => {
               await useApp.getState().initAudio();
               const ch = project.channels.find((c) => c.preset === 'keys') ?? project.channels[0];
-              if (ch) engine.preview(ch);
+              if (ch) previewChannel(ch);
             }}
           >
             Play a test note
@@ -819,6 +821,7 @@ function NativeDevicePanel() {
   const [lowLatency, setLowLatencyMode] = useState(false);
   const [cue, setCue] = useState(1);
   const [note, setNote] = useState<string | null>(null);
+  const [devMode, setDevMode] = useState(readDevMode);
 
   const refresh = useCallback(async () => {
     const list = await getAudioDevices();
@@ -887,7 +890,9 @@ function NativeDevicePanel() {
           Output device
           <small>
             {snapshot
-              ? `Open: ${snapshot.device || 'none'} · ${Math.round(snapshot.sample_rate)} Hz · ${snapshot.channels} ch`
+              ? `Open: ${devMode ? snapshot.device || 'none' : friendlyDeviceName(snapshot.device || 'none')} · ${Math.round(
+                  snapshot.sample_rate,
+                )} Hz · ${snapshot.channels} ch`
               : 'The stream opens on the first play or test tone.'}
           </small>
         </div>
@@ -902,9 +907,10 @@ function NativeDevicePanel() {
             {outputs.length === 0 && <option value="">No native devices (browser build)</option>}
             {outputs.map((device) => (
               <option key={device.name} value={device.name}>
-                {device.name}
+                {devMode ? device.name : friendlyDeviceName(device.name)}
                 {device.is_default ? ' · default' : ''}
-                {device.is_pulse_bridge ? ' · Pulse/PipeWire' : ''}
+                {devMode && device.is_pulse_bridge ? ' · Pulse/PipeWire' : ''}
+                {devMode ? ` · ${device.host}` : ''}
               </option>
             ))}
           </select>
@@ -926,11 +932,30 @@ function NativeDevicePanel() {
             {inputs.length === 0 && <option value="">No inputs found</option>}
             {inputs.map((device) => (
               <option key={device.name} value={device.name}>
-                {device.name}
+                {devMode ? device.name : friendlyDeviceName(device.name)}
                 {device.is_default ? ' · default' : ''}
+                {devMode ? ` · ${device.host}` : ''}
               </option>
             ))}
           </select>
+        </div>
+      </div>
+      <div className="field">
+        <div className="field-label">
+          Dev Mode
+          <small>Show raw ALSA/PipeWire/CoreAudio strings, host APIs and channel counts. Off by default.</small>
+        </div>
+        <div className="field-control">
+          <input
+            type="checkbox"
+            checked={devMode}
+            aria-label="Dev Mode"
+            onChange={(e) => {
+              setDevMode(e.target.checked);
+              writeDevMode(e.target.checked);
+            }}
+          />
+          <span className="tiny-note">{devMode ? 'raw backend names' : 'friendly names'}</span>
         </div>
       </div>
       <div className="field">
@@ -984,6 +1009,15 @@ function NativeDevicePanel() {
             }}
           >
             Test tone
+          </button>
+          <button
+            className="btn ghost"
+            onClick={async () => {
+              await nativePlayMetronome(true);
+              setNote('Played a metronome click through the native engine.');
+            }}
+          >
+            Metronome click
           </button>
           <button
             className="btn ghost"

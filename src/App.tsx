@@ -26,6 +26,7 @@ const FixMyMix = lazy(() => import('./components/FixMyMix').then((m) => ({ defau
 const HumToMelody = lazy(() => import('./components/HumToMelody').then((m) => ({ default: m.HumToMelody })));
 const InspireDialog = lazy(() => import('./components/InspireDialog').then((m) => ({ default: m.InspireDialog })));
 const ExchangeDialog = lazy(() => import('./components/ExchangeDialog').then((m) => ({ default: m.ExchangeDialog })));
+const ExportDialog = lazy(() => import('./components/ExportDialog').then((m) => ({ default: m.ExportDialog })));
 const ProjectHub = lazy(() => import('./components/ProjectHub').then((m) => ({ default: m.ProjectHub })));
 const PluginBrowser = lazy(() => import('./components/PluginBrowser').then((m) => ({ default: m.PluginBrowser })));
 
@@ -387,6 +388,7 @@ export default function App() {
         {ui.humOpen && <HumToMelody />}
         {ui.inspireOpen && <InspireDialog />}
         {ui.exchangeOpen && <ExchangeDialog />}
+        {ui.exportOpen && <ExportDialog />}
         {ui.projectHubOpen && <ProjectHub />}
         {ui.pluginsOpen && <PluginBrowser />}
         {ui.settingsOpen && <SettingsDialog />}

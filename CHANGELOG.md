@@ -3,6 +3,51 @@
 The same entries are bundled into the app and shown in the **Changelog** tab, so the notes ship with the build.
 Keep this file and `src/lib/changelog.ts` in sync, and bump `APP_VERSION` in `src/lib/version.ts`.
 
+## 1.0.2 — 2026-11-10
+
+**Auditioning through the engine, a draggable playhead, bundled MP3 export and a working updater.**
+
+Linux, Windows and macOS installers are built by CI from the `v1.0.2` tag and attached to that GitHub release.
+1.0.1 stays available from its own tag.
+
+### Auditioning and playback
+
+- Browser samples, the channel-rack test note and the metronome now play through a dedicated CPAL preview voice that
+  bypasses the sequencer, so they are audible while the transport is stopped. The commands send real buffers to the
+  output stream instead of only updating state.
+- Clicking an instrument fires a one-shot C4 note at velocity 100 through the native synth; a second click replaces
+  the previous preview.
+- The metronome is rendered in the audio callback from the playback snapshot, accented every 16 steps, and toggling it
+  refreshes the running engine.
+- Seeking during native playback now sends a seek command instead of stopping and restarting the stream.
+
+### Timeline and devices
+
+- The playhead is thicker, shows a grab cursor and can be dragged; each drag updates the native playhead position in
+  real time. The playlist and piano roll scroll to follow playback when it leaves the viewport.
+- Input and output devices show friendly names by default. Dev Mode is off by default and reveals the raw ALSA/
+  PipeWire strings, host API, channel counts and sample rates when enabled.
+
+### Export and files
+
+- MP3 export uses the bundled `mp3lame-encoder` (LAME) instead of ffmpeg, at 128/192/320 kbps depending on the
+  quality setting. WAV, 24-bit WAV and FLAC remain native; OGG and M4A use ffmpeg when it is installed.
+- The desktop export command opens the native save dialog, and **Save project as…** saves `.obeats` files anywhere on
+  disk through the same dialog.
+
+### Updates
+
+- The update button downloads the installer for the current platform, accepts only GitHub release URLs from this
+  repository, marks the Linux AppImage executable, launches it and restarts the app.
+
+### Performance and tests
+
+- The sequencer renders into a preallocated trigger buffer that the audio callback reuses, removing per-tick
+  allocation from the playback path.
+- 243 audio-crate unit tests cover the metronome defaults, preview and seek commands, trigger-buffer reuse, installer
+  URL validation, the bundled MP3 stream, WAV/FLAC headers, decoding and the DSP modules. CI runs them with the
+  `mp3` feature enabled.
+
 ## 1.0.1 — 2026-11-10
 
 **Exporters, sample packs, input tools, a rebuilt tour and smoother timeline editing.**

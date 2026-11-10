@@ -41,7 +41,11 @@ impl ExportFormat {
 
     /// True when the bytes come from `ffmpeg` rather than this module.
     pub fn needs_ffmpeg(self) -> bool {
-        matches!(self, Self::Mp3 | Self::Ogg | Self::M4a)
+        match self {
+            Self::Mp3 => !cfg!(feature = "mp3"),
+            Self::Ogg | Self::M4a => true,
+            _ => false,
+        }
     }
 
     pub fn label(self) -> &'static str {
@@ -159,6 +163,70 @@ fn flac_bytes(samples: &[f32], sample_rate: u32, channels: u16) -> Result<Vec<u8
     Ok(sink.as_slice().to_vec())
 }
 
+/// MP3 bytes from LAME, with no external program involved.
+#[cfg(feature = "mp3")]
+fn mp3_bytes(
+    samples: &[f32],
+    sample_rate: u32,
+    channels: u16,
+    quality: u8,
+) -> Result<Vec<u8>, String> {
+    use mp3lame_encoder::{
+        Bitrate, Builder, EncoderFlush, FlushNoGap, InterleavedPcm, MonoPcm, Quality,
+    };
+
+    let channels = channels.clamp(1, 2);
+    let bitrate = match quality {
+        0..=2 => Bitrate::Kbps128,
+        3..=5 => Bitrate::Kbps192,
+        _ => Bitrate::Kbps320,
+    };
+    let mut builder = Builder::new().ok_or("could not create the MP3 encoder")?;
+    builder = builder
+        .with_num_channels(channels as u8)
+        .map_err(|e| format!("MP3 channels rejected: {e:?}"))?;
+    builder = builder
+        .with_sample_rate(sample_rate)
+        .map_err(|e| format!("MP3 sample rate rejected: {e:?}"))?;
+    builder = builder
+        .with_brate(bitrate)
+        .map_err(|e| format!("MP3 bitrate rejected: {e:?}"))?;
+    builder = builder
+        .with_quality(Quality::Best)
+        .map_err(|e| format!("MP3 quality rejected: {e:?}"))?;
+    let mut encoder = builder
+        .build()
+        .map_err(|e| format!("could not start the MP3 encoder: {e:?}"))?;
+
+    let pcm: Vec<i16> = samples
+        .iter()
+        .map(|sample| (sample.clamp(-1.0, 1.0) * i16::MAX as f32).round() as i16)
+        .collect();
+    let mut out = Vec::with_capacity(mp3lame_encoder::max_required_buffer_size(pcm.len()));
+    let written = if channels == 1 {
+        encoder
+            .encode(MonoPcm(&pcm), out.spare_capacity_mut())
+            .map_err(|e| format!("MP3 encode failed: {e:?}"))?
+    } else {
+        encoder
+            .encode(InterleavedPcm(&pcm), out.spare_capacity_mut())
+            .map_err(|e| format!("MP3 encode failed: {e:?}"))?
+    };
+    unsafe {
+        out.set_len(out.len() + written);
+    }
+    let flushed = encoder
+        .flush::<FlushNoGap>(out.spare_capacity_mut())
+        .map_err(|e| format!("MP3 flush failed: {e:?}"))?;
+    unsafe {
+        out.set_len(out.len() + flushed);
+    }
+    if out.is_empty() {
+        return Err("the MP3 encoder produced no audio".into());
+    }
+    Ok(out)
+}
+
 /// Encodes the buffer, or explains which tool the format needs.
 pub fn encode(
     format: ExportFormat,
@@ -175,6 +243,8 @@ pub fn encode(
             Ok(wav_bytes(samples, sample_rate, channels, format.bits()))
         }
         ExportFormat::Flac => flac_bytes(samples, sample_rate, channels),
+        #[cfg(feature = "mp3")]
+        ExportFormat::Mp3 => mp3_bytes(samples, sample_rate, channels, _quality),
         other => Err(format!(
             "{} is encoded through ffmpeg; install ffmpeg or export WAV/FLAC",
             other.label()
@@ -234,15 +304,34 @@ mod tests {
         assert_eq!(ExportFormat::parse("WAV"), Some(ExportFormat::Wav16));
         assert_eq!(ExportFormat::parse("mp3"), Some(ExportFormat::Mp3));
         assert_eq!(ExportFormat::parse("flac"), Some(ExportFormat::Flac));
+        #[cfg(not(feature = "mp3"))]
         assert!(ExportFormat::Mp3.needs_ffmpeg());
+        #[cfg(feature = "mp3")]
+        assert!(!ExportFormat::Mp3.needs_ffmpeg());
         assert!(!ExportFormat::Flac.needs_ffmpeg());
         assert_eq!(ExportFormat::Wav24.bits(), 24);
         assert_eq!(ExportFormat::parse("aiff"), None);
     }
 
+    #[cfg(not(feature = "mp3"))]
     #[test]
     fn mp3_asks_for_ffmpeg_instead_of_writing_a_fake_file() {
         let err = encode(ExportFormat::Mp3, &tone(64), 48_000, 2, 9).unwrap_err();
         assert!(err.contains("ffmpeg"));
+    }
+
+    #[cfg(feature = "mp3")]
+    #[test]
+    fn bundled_mp3_encoder_writes_a_real_stream() {
+        let bytes = encode(ExportFormat::Mp3, &tone(48_000), 48_000, 2, 9).unwrap();
+        assert!(
+            bytes.len() > 512,
+            "mp3 stream is too short: {}",
+            bytes.len()
+        );
+        // MPEG audio frames start with the 11-bit sync word.
+        assert_eq!(bytes[0], 0xff, "missing MPEG frame sync");
+        assert_eq!(bytes[1] & 0xe0, 0xe0);
+        assert!(!ExportFormat::Mp3.needs_ffmpeg());
     }
 }

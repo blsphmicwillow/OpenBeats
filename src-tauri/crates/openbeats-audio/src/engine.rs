@@ -26,7 +26,7 @@ use cpal::{FromSample, SampleFormat, SizedSample, SupportedBufferSize};
 use crate::devices::{self, AudioDeviceInfo, Candidate};
 use crate::dsp::{Compressor, Eq3, Transmitter, TruePeakLimiter};
 use crate::logger::AudioLogger;
-use crate::sequencer::{PlaybackProject, Sequencer};
+use crate::sequencer::{PlaybackChannel, PlaybackProject, Sequencer, Trigger};
 use crate::synth::VoicePool;
 use crate::DEFAULT_SAMPLE_RATE;
 
@@ -38,6 +38,17 @@ pub enum EngineCommand {
     /// Level of the cue (headphone) bus on outputs 3/4.
     SetCueGain(f32),
     TestTone(f32),
+    /// One synth note independent of the transport (instrument audition).
+    PreviewNote {
+        channel: PlaybackChannel,
+        pitch: u8,
+        velocity: f32,
+        seconds: f32,
+    },
+    /// A metronome click right now; `true` accents the first beat of the bar.
+    Click(bool),
+    /// Move the native transport without stopping the stream.
+    Seek(u32),
     /// Startup chime: decoded samples plus their original sample rate.
     Chime(Vec<f32>, u32),
     /// Reopen the stream on a named device, or the system default when `None`.
@@ -127,6 +138,10 @@ struct CallbackState {
     cue_gain: f32,
     tone_seconds_left: f32,
     tone_phase: f32,
+    click_left: f32,
+    click_phase: f32,
+    click_freq: f32,
+    triggers: Vec<Trigger>,
     chime: Vec<f32>,
     chime_pos: f32,
     chime_step: f32,
@@ -158,6 +173,10 @@ impl CallbackState {
             cue_gain: 1.0,
             tone_seconds_left: 0.0,
             tone_phase: 0.0,
+            click_left: 0.0,
+            click_phase: 0.0,
+            click_freq: 1_000.0,
+            triggers: Vec::with_capacity(64),
             chime: Vec::new(),
             chime_pos: 0.0,
             chime_step: 1.0,
@@ -167,6 +186,13 @@ impl CallbackState {
 
     /// Renders one stereo frame through the whole chain, plus the transmitter's
     /// transient reading for the UI.
+    /// Starts a short click; accented clicks are higher and louder.
+    fn trigger_click(&mut self, accent: bool) {
+        self.click_left = 0.045;
+        self.click_phase = 0.0;
+        self.click_freq = if accent { 1_760.0 } else { 1_100.0 };
+    }
+
     #[inline]
     fn next_frame(&mut self) -> (f32, f32, f32) {
         let mut left = 0.0f32;
@@ -174,24 +200,39 @@ impl CallbackState {
 
         // Disjoint field borrows so the sequencer can be read while the voice
         // pool is written.
-        let Self {
-            sequencer,
-            voice_pool,
-            ..
-        } = self;
-        if let Some(seq) = sequencer.as_mut() {
-            for trigger in seq.tick() {
-                if let Some(channel) = seq.project().channels.get(trigger.channel_index) {
-                    voice_pool.trigger_panned(
-                        channel,
-                        trigger.pitch,
-                        trigger.velocity,
-                        trigger.duration_sec,
-                        trigger.gain,
-                        trigger.pan,
-                    );
+        let mut click = None;
+        {
+            let Self {
+                sequencer,
+                voice_pool,
+                triggers,
+                ..
+            } = self;
+            if let Some(seq) = sequencer.as_mut() {
+                seq.tick_into(triggers);
+                for trigger in triggers.iter() {
+                    if let Some(channel) = seq.project().channels.get(trigger.channel_index) {
+                        voice_pool.trigger_panned(
+                            channel,
+                            trigger.pitch,
+                            trigger.velocity,
+                            trigger.duration_sec,
+                            trigger.gain,
+                            trigger.pan,
+                        );
+                    }
+                }
+                if seq.project().metronome {
+                    if let Some(step) = seq.last_emitted_step() {
+                        if step % 4 == 0 {
+                            click = Some(step % 16 == 0);
+                        }
+                    }
                 }
             }
+        }
+        if let Some(accent) = click {
+            self.trigger_click(accent);
         }
         let (voice_l, voice_r) = voice_pool.next_frame();
         left += voice_l;
@@ -205,6 +246,18 @@ impl CallbackState {
             left += tone;
             right += tone;
             self.tone_seconds_left -= 1.0 / self.sample_rate;
+        }
+
+        // Metronome click: a short sine burst on every quarter note.
+        if self.click_left > 0.0 {
+            let dt = self.click_freq / self.sample_rate.max(1.0);
+            self.click_phase = (self.click_phase + dt).fract();
+            let envelope = (self.click_left / 0.045).clamp(0.0, 1.0);
+            let value =
+                (2.0 * std::f32::consts::PI * self.click_phase).sin() * 0.3 * envelope * envelope;
+            left += value;
+            right += value;
+            self.click_left -= 1.0 / self.sample_rate.max(1.0);
         }
 
         // Startup chime, resampled to the open device rate.
@@ -352,6 +405,28 @@ impl NativeEngine {
 
     pub fn test_tone(&self, seconds: f32) {
         let _ = self.commands.send(EngineCommand::TestTone(seconds));
+    }
+
+    /// Plays one note outside the transport, for instrument audition.
+    pub fn preview_note(&self, channel: PlaybackChannel, pitch: u8, velocity: f32, seconds: f32) {
+        let _ = self.commands.send(EngineCommand::PreviewNote {
+            channel,
+            pitch,
+            velocity,
+            seconds,
+        });
+    }
+
+    /// A single metronome click, independent of playback.
+    pub fn click(&self, accent: bool) {
+        let _ = self.commands.send(EngineCommand::Click(accent));
+    }
+
+    /// Moves the sequencer while the stream keeps running.
+    pub fn seek(&self, step: u32) -> Result<(), String> {
+        self.commands
+            .send(EngineCommand::Seek(step))
+            .map_err(|_| "the audio engine stopped".to_string())
     }
 
     /// Plays the bundled startup chime through the main output stream.
@@ -570,6 +645,29 @@ fn apply_command(state: &mut CallbackState, shared: &Arc<Shared>, command: Engin
         EngineCommand::SetMasterGain(gain) => state.master_gain = gain.clamp(0.0, 2.0),
         EngineCommand::SetCueGain(gain) => state.cue_gain = gain.clamp(0.0, 2.0),
         EngineCommand::TestTone(seconds) => state.tone_seconds_left = seconds.max(0.0),
+        EngineCommand::PreviewNote {
+            channel,
+            pitch,
+            velocity,
+            seconds,
+        } => {
+            state.voice_pool.trigger_panned(
+                &channel,
+                pitch,
+                velocity.clamp(0.05, 1.0),
+                seconds.clamp(0.05, 8.0),
+                channel.gain.clamp(0.05, 2.0),
+                channel.pan.clamp(-1.0, 1.0),
+            );
+        }
+        EngineCommand::Click(accent) => state.trigger_click(accent),
+        EngineCommand::Seek(step) => {
+            state.voice_pool.all_notes_off();
+            if let Some(seq) = state.sequencer.as_mut() {
+                seq.seek(step);
+            }
+            shared.step.store(step, Ordering::Relaxed);
+        }
         EngineCommand::Chime(samples, rate) => {
             state.chime = samples;
             state.chime_pos = 0.0;

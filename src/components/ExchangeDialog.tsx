@@ -33,7 +33,7 @@ export function ExchangeDialog() {
   const [tab, setTab] = useState<Tab>('import');
   const [busy, setBusy] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
-  const { setUI, importSongFile, exportMidi, exportRpp, saveProjectFile, exportWav, openProjectFile } = useApp.getState();
+  const { setUI, importSongFile, exportMidi, exportRpp, saveProjectFile, openProjectFile } = useApp.getState();
 
   if (!open) return null;
 
@@ -159,12 +159,12 @@ export function ExchangeDialog() {
               <small>The full session: channels, patterns, clips, mixer, effects, routing and settings.</small>
               <span className="exchange-works">OpenBeats</span>
             </button>
-            <button className="exchange-card" onClick={() => void exportWav()}>
+            <button className="exchange-card" onClick={() => setUI({ exchangeOpen: false, exportOpen: true })}>
               <div className="exchange-card-head">
-                <b>Audio bounce</b>
-                <span className="exchange-badge">.wav</span>
+                <b>Audio export</b>
+                <span className="exchange-badge">.wav · .flac · .mp3</span>
               </div>
-              <small>Render the song to audio, optionally normalised for a streaming target.</small>
+              <small>Render the song to WAV, FLAC, MP3, OGG or M4A, optionally mastered for a streaming target.</small>
               <span className="exchange-works">any DAW or editor</span>
             </button>
           </div>

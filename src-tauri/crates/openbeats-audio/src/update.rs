@@ -120,6 +120,27 @@ fn score(name: &str, os: &str) -> u8 {
     }
 }
 
+/// Checks that `url` is an installer asset on this project's releases and
+/// returns its file name. Anything else is refused before a download starts.
+pub fn validate_installer_url(url: &str) -> Result<String, String> {
+    const PREFIX: &str = "https://github.com/blsphmicwillow/OpenBeats/releases/download/";
+    let url = url.trim();
+    if !url.starts_with(PREFIX) {
+        return Err("refusing to install an update from an unknown source".into());
+    }
+    let name = url
+        .rsplit('/')
+        .next()
+        .unwrap_or("")
+        .split('?')
+        .next()
+        .unwrap_or("");
+    if name.is_empty() || name.contains("..") || name.contains('\\') || name.contains('/') {
+        return Err("the update URL does not name a file".into());
+    }
+    Ok(name.to_string())
+}
+
 /// Parses the GitHub `/releases/latest` payload.
 ///
 /// Returns `Ok(None)` when the running version is current, and an error when the
@@ -233,6 +254,26 @@ mod tests {
         // Prerelease suffixes are ignored: only the dotted numbers count.
         assert_eq!(compare("v2.0.0-beta", "2.0.0"), Ordering::Equal);
         assert_eq!(compare("2.1.0-beta", "2.0.0"), Ordering::Greater);
+    }
+
+    #[test]
+    fn installer_urls_must_point_at_our_github_releases() {
+        assert_eq!(
+            validate_installer_url(
+                "https://github.com/blsphmicwillow/OpenBeats/releases/download/v1.0.2/OpenBeats_1.0.2_amd64.AppImage"
+            )
+            .unwrap(),
+            "OpenBeats_1.0.2_amd64.AppImage"
+        );
+        assert!(validate_installer_url("https://evil.test/OpenBeats.AppImage").is_err());
+        assert!(validate_installer_url(
+            "https://github.com/blsphmicwillow/OpenBeats/releases/download/v1/..%2f..%2fetc%2fpasswd"
+        )
+        .is_err());
+        assert!(validate_installer_url(
+            "https://github.com/other/repo/releases/download/v1/a.AppImage"
+        )
+        .is_err());
     }
 
     #[test]

@@ -24,7 +24,7 @@ export function BrowserPanel() {
   const [openPacks, setOpenPacks] = useState<string[]>([]);
   const sampleInput = useRef<HTMLInputElement>(null);
   const projectInput = useRef<HTMLInputElement>(null);
-  const { addChannel, saveProjectFile, openProjectFile, newProject, exportWav, importSampleFiles, setUI, hint, toast } = useApp.getState();
+  const { addChannel, saveProjectFile, openProjectFile, newProject, importSampleFiles, setUI, hint, toast } = useApp.getState();
 
   useEffect(() => {
     if (!ui.browserOpen) return;
@@ -211,9 +211,9 @@ export function BrowserPanel() {
               <IconFolder size={12} />
               <span>Open a project…</span>
             </div>
-            <div className="browser-item" onClick={() => void exportWav()}>
+            <div className="browser-item" onClick={() => setUI({ exportOpen: true })}>
               <IconWave size={12} />
-              <span>Bounce song to WAV</span>
+              <span>Export audio…</span>
             </div>
             <div className="browser-group">Start fresh</div>
             <div className="browser-item" onClick={() => newProject('blank')}>

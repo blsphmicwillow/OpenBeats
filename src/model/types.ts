@@ -286,6 +286,8 @@ export interface UpdateInfo {
   url: string;
   publishedAt?: string;
   repo: string;
+  /** Direct installer for this platform, when the release has one. */
+  downloadUrl?: string;
 }
 
 export interface UIState {
@@ -304,6 +306,7 @@ export interface UIState {
   humOpen: boolean;
   inspireOpen: boolean;
   exchangeOpen: boolean;
+  exportOpen: boolean;
   projectHubOpen: boolean;
   pluginsOpen: boolean;
   update: UpdateInfo | null;

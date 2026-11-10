@@ -42,7 +42,6 @@ export function TopBar() {
     saveProjectFile,
     newProject,
     openProjectFile,
-    exportWav,
     selectPattern,
     addPattern,
     duplicatePattern,
@@ -76,10 +75,9 @@ export function TopBar() {
     { label: 'Load demo song', onClick: () => newProject('demo') },
     { separator: true },
     { label: 'Open project…', shortcut: 'Ctrl+O', onClick: () => fileRef.current?.click() },
-    { label: 'Save project (.obeats)', shortcut: 'Ctrl+S', onClick: saveProjectFile },
+    { label: 'Save project as…', shortcut: 'Ctrl+S', onClick: saveProjectFile },
     { label: 'Import / export song…', onClick: () => setUI({ exchangeOpen: true }) },
-    { separator: true },
-    { label: 'Bounce to WAV', onClick: () => void exportWav() },
+    { label: 'Export audio…', onClick: () => setUI({ exportOpen: true }) },
     { separator: true },
     { label: 'Reset all settings & project', danger: true, onClick: resetAll },
   ];
@@ -172,9 +170,9 @@ export function TopBar() {
     { label: 'New project', onClick: () => newProject('blank') },
     { label: 'Load demo song', onClick: () => newProject('demo') },
     { label: 'Open project…', onClick: () => fileRef.current?.click() },
-    { label: 'Save project', onClick: saveProjectFile },
+    { label: 'Save project as…', onClick: saveProjectFile },
     { label: 'Import / export song…', onClick: () => setUI({ exchangeOpen: true }) },
-    { label: 'Bounce to WAV', onClick: () => void exportWav() },
+    { label: 'Export audio…', onClick: () => setUI({ exportOpen: true }) },
     { separator: true },
     { label: 'Undo', disabled: !history.past.length, onClick: undo },
     { label: 'Redo', disabled: !history.future.length, onClick: redo },
@@ -410,17 +408,17 @@ export function TopBar() {
       </div>
 
       <div className="tb-group actions-group">
-        <button className="tbtn" onClick={saveProjectFile} title="Save project (Ctrl+S)" aria-label="Save project" onMouseEnter={() => hint('Save the whole project as a portable .obeats file.')}>
+        <button className="tbtn" onClick={saveProjectFile} title="Save project as… (Ctrl+S)" aria-label="Save project as" onMouseEnter={() => hint('Save the whole project as a portable .obeats file, anywhere on disk.')}>
           <IconSave size={13} />
         </button>
         <button
           className="tbtn"
-          onClick={() => void exportWav()}
+          onClick={() => setUI({ exportOpen: true })}
           disabled={!!ui.exporting}
           data-tour="bounce"
-          title="Bounce the song to WAV"
-          aria-label="Bounce the song to WAV"
-          onMouseEnter={() => hint('Bounce the arrangement to a 16-bit stereo WAV using an offline render.')}
+          title="Export the song to audio"
+          aria-label="Export the song to audio"
+          onMouseEnter={() => hint('Render the arrangement offline to WAV, FLAC, MP3, OGG or M4A.')}
         >
           <IconDownload size={13} />
           {ui.exporting ? 'Rendering…' : 'Bounce'}

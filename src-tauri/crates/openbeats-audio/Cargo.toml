@@ -1,6 +1,6 @@
 [package]
 name = "openbeats-audio"
-version = "1.0.1"
+version = "1.0.2"
 edition = "2021"
 rust-version = "1.92"
 description = "OpenBeats native audio engine: DSP, sequencer, synth voices and the CPAL device layer"
@@ -25,6 +25,8 @@ symphonia = { version = "0.5", optional = true, default-features = false, featur
 rustfft = "6"
 # Pure-Rust FLAC encoder used by the export dialog.
 flacenc = "0.5"
+# Bundled LAME encoder, so MP3 export does not depend on ffmpeg.
+mp3lame-encoder = { version = "0.3", optional = true }
 
 [features]
 # Pure DSP + sequencing: builds and tests on any machine, no system libraries.
@@ -33,5 +35,7 @@ default = []
 device = ["dep:cpal"]
 # Decoding for the sample preview, pack import and audio-to-note input.
 decode = ["dep:symphonia"]
+# Bundled MP3 encoding for the export dialog (builds LAME from source).
+mp3 = ["dep:mp3lame-encoder"]
 # fundsp-backed oscillator graph for the test tone and the master glue.
 fundsp-graph = ["dep:fundsp"]

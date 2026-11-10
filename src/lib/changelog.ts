@@ -11,6 +11,49 @@ export interface ChangelogEntry {
  */
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '1.0.2',
+    date: '2026-11-10',
+    headline: 'Auditioning through the engine, a draggable playhead, bundled MP3 export and a working updater.',
+    groups: [
+      {
+        title: 'Auditioning and playback',
+        items: [
+          'Browser samples, channel-rack test notes and the metronome play through a dedicated CPAL preview voice that bypasses the sequencer, so they sound while the transport is stopped.',
+          'Clicking an instrument fires a one-shot C4 note at velocity 100 through the native synth; a second click replaces the preview.',
+          'The metronome is rendered in the audio callback, accented every 16 steps, and the engine picks up toggles without a restart.',
+          'Seeking during native playback sends a seek command instead of stopping and restarting the stream.',
+        ],
+      },
+      {
+        title: 'Timeline and devices',
+        items: [
+          'A thicker, draggable playhead with a grab cursor: dragging updates the native playhead in real time, and the playlist and piano roll follow playback when it leaves the viewport.',
+          'Friendly input and output device names by default. Dev Mode is off by default and reveals the raw ALSA/PipeWire strings, host API, channels and sample rates.',
+        ],
+      },
+      {
+        title: 'Export and files',
+        items: [
+          'MP3 export uses the bundled LAME encoder at 128/192/320 kbps instead of ffmpeg. WAV, 24-bit WAV and FLAC stay native; OGG and M4A use ffmpeg when installed.',
+          'The desktop export command opens the native save dialog, and Save project as… writes .obeats files anywhere on disk.',
+        ],
+      },
+      {
+        title: 'Updates',
+        items: [
+          'The update button downloads the current platform installer, validates that it comes from this repository’s GitHub releases, marks the Linux AppImage executable, launches it and restarts the app.',
+        ],
+      },
+      {
+        title: 'Performance and tests',
+        items: [
+          'The sequencer renders into a preallocated trigger buffer reused by the audio callback, removing per-tick allocation from the playback path.',
+          '243 audio-crate unit tests cover metronome defaults, preview and seek, trigger-buffer reuse, installer URL validation and the bundled MP3 stream, and CI runs them with the mp3 feature enabled.',
+        ],
+      },
+    ],
+  },
+  {
     version: '1.0.1',
     date: '2026-11-10',
     headline: 'Exporters, sample packs, input tools, a rebuilt tour and smoother timeline editing.',

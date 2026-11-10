@@ -42,7 +42,7 @@ export function CommandPalette() {
       { id: 'play', section: 'Transport', label: s.transport.playing ? 'Stop' : 'Play', hint: 'Space', run: () => s.togglePlay() },
       { id: 'songmode', section: 'Transport', label: 'Toggle pattern / song mode', hint: 'L', run: () => s.toggleSongMode() },
       { id: 'metronome', section: 'Transport', label: 'Toggle metronome', hint: 'C', run: () => s.toggleMetronome() },
-      { id: 'bounce', section: 'Audio', label: 'Bounce song to WAV', run: () => void s.exportWav() },
+      { id: 'bounce', section: 'Audio', label: 'Export audio (WAV, FLAC, MP3, OGG, M4A)', run: () => s.setUI({ exportOpen: true }) },
       { id: 'exchange', section: 'Project', label: 'Import / export song (MIDI, Ableton, REAPER)', run: () => s.setUI({ exchangeOpen: true }) },
       { id: 'export-midi', section: 'Project', label: 'Export multi-track MIDI', run: () => void s.exportMidi() },
       { id: 'export-rpp', section: 'Project', label: 'Export REAPER project', run: () => void s.exportRpp() },

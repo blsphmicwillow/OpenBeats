@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { patternById, useApp } from '../store';
 import { songLengthSteps } from '../audio/sequencer';
 import { IconGrid, IconPiano, IconPlus, IconTrash } from '../ui/icons';
+import { keepPlayheadVisible } from '../lib/playheadFollow';
 
 const HEAD = 142;
 
@@ -191,6 +192,12 @@ export function Playlist() {
       document.body.style.cursor = '';
     };
   }, [zoom, snap, updateClip, beginDrag]);
+
+  // Follow the transport while it rolls: scroll only when the playhead would
+  // leave the viewport, so manual scrolling is not fought every step.
+  useEffect(() => {
+    if (transport.playing) keepPlayheadVisible(scrollRef.current, '.playhead-line', 96);
+  }, [transport.step, transport.playing]);
 
   const clipMenu = (e: React.MouseEvent, clipId: string) => {
     e.preventDefault();

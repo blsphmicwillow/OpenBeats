@@ -23,7 +23,7 @@ use openbeats_audio::piano_tools::{
 use openbeats_audio::playlist_tools::{
     chop as chop_span, quantize_start, slice as slice_span, ClipSpan,
 };
-use openbeats_audio::sequencer::PlaybackProject;
+use openbeats_audio::sequencer::{PlaybackChannel, PlaybackProject};
 use openbeats_audio::theme::css_variables;
 use openbeats_audio::workflow::{
     auto_gain_staging, health_check, humanize, tap_tempo, Groove, HealthIssue, ProjectHealth,
@@ -140,6 +140,80 @@ pub fn play_test_tone(state: State<'_, AudioState>) -> Result<(), String> {
     }
     if let Some(engine) = guard.as_ref() {
         engine.test_tone(1.5);
+    }
+    Ok(())
+}
+
+/// Plays one instrument note outside the transport: clicking a channel in the
+/// rack, or a key in the piano roll, must not depend on the sequencer.
+#[tauri::command]
+#[allow(clippy::too_many_arguments)]
+pub fn play_test_note(
+    state: State<'_, AudioState>,
+    preset: String,
+    pitch: u8,
+    velocity: Option<f32>,
+    gain: Option<f32>,
+    pan: Option<f32>,
+    root: Option<u8>,
+    attack: Option<f32>,
+    decay: Option<f32>,
+    release: Option<f32>,
+    tone: Option<f32>,
+) -> Result<(), String> {
+    let mut guard = state
+        .engine
+        .lock()
+        .map_err(|_| "the audio state is unavailable".to_string())?;
+    if guard.is_none() {
+        *guard = Some(NativeEngine::start()?);
+    }
+    let channel = PlaybackChannel {
+        id: "preview".into(),
+        preset,
+        gain: gain.unwrap_or(0.9).clamp(0.05, 2.0),
+        pan: pan.unwrap_or(0.0).clamp(-1.0, 1.0),
+        mute: false,
+        solo: false,
+        root: root.unwrap_or(pitch),
+        attack: attack.unwrap_or(0.01),
+        decay: decay.unwrap_or(0.35),
+        release: release.unwrap_or(0.25),
+        tone: tone.unwrap_or(0.5),
+    };
+    guard
+        .as_ref()
+        .ok_or_else(|| "the audio engine did not start".to_string())?
+        .preview_note(channel, pitch, velocity.unwrap_or(0.85), 0.6);
+    Ok(())
+}
+
+/// Plays one metronome click immediately, even with the transport stopped.
+#[tauri::command]
+pub fn play_metronome(state: State<'_, AudioState>, accent: Option<bool>) -> Result<(), String> {
+    let mut guard = state
+        .engine
+        .lock()
+        .map_err(|_| "the audio state is unavailable".to_string())?;
+    if guard.is_none() {
+        *guard = Some(NativeEngine::start()?);
+    }
+    guard
+        .as_ref()
+        .ok_or_else(|| "the audio engine did not start".to_string())?
+        .click(accent.unwrap_or(false));
+    Ok(())
+}
+
+/// Moves the native playhead without stopping and restarting the stream.
+#[tauri::command]
+pub fn set_playhead_position(state: State<'_, AudioState>, step: u32) -> Result<(), String> {
+    let guard = state
+        .engine
+        .lock()
+        .map_err(|_| "the audio state is unavailable".to_string())?;
+    if let Some(engine) = guard.as_ref() {
+        engine.seek(step)?;
     }
     Ok(())
 }

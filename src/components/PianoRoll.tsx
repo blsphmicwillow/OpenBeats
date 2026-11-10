@@ -11,6 +11,7 @@ const BLACK = new Set([1, 3, 6, 8, 10]);
 import { detectKey } from '../lib/theory';
 import { scrollAtEdges, type ScrollEdge } from '../lib/edgeScroll';
 import { chordAtStep } from '../lib/chords';
+import { keepPlayheadVisible } from '../lib/playheadFollow';
 
 const NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 const SCALES: Record<string, number[]> = {
@@ -70,6 +71,11 @@ export function PianoRoll() {
   const color = channel?.color ?? 'var(--accent)';
   const detectedKey = detectKey(project.patterns.flatMap((p) => Object.values(p.notes).flat()));
   const playheadChord = chordAtStep(notes, transport.step)?.name ?? null;
+
+  // Keep the playhead in view during playback without hijacking manual scroll.
+  useEffect(() => {
+    if (transport.playing) keepPlayheadVisible(scrollRef.current, '.playhead-line', 56);
+  }, [transport.step, transport.playing]);
 
   const inScale = (pitch: number) => {
     if (!scale || scale === 'Off') return false;

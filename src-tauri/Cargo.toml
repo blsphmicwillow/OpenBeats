@@ -1,6 +1,6 @@
 [package]
 name = "openbeats"
-version = "1.0.1"
+version = "1.0.2"
 description = "OpenBeats — open-source beatmaking studio"
 authors = ["OpenBeats"]
 edition = "2021"
@@ -30,7 +30,7 @@ reqwest = { version = "0.12", default-features = false, features = ["json", "blo
 zip = { version = "2", default-features = false, features = ["deflate"] }
 
 # Native audio engine: CPAL device layer + fundsp graph.
-openbeats-audio = { path = "crates/openbeats-audio", features = ["device", "fundsp-graph", "decode"] }
+openbeats-audio = { path = "crates/openbeats-audio", features = ["device", "fundsp-graph", "decode", "mp3"] }
 # VST3 / CLAP hosting, isolated in the plughost helper process.
 openbeats-plugins = { path = "crates/openbeats-plugins" }
 

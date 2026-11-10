@@ -41,7 +41,7 @@ const STEPS: Step[] = [
         </p>
         <p>
           <b>Loop</b> follows the orange bar in the playlist, <b>Metro</b> adds a click, and the master knob sets the final
-          level. <b>Bounce</b> renders the song to WAV faster than real time; <b>R</b> arms QWERTY recording.
+          level. <b>Bounce</b> opens the export dialog and renders faster than real time; <b>R</b> arms QWERTY recording.
         </p>
       </>
     ),
@@ -171,7 +171,8 @@ const STEPS: Step[] = [
     body: (
       <>
         <p>
-          <b>Bounce</b> renders the arrangement to a 16-bit stereo WAV. <b>Save</b> writes a portable{' '}
+          <b>Bounce</b> opens the export dialog: WAV 16/24-bit and FLAC render in the app, while MP3, OGG and M4A use
+          ffmpeg, each with optional mastering. <b>Save</b> writes a portable{' '}
           <span className="code">.obeats</span> project with channels, patterns, clips and mixer state.
         </p>
         <p>
@@ -220,7 +221,7 @@ const STEPS: Step[] = [
       <>
         <p>
           Start from the demo or File ▸ New project. Save an <span className="code">.obeats</span> file to keep a song, and
-          bounce a WAV when it is done.
+          export audio when it is done.
         </p>
         <p>
           Try <span className="kbd">Ctrl</span>+<span className="kbd">K</span> for the command palette, and{' '}

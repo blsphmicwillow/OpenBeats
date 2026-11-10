@@ -79,6 +79,9 @@ pub struct PlaybackProject {
     pub swing: f32,
     #[serde(default = "unity")]
     pub master_gain: f32,
+    /// Click on every quarter note while the transport rolls.
+    #[serde(default)]
+    pub metronome: bool,
     /// Total steps in the pattern or arrangement.
     pub steps: u32,
     /// Step to begin at, so a native transport can resume from the playhead.
@@ -176,6 +179,8 @@ pub struct Sequencer {
     samples_per_step: f64,
     frame_in_step: f64,
     step: u32,
+    /// The step emitted by the most recent tick, for the metronome.
+    last_emitted: Option<u32>,
     playing: bool,
     finished: bool,
 }
@@ -194,6 +199,7 @@ impl Sequencer {
             samples_per_step: samples_per_step.max(1.0),
             frame_in_step: 0.0,
             step: start,
+            last_emitted: None,
             playing: true,
             finished: false,
         }
@@ -219,20 +225,42 @@ impl Sequencer {
         self.playing = false;
     }
 
+    /// The step whose triggers were emitted last, or `None` before the first.
+    pub fn last_emitted_step(&self) -> Option<u32> {
+        self.last_emitted
+    }
+
+    /// Jumps to `step` without restarting the stream (playhead drag).
+    pub fn seek(&mut self, step: u32) {
+        self.step = step.min(self.project.steps.max(1).saturating_sub(1));
+        self.frame_in_step = 0.0;
+        self.last_emitted = None;
+        self.playing = true;
+        self.finished = false;
+    }
+
     /// Advances by one frame and returns the triggers that start on the new step.
     pub fn tick(&mut self) -> Vec<Trigger> {
+        let mut triggers = Vec::new();
+        self.tick_into(&mut triggers);
+        triggers
+    }
+
+    /// Allocation-free tick for the audio callback: reuses the caller's buffer.
+    pub fn tick_into(&mut self, triggers: &mut Vec<Trigger>) {
+        triggers.clear();
         if !self.playing || self.finished {
-            return Vec::new();
+            return;
         }
         self.frame_in_step += 1.0;
         if self.frame_in_step < self.samples_per_step {
-            return Vec::new();
+            return;
         }
         self.frame_in_step -= self.samples_per_step;
-        self.advance_step()
+        self.advance_step(triggers);
     }
 
-    fn advance_step(&mut self) -> Vec<Trigger> {
+    fn advance_step(&mut self, triggers: &mut Vec<Trigger>) {
         let total = self.project.steps.max(1);
         let loop_end = if self.project.loop_enabled {
             self.project.loop_end.clamp(1, total)
@@ -242,9 +270,9 @@ impl Sequencer {
 
         // Emit for the step we are on, then advance: otherwise step 0 is silent.
         let current = self.step;
+        self.last_emitted = Some(current);
         let audible = self.project.audible();
         let step_sec = self.samples_per_step as f32 / self.sample_rate;
-        let mut triggers = Vec::new();
 
         for note in &self.notes {
             if note.start.round() as u32 != current {
@@ -280,7 +308,6 @@ impl Sequencer {
                 self.finished = true;
             }
         }
-        triggers
     }
 }
 
@@ -293,6 +320,7 @@ mod tests {
             bpm: 120.0, // 8 steps per second
             swing: 0.0,
             master_gain: 1.0,
+            metronome: false,
             steps: 16,
             start_step: 0,
             loop_enabled: false,
@@ -488,6 +516,40 @@ mod tests {
         assert_eq!(first.pitch, 48, "clip pitch offset not applied");
         assert!((first.gain - 0.5).abs() < 1e-6);
         assert!((first.pan - 0.5).abs() < 1e-6);
+    }
+
+    #[test]
+    fn metronome_defaults_off_and_parses_from_json() {
+        let mut p = project();
+        p.metronome = true;
+        let parsed = PlaybackProject::from_json(&serde_json::to_string(&p).unwrap()).unwrap();
+        assert!(parsed.metronome);
+        let off = PlaybackProject::from_json("{\"bpm\":120,\"steps\":16}").unwrap();
+        assert!(!off.metronome);
+    }
+
+    #[test]
+    fn tick_into_reuses_the_caller_buffer_and_reports_the_emitted_step() {
+        let mut seq = Sequencer::new(project(), 8_000.0);
+        let mut buffer = Vec::new();
+        for _ in 0..(8_000 * 2) {
+            seq.tick_into(&mut buffer);
+        }
+        assert_eq!(seq.last_emitted_step(), Some(15));
+        assert!(
+            buffer.capacity() > 0,
+            "buffer should be reused, not reallocated"
+        );
+    }
+
+    #[test]
+    fn seek_moves_the_playhead_without_restarting() {
+        let mut seq = Sequencer::new(project(), 8_000.0);
+        seq.seek(12);
+        assert_eq!(seq.step(), 12);
+        assert!(seq.is_playing());
+        seq.seek(9_999);
+        assert!(seq.step() < 16);
     }
 
     #[test]

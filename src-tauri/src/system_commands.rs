@@ -139,6 +139,118 @@ pub async fn check_for_updates() -> Result<UpdateCheck, String> {
  * Sample preview
  * ------------------------------------------------------------------ */
 
+/* ------------------------------------------------------------------ *
+ * Update installation
+ * ------------------------------------------------------------------ */
+
+#[cfg(target_os = "linux")]
+fn launch_installer(path: &PathBuf) -> Result<bool, String> {
+    let is_appimage = path
+        .extension()
+        .and_then(|ext| ext.to_str())
+        .map(|ext| ext.eq_ignore_ascii_case("appimage"))
+        .unwrap_or(false);
+    let mut command = if is_appimage {
+        std::process::Command::new(path)
+    } else {
+        let mut opener = std::process::Command::new("xdg-open");
+        opener.arg(path);
+        opener
+    };
+    command
+        .spawn()
+        .map_err(|e| format!("could not launch the installer: {e}"))?;
+    // Only the AppImage replaces the running binary; a package opens its
+    // installer and the app stays up until the user relaunches it.
+    Ok(is_appimage)
+}
+
+#[cfg(target_os = "macos")]
+fn launch_installer(path: &PathBuf) -> Result<bool, String> {
+    std::process::Command::new("open")
+        .arg(path)
+        .spawn()
+        .map_err(|e| format!("could not open the disk image: {e}"))?;
+    Ok(true)
+}
+
+#[cfg(target_os = "windows")]
+fn launch_installer(path: &PathBuf) -> Result<bool, String> {
+    std::process::Command::new(path)
+        .spawn()
+        .map_err(|e| format!("could not launch the installer: {e}"))?;
+    Ok(true)
+}
+
+/// Downloads the release installer for `url`, launches it and restarts the app.
+///
+/// The URL must be an asset on this project's GitHub releases; anything else is
+/// refused so a malformed update payload cannot run arbitrary files.
+#[tauri::command]
+pub async fn perform_update(app: AppHandle, url: String) -> Result<String, String> {
+    let url = url.trim().to_string();
+    let file_name = update::validate_installer_url(&url)?;
+
+    let dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| format!("the app data folder is unavailable: {e}"))?
+        .join("updates");
+    std::fs::create_dir_all(&dir)
+        .map_err(|e| format!("could not create {}: {e}", dir.display()))?;
+    let target = dir.join(&file_name);
+    let download_target = target.clone();
+    let download_url = url.clone();
+
+    tauri::async_runtime::spawn_blocking(move || {
+        let client = reqwest::blocking::Client::builder()
+            .timeout(Duration::from_secs(600))
+            .user_agent("OpenBeats")
+            .build()
+            .map_err(|e| format!("could not start the download: {e}"))?;
+        let response = client
+            .get(&download_url)
+            .send()
+            .map_err(|e| format!("could not reach GitHub: {e}"))?
+            .error_for_status()
+            .map_err(|e| format!("GitHub answered: {e}"))?;
+        let bytes = response
+            .bytes()
+            .map_err(|e| format!("could not read the installer: {e}"))?;
+        if bytes.len() < 1_024 {
+            return Err("the downloaded installer looks incomplete".to_string());
+        }
+        std::fs::write(&download_target, &bytes)
+            .map_err(|e| format!("could not write {}: {e}", download_target.display()))?;
+        Ok::<(), String>(())
+    })
+    .await
+    .map_err(|e| format!("the update task failed: {e}"))??;
+
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let mode = std::fs::metadata(&target)
+            .map(|meta| meta.permissions().mode())
+            .unwrap_or(0);
+        let _ = std::fs::set_permissions(&target, std::fs::Permissions::from_mode(mode | 0o111));
+    }
+
+    let restart = launch_installer(&target)?;
+    if restart {
+        let handle = app.clone();
+        std::thread::spawn(move || {
+            std::thread::sleep(Duration::from_millis(900));
+            handle.restart();
+        });
+        Ok("Installing the update — the app will restart.".into())
+    } else {
+        Ok(format!(
+            "Downloaded {file_name} — finish the install in your package manager."
+        ))
+    }
+}
+
 /// Decodes a file and plays it on the preview stream, replacing any preview
 /// already playing. The project engine is untouched.
 #[tauri::command]

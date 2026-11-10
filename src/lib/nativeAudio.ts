@@ -68,6 +68,8 @@ export interface PlaybackSnapshot {
   bpm: number;
   swing: number;
   master_gain: number;
+  /** Click on every quarter note while the transport rolls. */
+  metronome: boolean;
   steps: number;
   loop_enabled: boolean;
   loop_start: number;
@@ -202,6 +204,7 @@ export function buildPlaybackSnapshot(
     bpm: project.bpm,
     swing: project.swing,
     master_gain: project.masterGain,
+    metronome: project.metronome,
     steps,
     loop_enabled: project.loop,
     loop_start: project.loopStart,
@@ -794,12 +797,57 @@ export async function nativeExportAudio(opts: {
   for (let i = 0; i < bytes.length; i += chunk) {
     binary += String.fromCharCode(...bytes.subarray(i, i + chunk));
   }
-  return nativeInvoke<string>('export_audio', {
+  return nativeInvoke<string>('export_audio_with_dialog', {
     format: opts.format,
     quality: opts.quality ?? 5,
     sampleRate: opts.sampleRate,
     channels: opts.channels,
     pcmBase64: btoa(binary),
-    path: opts.path ?? null,
   });
+}
+
+/** One instrument note outside the transport (rack audition, piano keys). */
+export async function nativePlayTestNote(opts: {
+  preset: string;
+  pitch: number;
+  velocity?: number;
+  gain?: number;
+  pan?: number;
+  root?: number;
+  attack?: number;
+  decay?: number;
+  release?: number;
+  tone?: number;
+}): Promise<void> {
+  if (!isNative()) return;
+  await nativeInvoke<null>('play_test_note', {
+    preset: opts.preset,
+    pitch: opts.pitch,
+    velocity: opts.velocity ?? 0.85,
+    gain: opts.gain ?? 0.9,
+    pan: opts.pan ?? 0,
+    root: opts.root ?? opts.pitch,
+    attack: opts.attack ?? 0.01,
+    decay: opts.decay ?? 0.35,
+    release: opts.release ?? 0.25,
+    tone: opts.tone ?? 0.5,
+  });
+}
+
+/** One metronome click, even with the transport stopped. */
+export async function nativePlayMetronome(accent = false): Promise<void> {
+  if (!isNative()) return;
+  await nativeInvoke<null>('play_metronome', { accent });
+}
+
+/** Moves the native playhead without stopping the stream. */
+export async function nativeSetPlayhead(step: number): Promise<void> {
+  if (!isNative()) return;
+  await nativeInvoke<null>('set_playhead_position', { step: Math.max(0, Math.round(step)) });
+}
+
+/** Downloads and launches a release installer; a string is the status message. */
+export async function nativePerformUpdate(url: string): Promise<string | null> {
+  if (!isNative()) return null;
+  return nativeInvoke<string>('perform_update', { url });
 }

@@ -6,6 +6,8 @@ export interface UpdateInfo {
   url: string;
   publishedAt?: string;
   repo: string;
+  /** Direct installer for this platform, when the release has one. */
+  downloadUrl?: string;
 }
 
 /** Numeric semver comparison; ignores a leading "v". Returns >0 when a is newer. */
@@ -30,6 +32,22 @@ function timeout(ms: number): AbortSignal {
   const ctrl = new AbortController();
   window.setTimeout(() => ctrl.abort(), ms);
   return ctrl.signal;
+}
+
+/** Picks the installer for the running platform from a release's assets. */
+function pickDownload(assets: { name?: string; browser_download_url?: string }[]): string | undefined {
+  const files = assets.filter((asset) => asset.name && asset.browser_download_url);
+  const ua = navigator.userAgent.toLowerCase();
+  const preferred = ua.includes('win')
+    ? ['.msi', '.exe']
+    : ua.includes('mac')
+      ? ['.dmg', '.tar.gz']
+      : ['.appimage', '.deb', '.rpm'];
+  for (const extension of preferred) {
+    const hit = files.find((asset) => asset.name!.toLowerCase().endsWith(extension));
+    if (hit) return hit.browser_download_url;
+  }
+  return undefined;
 }
 
 /**
@@ -57,6 +75,7 @@ export async function checkForUpdate(
       published_at?: string;
       draft?: boolean;
       prerelease?: boolean;
+      assets?: { name?: string; browser_download_url?: string }[];
     };
     if (data.draft || data.prerelease) return null;
     const version = (data.tag_name ?? data.name ?? '').replace(/^v/i, '').trim();
@@ -67,6 +86,7 @@ export async function checkForUpdate(
       url: data.html_url ?? `https://github.com/${clean}/releases`,
       publishedAt: data.published_at,
       repo: clean,
+      downloadUrl: pickDownload(data.assets ?? []),
     };
   } catch {
     return null;
