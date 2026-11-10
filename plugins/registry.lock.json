@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "fetchedAt": "2026-11-10T04:43:11.389Z",
+  "source": "plugins/registry.json",
+  "entries": [
+    {
+      "id": "openbeats-gain",
+      "repo": "blsphmicwillow/OpenBeats",
+      "tag": "openbeats-gain-v0.1.0",
+      "name": "OpenBeats Gain 0.1.0 — VST3/CLAP proof plugin",
+      "url": "https://github.com/blsphmicwillow/OpenBeats/releases/tag/openbeats-gain-v0.1.0",
+      "publishedAt": "2026-11-10T04:42:58Z",
+      "draft": false,
+      "prerelease": false,
+      "assets": [
+        {
+          "name": "OpenBeatsGain-0.1.0-linux-x86_64.tar.gz",
+          "size": 766073,
+          "downloadUrl": "https://github.com/blsphmicwillow/OpenBeats/releases/download/openbeats-gain-v0.1.0/OpenBeatsGain-0.1.0-linux-x86_64.tar.gz"
+        }
+      ]
+    }
+  ]
+}
