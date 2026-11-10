@@ -17,7 +17,7 @@ use openbeats_audio::io::{InputCapture, PreviewEngine};
 use openbeats_audio::packs::{self, Pack, PackImport};
 use openbeats_audio::suggestion;
 use openbeats_audio::update;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager, State};
 use tauri_plugin_dialog::DialogExt;
 
@@ -54,6 +54,12 @@ pub struct UpdateCheck {
     pub current: String,
     pub latest: Option<update::UpdateInfo>,
     pub releases_url: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct UpdateAssetInput {
+    pub name: String,
+    pub url: String,
 }
 
 /* ------------------------------------------------------------------ *
@@ -143,53 +149,222 @@ pub async fn check_for_updates() -> Result<UpdateCheck, String> {
  * Update installation
  * ------------------------------------------------------------------ */
 
+/// What the caller should do after an installer has been prepared.
+enum UpdateAction {
+    /// AppImage: the file at this path has already been replaced; run it.
+    Relaunch(PathBuf),
+    /// A helper process will finish the install and relaunch OpenBeats.
+    Exit,
+    /// The OS installer is open; keep OpenBeats running.
+    StayOpen(String),
+}
+
+const MAX_INSTALLER_BYTES: u64 = 600 * 1024 * 1024;
+
 #[cfg(target_os = "linux")]
-fn launch_installer(path: &PathBuf) -> Result<bool, String> {
-    let is_appimage = path
-        .extension()
-        .and_then(|ext| ext.to_str())
-        .map(|ext| ext.eq_ignore_ascii_case("appimage"))
+fn linux_install_flags() -> (bool, bool, bool) {
+    let appimage = std::env::var_os("APPIMAGE")
+        .map(|path| !path.is_empty())
         .unwrap_or(false);
-    let mut command = if is_appimage {
-        std::process::Command::new(path)
-    } else {
-        let mut opener = std::process::Command::new("xdg-open");
-        opener.arg(path);
-        opener
-    };
-    command
-        .spawn()
-        .map_err(|e| format!("could not launch the installer: {e}"))?;
-    // Only the AppImage replaces the running binary; a package opens its
-    // installer and the app stays up until the user relaunches it.
-    Ok(is_appimage)
+    let os_release = std::fs::read_to_string("/etc/os-release")
+        .unwrap_or_default()
+        .to_ascii_lowercase();
+    let debian = Path::new("/etc/debian_version").exists()
+        || os_release.contains("debian")
+        || os_release.contains("ubuntu");
+    let rpm = Path::new("/etc/redhat-release").exists()
+        || Path::new("/etc/fedora-release").exists()
+        || os_release.contains("fedora")
+        || os_release.contains("rhel")
+        || os_release.contains("centos")
+        || os_release.contains("suse");
+    (appimage, debian, rpm)
+}
+
+#[cfg(not(target_os = "linux"))]
+fn linux_install_flags() -> (bool, bool, bool) {
+    (false, false, false)
+}
+
+fn choose_update_asset(candidates: &[(String, String)]) -> Result<(String, String), String> {
+    let (appimage, debian, rpm) = linux_install_flags();
+    update::pick_for_installation(candidates, std::env::consts::OS, appimage, debian, rpm)
+        .ok_or_else(|| "this release has no installer for this platform".to_string())
+}
+
+#[cfg(target_os = "linux")]
+fn validate_appimage(path: &Path) -> Result<(), String> {
+    use std::io::Read;
+
+    let mut file =
+        std::fs::File::open(path).map_err(|e| format!("could not inspect the AppImage: {e}"))?;
+    let mut header = [0_u8; 12];
+    file.read_exact(&mut header)
+        .map_err(|_| "the downloaded AppImage is too short".to_string())?;
+    let is_elf = &header[0..4] == b"\x7fELF";
+    let is_appimage = &header[8..11] == b"AI\x02" || &header[8..11] == b"AI\x01";
+    if !is_elf || !is_appimage {
+        return Err("the downloaded file is not a valid AppImage".into());
+    }
+    Ok(())
+}
+
+#[cfg(target_os = "linux")]
+fn launch_installer(
+    _app: &AppHandle,
+    target: &Path,
+    kind: update::InstallerKind,
+    file_name: &str,
+) -> Result<UpdateAction, String> {
+    match kind {
+        update::InstallerKind::AppImage => {
+            let current = std::env::var_os("APPIMAGE")
+                .map(PathBuf::from)
+                .filter(|path| path.is_file())
+                .ok_or_else(|| {
+                    "OpenBeats is not running from an AppImage; install the .deb or .rpm update instead"
+                        .to_string()
+                })?;
+            // Follow a symlinked launcher so the real AppImage is replaced.
+            let current = std::fs::canonicalize(&current).unwrap_or(current);
+            validate_appimage(target)?;
+            let parent = current
+                .parent()
+                .ok_or_else(|| "the AppImage has no parent folder".to_string())?;
+            let stem = current
+                .file_name()
+                .and_then(|name| name.to_str())
+                .unwrap_or("OpenBeats.AppImage");
+            let staged = parent.join(format!(".{stem}.update-{}", std::process::id()));
+            if let Err(error) = std::fs::copy(target, &staged) {
+                return Err(format!(
+                    "could not stage the AppImage beside {}: {error}",
+                    current.display()
+                ));
+            }
+            use std::os::unix::fs::PermissionsExt;
+            if let Err(error) =
+                std::fs::set_permissions(&staged, std::fs::Permissions::from_mode(0o755))
+            {
+                let _ = std::fs::remove_file(&staged);
+                return Err(format!(
+                    "could not make the new AppImage executable: {error}"
+                ));
+            }
+            // rename(2) replaces the running AppImage atomically. The old mount
+            // keeps working from its open file descriptor until we exit.
+            if let Err(error) = std::fs::rename(&staged, &current) {
+                let _ = std::fs::remove_file(&staged);
+                return Err(format!(
+                    "could not replace {}: {error} (is the folder writable?)",
+                    current.display()
+                ));
+            }
+            let _ = std::fs::remove_file(target);
+            Ok(UpdateAction::Relaunch(current))
+        }
+        update::InstallerKind::Deb | update::InstallerKind::Rpm => {
+            std::process::Command::new("xdg-open")
+                .arg(target)
+                .spawn()
+                .map_err(|e| format!("could not open the package installer: {e}"))?;
+            Ok(UpdateAction::StayOpen(format!(
+                "Opened {file_name} in your package manager. Finish the install, then relaunch OpenBeats."
+            )))
+        }
+        _ => Err("this release does not contain a Linux installer".into()),
+    }
 }
 
 #[cfg(target_os = "macos")]
-fn launch_installer(path: &PathBuf) -> Result<bool, String> {
-    std::process::Command::new("open")
-        .arg(path)
-        .spawn()
-        .map_err(|e| format!("could not open the disk image: {e}"))?;
-    Ok(true)
+fn launch_installer(
+    _app: &AppHandle,
+    target: &Path,
+    kind: update::InstallerKind,
+    file_name: &str,
+) -> Result<UpdateAction, String> {
+    match kind {
+        update::InstallerKind::Dmg => {
+            std::process::Command::new("open")
+                .arg(target)
+                .spawn()
+                .map_err(|e| format!("could not open the disk image: {e}"))?;
+            Ok(UpdateAction::StayOpen(format!(
+                "Opened {file_name}. Drag OpenBeats into Applications, then relaunch it."
+            )))
+        }
+        _ => Err("this release does not contain a macOS installer".into()),
+    }
 }
 
 #[cfg(target_os = "windows")]
-fn launch_installer(path: &PathBuf) -> Result<bool, String> {
-    std::process::Command::new(path)
+fn launch_installer(
+    _app: &AppHandle,
+    target: &Path,
+    kind: update::InstallerKind,
+    _file_name: &str,
+) -> Result<UpdateAction, String> {
+    let executable = std::env::current_exe()
+        .map_err(|e| format!("could not find the running OpenBeats executable: {e}"))?;
+    let install = match kind {
+        update::InstallerKind::Msi => format!(
+            "start \"\" /wait msiexec.exe /i \"{}\" /qb",
+            target.display()
+        ),
+        update::InstallerKind::Nsis => {
+            format!("start \"\" /wait \"{}\" /S", target.display())
+        }
+        _ => return Err("this release does not contain a Windows installer".into()),
+    };
+    let script = std::env::temp_dir().join(format!("openbeats-update-{}.cmd", std::process::id()));
+    // The app must exit before Windows can replace its running executable. The
+    // detached helper waits, installs, relaunches, then deletes itself.
+    let body = format!(
+        "@echo off\r\nping 127.0.0.1 -n 3 >nul\r\n{install}\r\nstart \"\" \"{}\"\r\ndel \"%~f0\"\r\n",
+        executable.display()
+    );
+    std::fs::write(&script, body)
+        .map_err(|e| format!("could not prepare the update helper: {e}"))?;
+    std::process::Command::new("cmd.exe")
+        .arg("/C")
+        .arg(&script)
         .spawn()
-        .map_err(|e| format!("could not launch the installer: {e}"))?;
-    Ok(true)
+        .map_err(|e| format!("could not start the update helper: {e}"))?;
+    Ok(UpdateAction::Exit)
 }
 
-/// Downloads the release installer for `url`, launches it and restarts the app.
+/// Downloads the installer that matches this installation, then applies it.
 ///
-/// The URL must be an asset on this project's GitHub releases; anything else is
-/// refused so a malformed update payload cannot run arbitrary files.
+/// Every asset URL must be on this project's GitHub releases; anything else is
+/// refused so a malformed update payload cannot run arbitrary files. AppImages
+/// are replaced in place and relaunched, because Tauri's `restart()` would
+/// re-execute the old mounted AppImage.
 #[tauri::command]
-pub async fn perform_update(app: AppHandle, url: String) -> Result<String, String> {
-    let url = url.trim().to_string();
-    let file_name = update::validate_installer_url(&url)?;
+pub async fn perform_update(
+    app: AppHandle,
+    url: String,
+    assets: Option<Vec<UpdateAssetInput>>,
+) -> Result<String, String> {
+    let fallback_url = url.trim().to_string();
+    let fallback_name = update::validate_installer_url(&fallback_url)?;
+
+    let mut candidates: Vec<(String, String)> = Vec::new();
+    for asset in assets.unwrap_or_default() {
+        let name = match update::validate_installer_url(&asset.url) {
+            Ok(name) => name,
+            Err(_) => continue,
+        };
+        if update::installer_kind(&name).is_none()
+            || candidates.iter().any(|(known, _)| known == &name)
+        {
+            continue;
+        }
+        candidates.push((name, asset.url.trim().to_string()));
+    }
+    if !candidates.iter().any(|(name, _)| name == &fallback_name) {
+        candidates.push((fallback_name, fallback_url));
+    }
+    let (file_name, download_url) = choose_update_asset(&candidates)?;
 
     let dir = app
         .path()
@@ -199,8 +374,9 @@ pub async fn perform_update(app: AppHandle, url: String) -> Result<String, Strin
     std::fs::create_dir_all(&dir)
         .map_err(|e| format!("could not create {}: {e}", dir.display()))?;
     let target = dir.join(&file_name);
-    let download_target = target.clone();
-    let download_url = url.clone();
+    let partial = dir.join(format!("{file_name}.part"));
+    let download_target = partial.clone();
+    let final_target = target.clone();
 
     tauri::async_runtime::spawn_blocking(move || {
         let client = reqwest::blocking::Client::builder()
@@ -208,20 +384,35 @@ pub async fn perform_update(app: AppHandle, url: String) -> Result<String, Strin
             .user_agent("OpenBeats")
             .build()
             .map_err(|e| format!("could not start the download: {e}"))?;
-        let response = client
+        let mut response = client
             .get(&download_url)
             .send()
             .map_err(|e| format!("could not reach GitHub: {e}"))?
             .error_for_status()
             .map_err(|e| format!("GitHub answered: {e}"))?;
-        let bytes = response
-            .bytes()
+        if let Some(length) = response.content_length() {
+            if length > MAX_INSTALLER_BYTES {
+                return Err("the update installer is unexpectedly large".to_string());
+            }
+        }
+        let mut file = std::fs::File::create(&download_target)
+            .map_err(|e| format!("could not create {}: {e}", download_target.display()))?;
+        let copied = std::io::copy(&mut response, &mut file)
             .map_err(|e| format!("could not read the installer: {e}"))?;
-        if bytes.len() < 1_024 {
+        file.sync_all()
+            .map_err(|e| format!("could not save the installer: {e}"))?;
+        drop(file);
+        if copied < 1_024 {
+            let _ = std::fs::remove_file(&download_target);
             return Err("the downloaded installer looks incomplete".to_string());
         }
-        std::fs::write(&download_target, &bytes)
-            .map_err(|e| format!("could not write {}: {e}", download_target.display()))?;
+        if copied > MAX_INSTALLER_BYTES {
+            let _ = std::fs::remove_file(&download_target);
+            return Err("the update installer is unexpectedly large".to_string());
+        }
+        let _ = std::fs::remove_file(&final_target);
+        std::fs::rename(&download_target, &final_target)
+            .map_err(|e| format!("could not finish saving the installer: {e}"))?;
         Ok::<(), String>(())
     })
     .await
@@ -236,18 +427,29 @@ pub async fn perform_update(app: AppHandle, url: String) -> Result<String, Strin
         let _ = std::fs::set_permissions(&target, std::fs::Permissions::from_mode(mode | 0o111));
     }
 
-    let restart = launch_installer(&target)?;
-    if restart {
-        let handle = app.clone();
-        std::thread::spawn(move || {
-            std::thread::sleep(Duration::from_millis(900));
-            handle.restart();
-        });
-        Ok("Installing the update — the app will restart.".into())
-    } else {
-        Ok(format!(
-            "Downloaded {file_name} — finish the install in your package manager."
-        ))
+    let kind = update::installer_kind(&file_name)
+        .ok_or_else(|| "the update asset is not an installer".to_string())?;
+    match launch_installer(&app, &target, kind, &file_name)? {
+        UpdateAction::Relaunch(path) => {
+            std::process::Command::new(&path)
+                .spawn()
+                .map_err(|e| format!("the update was installed but could not relaunch: {e}"))?;
+            let handle = app.clone();
+            std::thread::spawn(move || {
+                std::thread::sleep(Duration::from_millis(450));
+                handle.exit(0);
+            });
+            Ok("The update is installed — OpenBeats is restarting.".into())
+        }
+        UpdateAction::Exit => {
+            let handle = app.clone();
+            std::thread::spawn(move || {
+                std::thread::sleep(Duration::from_millis(450));
+                handle.exit(0);
+            });
+            Ok("Installing the update — OpenBeats will restart when it finishes.".into())
+        }
+        UpdateAction::StayOpen(message) => Ok(message),
     }
 }
 

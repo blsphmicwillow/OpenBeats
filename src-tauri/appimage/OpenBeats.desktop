@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=OpenBeats
+Comment=Open-source beatmaking studio
+Exec=openbeats
+Icon=openbeats
+Terminal=false
+Categories=AudioVideo;Audio;Music;
+StartupWMClass=openbeats
+X-AppImage-Version=1.0.3

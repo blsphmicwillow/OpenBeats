@@ -23,13 +23,19 @@ export function UpdateBanner() {
       return;
     }
     setInstalling(true);
-    const message = await nativePerformUpdate(update.downloadUrl);
-    if (message) {
-      toast(message);
-    } else {
+    try {
+      const message = await nativePerformUpdate(update.downloadUrl, update.assets ?? []);
+      if (message) {
+        toast(message);
+      } else {
+        setInstalling(false);
+        toast('The update could not be installed — opening the release page');
+        void openExternal(update.url);
+      }
+    } catch (error) {
       setInstalling(false);
-      toast('The update could not be installed — opening the release page');
-      void openExternal(update.url);
+      const detail = error instanceof Error ? error.message : String(error);
+      toast(`The update could not be installed: ${detail}`);
     }
   };
 

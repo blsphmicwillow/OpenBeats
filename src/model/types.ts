@@ -280,12 +280,21 @@ export interface SavedProject {
   project: Project;
 }
 
+export interface UpdateAsset {
+  name: string;
+  url: string;
+  size?: number;
+  recommended?: boolean;
+}
+
 export interface UpdateInfo {
   version: string;
   notes: string;
   url: string;
   publishedAt?: string;
   repo: string;
+  /** Every installer on the release, so the native updater can pick one. */
+  assets?: UpdateAsset[];
   /** Direct installer for this platform, when the release has one. */
   downloadUrl?: string;
 }

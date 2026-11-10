@@ -1,11 +1,20 @@
 import { DEFAULT_UPDATE_REPO } from './version';
 
+export interface UpdateAsset {
+  name: string;
+  url: string;
+  size: number;
+  recommended: boolean;
+}
+
 export interface UpdateInfo {
   version: string;
   notes: string;
   url: string;
   publishedAt?: string;
   repo: string;
+  /** Every downloadable installer on the release, for native selection. */
+  assets: UpdateAsset[];
   /** Direct installer for this platform, when the release has one. */
   downloadUrl?: string;
 }
@@ -80,12 +89,21 @@ export async function checkForUpdate(
     if (data.draft || data.prerelease) return null;
     const version = (data.tag_name ?? data.name ?? '').replace(/^v/i, '').trim();
     if (!version || compareVersions(version, current) <= 0) return null;
+    const assets: UpdateAsset[] = (data.assets ?? [])
+      .filter((asset) => asset.name && asset.browser_download_url)
+      .map((asset) => ({
+        name: asset.name!,
+        url: asset.browser_download_url!,
+        size: 0,
+        recommended: false,
+      }));
     return {
       version,
       notes: (data.body ?? '').slice(0, 4000),
       url: data.html_url ?? `https://github.com/${clean}/releases`,
       publishedAt: data.published_at,
       repo: clean,
+      assets,
       downloadUrl: pickDownload(data.assets ?? []),
     };
   } catch {

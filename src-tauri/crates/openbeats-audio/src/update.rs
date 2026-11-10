@@ -106,6 +106,39 @@ fn platform_matches(name: &str, os: &str, arch: &str) -> bool {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum InstallerKind {
+    AppImage,
+    Deb,
+    Rpm,
+    Msi,
+    Nsis,
+    Dmg,
+    AppTarGz,
+}
+
+/// Classifies a release asset by the installer it contains.
+pub fn installer_kind(name: &str) -> Option<InstallerKind> {
+    let name = name.to_ascii_lowercase();
+    if name.ends_with(".appimage") {
+        Some(InstallerKind::AppImage)
+    } else if name.ends_with(".deb") {
+        Some(InstallerKind::Deb)
+    } else if name.ends_with(".rpm") {
+        Some(InstallerKind::Rpm)
+    } else if name.ends_with(".msi") {
+        Some(InstallerKind::Msi)
+    } else if name.ends_with(".exe") {
+        Some(InstallerKind::Nsis)
+    } else if name.ends_with(".dmg") {
+        Some(InstallerKind::Dmg)
+    } else if name.ends_with(".app.tar.gz") || name.ends_with(".tar.gz") {
+        Some(InstallerKind::AppTarGz)
+    } else {
+        None
+    }
+}
+
 /// Picks the best asset for the platform: AppImage over deb/rpm, msi over exe.
 fn score(name: &str, os: &str) -> u8 {
     let name = name.to_lowercase();
@@ -138,7 +171,61 @@ pub fn validate_installer_url(url: &str) -> Result<String, String> {
     if name.is_empty() || name.contains("..") || name.contains('\\') || name.contains('/') {
         return Err("the update URL does not name a file".into());
     }
+    if installer_kind(name).is_none() {
+        return Err("the update asset is not a supported installer".into());
+    }
     Ok(name.to_string())
+}
+
+fn installer_rank(
+    kind: InstallerKind,
+    os: &str,
+    appimage: bool,
+    debian: bool,
+    rpm: bool,
+) -> Option<u8> {
+    match os.to_ascii_lowercase().as_str() {
+        "linux" => match kind {
+            // An AppImage can only replace an AppImage that is running. For a
+            // deb/rpm install, pick the package the system can actually use.
+            InstallerKind::AppImage if appimage => Some(100),
+            InstallerKind::Deb if debian => Some(99),
+            InstallerKind::Rpm if rpm => Some(99),
+            InstallerKind::AppImage => Some(80),
+            InstallerKind::Deb => Some(70),
+            InstallerKind::Rpm => Some(60),
+            _ => None,
+        },
+        "windows" => match kind {
+            InstallerKind::Msi => Some(100),
+            InstallerKind::Nsis => Some(90),
+            _ => None,
+        },
+        "macos" | "mac" | "darwin" => match kind {
+            InstallerKind::Dmg => Some(100),
+            InstallerKind::AppTarGz => Some(80),
+            _ => None,
+        },
+        _ => None,
+    }
+}
+
+/// Selects the installer that matches how OpenBeats is currently installed.
+pub fn pick_for_installation(
+    assets: &[(String, String)],
+    os: &str,
+    appimage: bool,
+    debian: bool,
+    rpm: bool,
+) -> Option<(String, String)> {
+    assets
+        .iter()
+        .filter_map(|(name, url)| {
+            let kind = installer_kind(name)?;
+            installer_rank(kind, os, appimage, debian, rpm).map(|rank| (rank, name, url))
+        })
+        .max_by_key(|(rank, _, _)| *rank)
+        .map(|(_, name, url)| (name.clone(), url.clone()))
 }
 
 /// Parses the GitHub `/releases/latest` payload.
@@ -272,6 +359,98 @@ mod tests {
         .is_err());
         assert!(validate_installer_url(
             "https://github.com/other/repo/releases/download/v1/a.AppImage"
+        )
+        .is_err());
+    }
+
+    #[test]
+    fn installer_kinds_cover_every_release_asset() {
+        assert_eq!(
+            installer_kind("OpenBeats_x86_64.AppImage"),
+            Some(InstallerKind::AppImage)
+        );
+        assert_eq!(
+            installer_kind("OpenBeats_amd64.deb"),
+            Some(InstallerKind::Deb)
+        );
+        assert_eq!(
+            installer_kind("OpenBeats_x86_64.rpm"),
+            Some(InstallerKind::Rpm)
+        );
+        assert_eq!(
+            installer_kind("OpenBeats_x64_en-US.msi"),
+            Some(InstallerKind::Msi)
+        );
+        assert_eq!(
+            installer_kind("OpenBeats_x64-setup.exe"),
+            Some(InstallerKind::Nsis)
+        );
+        assert_eq!(
+            installer_kind("OpenBeats_aarch64.dmg"),
+            Some(InstallerKind::Dmg)
+        );
+        assert_eq!(
+            installer_kind("OpenBeats_aarch64.app.tar.gz"),
+            Some(InstallerKind::AppTarGz)
+        );
+        assert_eq!(installer_kind("latest.json"), None);
+    }
+
+    #[test]
+    fn installation_picks_the_asset_that_matches_the_running_package() {
+        let assets = vec![
+            ("OpenBeats.AppImage".to_string(), "a".to_string()),
+            ("OpenBeats.deb".to_string(), "d".to_string()),
+            ("OpenBeats.rpm".to_string(), "r".to_string()),
+        ];
+        assert_eq!(
+            pick_for_installation(&assets, "linux", true, false, false)
+                .unwrap()
+                .1,
+            "a"
+        );
+        assert_eq!(
+            pick_for_installation(&assets, "linux", false, true, false)
+                .unwrap()
+                .1,
+            "d"
+        );
+        assert_eq!(
+            pick_for_installation(&assets, "linux", false, false, true)
+                .unwrap()
+                .1,
+            "r"
+        );
+        assert_eq!(
+            pick_for_installation(
+                &[("OpenBeats.msi".to_string(), "m".to_string())],
+                "windows",
+                false,
+                false,
+                false,
+            )
+            .unwrap()
+            .1,
+            "m"
+        );
+        assert_eq!(
+            pick_for_installation(
+                &[("OpenBeats.dmg".to_string(), "d".to_string())],
+                "macos",
+                false,
+                false,
+                false,
+            )
+            .unwrap()
+            .1,
+            "d"
+        );
+    }
+
+    #[test]
+    fn non_installer_assets_are_refused() {
+        assert!(validate_installer_url(
+            "https://github.com/blsphmicwillow/OpenBeats/releases/download/v1/latest.json"
         )
         .is_err());
     }

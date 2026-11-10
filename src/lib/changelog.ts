@@ -26,6 +26,14 @@ export const CHANGELOG: ChangelogEntry[] = [
         ],
       },
       {
+        title: 'Updates',
+        items: [
+          'The updater now selects the installer for the running package: AppImages are replaced in place and relaunched, deb/rpm packages open the system installer, Windows uses a detached helper to avoid file locks, and macOS opens the DMG without closing the app.',
+          'Download URLs remain restricted to this repository, downloads are bounded, AppImage headers are validated before replacement, and update failures show the real error in the banner.',
+          'The AppImage desktop entry includes X-AppImage-Version so desktop integration and update tools can read the installed version.',
+        ],
+      },
+      {
         title: 'FL Studio compatibility',
         items: [
           '.fxp presets expose plugin 4CC, name and parameter count as metadata; .fst presets are preview-only with readable strings; .flp projects are read-only pattern references.',

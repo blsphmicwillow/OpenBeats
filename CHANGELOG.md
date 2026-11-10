@@ -27,6 +27,17 @@ Linux, Windows and macOS installers are built by CI from the `v1.0.3` tag and at
   using a recorded file manifest, while source folders chosen in place are never deleted.
 - Packs can be imported from **File → Import pack folder… / Import pack .zip…**, the Browser, or by dropping a zip.
 
+### Updates
+
+- The in-app updater now chooses the installer that matches the running package instead of always downloading the
+  AppImage. AppImages are replaced in place and relaunched; deb/rpm updates open the system package installer; Windows
+  uses a detached helper so the running executable is not locked while MSI/NSIS installs; macOS opens the DMG without
+  closing the app first. Installer URLs are still restricted to this repository's GitHub releases, downloads are
+  bounded and AppImage headers are validated before replacement.
+- Update failures now show the real error in the banner instead of silently closing the app.
+- The AppImage desktop entry now includes `X-AppImage-Version`, so desktop integration and update tools can read the
+  installed version.
+
 ### FL Studio metadata
 
 - `.fxp` files expose their plugin 4CC, preset name and parameter count as metadata. FXP does not store parameter

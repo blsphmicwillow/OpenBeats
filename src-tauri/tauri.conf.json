@@ -56,7 +56,10 @@
     "longDescription": "OpenBeats is an original, open-source beatmaking studio: channel rack, playlist, piano roll and routing mixer with built-in instruments and effects.",
     "linux": {
       "appimage": {
-        "bundleMediaFramework": true
+        "bundleMediaFramework": true,
+        "files": {
+          "/usr/share/applications/OpenBeats.desktop": "appimage/OpenBeats.desktop"
+        }
       },
       "deb": {
         "depends": [

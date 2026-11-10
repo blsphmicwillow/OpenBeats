@@ -7,7 +7,7 @@
  * keeps using the Web Audio engine.
  */
 
-import type { Project } from '../model/types';
+import type { Project, UpdateAsset } from '../model/types';
 import {
   eventsAtPatternStep,
   eventsAtSongStep,
@@ -904,8 +904,11 @@ export async function nativeSetPlayhead(step: number): Promise<void> {
   await nativeInvoke<null>('set_playhead_position', { step: Math.max(0, Math.round(step)) });
 }
 
-/** Downloads and launches a release installer; a string is the status message. */
-export async function nativePerformUpdate(url: string): Promise<string | null> {
+/** Downloads and applies a release installer; rejects with the real error. */
+export async function nativePerformUpdate(
+  url: string,
+  assets: UpdateAsset[] = [],
+): Promise<string | null> {
   if (!isNative()) return null;
-  return nativeInvoke<string>('perform_update', { url });
+  return invokeNative<string>('perform_update', { url, assets });
 }
