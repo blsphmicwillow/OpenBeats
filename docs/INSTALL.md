@@ -40,7 +40,7 @@ release page over HTTPS rather than a mirror.
 - downloads the official 1.0.0 AppImage;
 - verifies its SHA-256;
 - extracts it to `/opt/openbeats`;
-- creates `/usr/bin/openbeats` → `/opt/openbeats/AppRun`;
+- installs a `/usr/bin/openbeats` launcher that runs `/opt/openbeats/AppRun`;
 - installs the desktop entry and the 256×256 icon;
 - declares the GTK, GStreamer, icon and audio dependencies.
 
@@ -123,6 +123,10 @@ yay -Rns openbeats-bin
   PulseAudio sink. If it does not, install `gst-plugins-good`.
 - **`yay -Bi` cannot find dependencies.** Run `sudo pacman -Syu` first; a partial
   upgrade can leave the package database inconsistent.
+- **“Could not find the program `openbeats`” or permission denied.** Rebuild the
+  local package after pulling the launcher fix below. Do not launch the
+  `OpenBeats.desktop` file from an extracted AppImage directly; it expects the
+  packaged `openbeats` command. Run `openbeats` as your normal user, not root.
 - **Icon is missing.** Reinstall `hicolor-icon-theme` and run
   `gtk-update-icon-cache -f /usr/share/icons/hicolor` if your desktop caches icons.
 

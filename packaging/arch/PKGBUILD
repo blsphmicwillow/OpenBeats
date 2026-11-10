@@ -1,7 +1,7 @@
 # Maintainer: OpenBeats maintainers <blsphmicwillow@users.noreply.github.com>
 pkgname=openbeats-bin
 pkgver=1.0.0
-pkgrel=1
+pkgrel=2
 pkgdesc='Open-source beatmaking studio (native Tauri build)'
 arch=('x86_64')
 url='https://github.com/blsphmicwillow/OpenBeats'
@@ -42,7 +42,19 @@ prepare() {
 package() {
   install -d "$pkgdir/opt/openbeats" "$pkgdir/usr/bin"
   cp -a "$srcdir/squashfs-root/." "$pkgdir/opt/openbeats/"
-  ln -s /opt/openbeats/AppRun "$pkgdir/usr/bin/openbeats"
+
+  # appimagetool's AppRun resolves apprun-hooks from the directory containing
+  # the invoked path. A symlink makes it look in /usr/bin, so use a launcher
+  # that invokes AppRun at its real location instead.
+  cat > "$pkgdir/usr/bin/openbeats" <<'EOF'
+#!/bin/sh
+exec /opt/openbeats/AppRun "$@"
+EOF
+  chmod 755 "$pkgdir/usr/bin/openbeats"
+
+  # The extracted AppImage root/apprun-hooks can be mode 700; make the
+  # installed tree readable and traversable for the user running the app.
+  chmod -R a+rX "$pkgdir/opt/openbeats"
 
   install -Dm644 "$srcdir/squashfs-root/usr/share/applications/OpenBeats.desktop" \
     "$pkgdir/usr/share/applications/openbeats.desktop"

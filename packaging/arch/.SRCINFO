@@ -1,7 +1,7 @@
 pkgbase = openbeats-bin
 	pkgdesc = Open-source beatmaking studio (native Tauri build)
 	pkgver = 1.0.0
-	pkgrel = 1
+	pkgrel = 2
 	url = https://github.com/blsphmicwillow/OpenBeats
 	arch = x86_64
 	license = GPL-3.0-or-later

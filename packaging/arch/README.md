@@ -9,8 +9,9 @@ yay -Bi .
 ```
 
 `yay -Bi` builds and installs the local `PKGBUILD`. It installs the released
-AppImage into `/opt/openbeats` and creates `/usr/bin/openbeats`. Runtime
-dependencies are declared in the package; `makepkg` will ask for missing ones.
+AppImage into `/opt/openbeats` and installs `/usr/bin/openbeats` as a launcher
+for `/opt/openbeats/AppRun`. Runtime dependencies are declared in the package;
+`makepkg` will ask for missing ones.
 
 Install one audio server before launching if you do not already have one:
 
@@ -59,6 +60,15 @@ published. Regenerate metadata with `makepkg --printsrcinfo > .SRCINFO`.
 command -v openbeats
 openbeats
 # Desktop menu: OpenBeats
+```
+
+Run `openbeats` as your normal user, not with `sudo`. If an older 1.0.0-1
+package is installed, rebuild after this launcher fix so the package revision
+becomes 1.0.0-2:
+
+```bash
+cd OpenBeats/packaging/arch
+yay -Bi .
 ```
 
 Uninstall with `yay -Rns openbeats-bin`.
