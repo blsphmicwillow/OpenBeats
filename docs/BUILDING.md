@@ -17,6 +17,17 @@ sudo apt install -y libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-
 ```
 `libwebkit2gtk-4.1-dev` is required for 24.04/24.10; older distributions ship 4.0 and need a newer base image.
 
+### Arch Linux
+```bash
+sudo pacman -S --needed base-devel webkit2gtk-4.1 gtk3 libayatana-appindicator \
+  librsvg libsoup3 openssl gstreamer gst-plugins-base gst-plugins-good \
+  gst-plugins-bad gst-plugins-ugly gst-libav libpulse alsa-lib
+```
+
+To install the released 1.0.0 build rather than compile it, use the package in
+[`packaging/arch`](../packaging/arch) (`cd packaging/arch && yay -Bi .`). The complete
+end-user guide is [INSTALL.md](INSTALL.md).
+
 ### Windows
 - Visual Studio Build Tools with the **Desktop development with C++** workload (MSVC + Windows SDK).
 - WebView2 runtime (preinstalled on Windows 11; the installer can bundle it).

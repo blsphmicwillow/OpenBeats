@@ -1,0 +1,51 @@
+# Maintainer: OpenBeats maintainers <blsphmicwillow@users.noreply.github.com>
+pkgname=openbeats-bin
+pkgver=1.0.0
+pkgrel=1
+pkgdesc='Open-source beatmaking studio (native Tauri build)'
+arch=('x86_64')
+url='https://github.com/blsphmicwillow/OpenBeats'
+license=('GPL-3.0-or-later')
+depends=(
+  'gtk3'
+  'gstreamer'
+  'gst-plugins-base'
+  'gst-plugins-good'
+  'gst-plugins-bad'
+  'gst-plugins-ugly'
+  'gst-libav'
+  'libpulse'
+  'pulse-native-provider'
+  'alsa-lib'
+  'libayatana-appindicator'
+  'librsvg'
+  'openssl'
+  'xdg-utils'
+  'hicolor-icon-theme'
+)
+optdepends=(
+  'noto-fonts: recommended UI fonts'
+)
+provides=('openbeats')
+conflicts=('openbeats' 'openbeats-git')
+options=('!strip')
+source=("openbeats-${pkgver}.AppImage::https://github.com/blsphmicwillow/OpenBeats/releases/download/v${pkgver}/OpenBeats_${pkgver}_amd64.AppImage")
+sha256sums=('48d98b230e29dd9859351e23c99a760df515d26117b3b6f146be74d656e20485')
+
+prepare() {
+  cd "$srcdir"
+  chmod +x "openbeats-${pkgver}.AppImage"
+  rm -rf squashfs-root
+  "./openbeats-${pkgver}.AppImage" --appimage-extract >/dev/null
+}
+
+package() {
+  install -d "$pkgdir/opt/openbeats" "$pkgdir/usr/bin"
+  cp -a "$srcdir/squashfs-root/." "$pkgdir/opt/openbeats/"
+  ln -s /opt/openbeats/AppRun "$pkgdir/usr/bin/openbeats"
+
+  install -Dm644 "$srcdir/squashfs-root/usr/share/applications/OpenBeats.desktop" \
+    "$pkgdir/usr/share/applications/openbeats.desktop"
+  install -Dm644 "$srcdir/squashfs-root/OpenBeats.png" \
+    "$pkgdir/usr/share/icons/hicolor/256x256/apps/openbeats.png"
+}

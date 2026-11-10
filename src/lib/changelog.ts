@@ -38,6 +38,8 @@ export const CHANGELOG: ChangelogEntry[] = [
           'Tauri 2 shell with Linux (.deb and AppImage), Windows (msi and nsis) and macOS (dmg) installers built by CI.',
           'Native window chrome, project/song/sample file dialogs and reveal-in-folder, with browser fallbacks.',
           'Update checks against GitHub Releases with a dismissible banner; automatic launch checks can be switched off completely.',
+          'Arch Linux openbeats-bin package: installs the 1.0.0 AppImage to /opt/openbeats with GTK, GStreamer and PulseAudio dependencies declared.',
+          'Install guide covers Arch/AUR, AppImage, deb, RPM, Windows, macOS and source builds, plus a README FAQ.',
         ],
       },
       {

@@ -8,26 +8,174 @@
 
 ---
 
-## Download
+## Install OpenBeats 1.0.0
 
-Installers are built by GitHub Actions and attached to [Releases](https://github.com/blsphmicwillow/OpenBeats/releases).
+Every package is built by GitHub Actions and attached to the
+[1.0.0 release](https://github.com/blsphmicwillow/OpenBeats/releases/tag/v1.0.0).
+No account is required.
 
-| Platform | File | Notes |
+| Platform | Release file | Install |
 | --- | --- | --- |
-| Linux | `OpenBeats_<version>_amd64.deb` | Debian/Ubuntu. Needs WebKitGTK 4.1 (`libwebkit2gtk-4.1-0`) plus GStreamer `base`, `good` and `pulseaudio` plugins for audio. |
-| Linux | `OpenBeats_<version>_amd64.AppImage` | Portable, no install. |
-| Windows | `OpenBeats_<version>_x64-setup.exe` | NSIS installer. |
-| Windows | `OpenBeats_<version>_x64_en-US.msi` | MSI for managed machines. |
-| macOS | `OpenBeats_<version>_x64.dmg` / `_aarch64.dmg` | Intel and Apple silicon. |
+| Arch Linux | `openbeats-bin` (in this repo) | `cd packaging/arch && yay -Bi .` — see below |
+| Linux (any) | `OpenBeats_1.0.0_amd64.AppImage` | `chmod +x`, then run it |
+| Debian / Ubuntu | `OpenBeats_1.0.0_amd64.deb` | `sudo apt install ./OpenBeats_1.0.0_amd64.deb` |
+| Fedora / RPM | `OpenBeats-1.0.0-1.x86_64.rpm` | `sudo dnf install ./OpenBeats-1.0.0-1.x86_64.rpm` |
+| Windows 10/11 | `OpenBeats_1.0.0_x64-setup.exe` | Run the installer (or use the `.msi`) |
+| macOS (Apple silicon) | `OpenBeats_1.0.0_aarch64.dmg` | Open the DMG and drag OpenBeats to Applications |
+| Source | `git clone` | [docs/BUILDING.md](docs/BUILDING.md) |
 
-Until a release is published you can build from source — see [docs/BUILDING.md](docs/BUILDING.md).
+There is no separate Intel-Mac DMG in 1.0.0; Intel Macs can build from source.
+Full per-platform commands, dependencies and troubleshooting are in
+[docs/INSTALL.md](docs/INSTALL.md).
+
+### Arch Linux with `yay`
+
+The AUR-ready package lives in [`packaging/arch`](packaging/arch). It installs
+the official 1.0.0 AppImage under `/opt/openbeats`, creates
+`/usr/bin/openbeats`, and declares the GTK, GStreamer and PulseAudio runtime it needs.
+
+**Install from this repository now** (works without the AUR):
+
+```bash
+sudo pacman -S --needed base-devel git
+
+git clone https://github.com/blsphmicwillow/OpenBeats.git
+cd OpenBeats/packaging/arch
+
+yay -Bi .
+```
+
+`yay -Bi` builds and installs the local `PKGBUILD`; it offers to install any
+missing dependency. To install the dependencies yourself first:
+
+```bash
+sudo pacman -S --needed gtk3 gstreamer gst-plugins-base gst-plugins-good \
+  gst-plugins-bad gst-plugins-ugly gst-libav libpulse alsa-lib \
+  libayatana-appindicator librsvg openssl xdg-utils hicolor-icon-theme
+
+# Choose the audio server you actually use:
+sudo pacman -S --needed pipewire-pulse   # PipeWire (recommended)
+# sudo pacman -S --needed pulseaudio     # PulseAudio instead
+```
+
+The package declares `pulse-native-provider`, so `pacman` requires either
+`pipewire-pulse` or `pulseaudio`. The AUR package name is `openbeats-bin`. It is
+**not published on the AUR yet** (no AUR maintainer key is available in this
+build environment), so
+`yay -S openbeats-bin` will work only after the maintainer pushes it once:
+
+```bash
+ssh -T aur@aur.archlinux.org   # must greet you; needs an AUR SSH key
+git clone ssh://aur@aur.archlinux.org/openbeats-bin.git
+cp packaging/arch/PKGBUILD packaging/arch/.SRCINFO openbeats-bin/
+cd openbeats-bin && git add PKGBUILD .SRCINFO
+git commit -m "openbeats-bin 1.0.0" && git push
+```
+
+### AppImage (portable Linux)
+
+```bash
+curl -L -o OpenBeats.AppImage \
+  https://github.com/blsphmicwillow/OpenBeats/releases/download/v1.0.0/OpenBeats_1.0.0_amd64.AppImage
+chmod +x OpenBeats.AppImage
+./OpenBeats.AppImage
+```
+
+If FUSE is unavailable, extract and run instead:
+`./OpenBeats.AppImage --appimage-extract-and-run`.
+
+### Debian / Ubuntu
+
+```bash
+curl -L -O https://github.com/blsphmicwillow/OpenBeats/releases/download/v1.0.0/OpenBeats_1.0.0_amd64.deb
+sudo apt install ./OpenBeats_1.0.0_amd64.deb
+openbeats
+```
+
+The package pulls WebKitGTK 4.1 and the GStreamer plugins it needs. If your
+system blocks audio, also install `gstreamer1.0-pulseaudio`.
+
+### Fedora
+
+```bash
+sudo dnf install gstreamer1-plugins-{base,good,bad-free,ugly-free} gstreamer1-plugin-libav \
+  pulseaudio-libs alsa-lib libayatana-appindicator-gtk3 librsvg2 openssl
+sudo dnf install ./OpenBeats-1.0.0-1.x86_64.rpm
+```
+
+### Windows
+
+1. Download `OpenBeats_1.0.0_x64-setup.exe` (or the `.msi`) from the release.
+2. Run it. WebView2 is included with Windows 11 and current Windows 10; the
+   installer offers to install it if missing.
+3. SmartScreen may warn because the build is not code-signed: **More info →
+   Run anyway**.
+
+### macOS (Apple silicon)
+
+1. Download `OpenBeats_1.0.0_aarch64.dmg` and open it.
+2. Drag **OpenBeats** into **Applications**.
+3. The DMG is not notarised, so on first launch use **Control-click → Open**, or
+   run `xattr -dr com.apple.quarantine /Applications/OpenBeats.app`.
 
 ### First run
 
-1. The demo song **Neon Drift** loads automatically. Press **Space** to play.
+1. The built-in **Tutorial** project opens automatically. Press **Space** to play.
 2. `Ctrl/Cmd + K` opens the command palette — everything is reachable from there.
 3. **Help → Tutorial** walks the Rack → Piano roll → Playlist → Mixer flow.
-4. **File → Export** bounces a WAV, optionally loudness-normalised for a streaming target.
+4. **File → Projects…** creates or opens songs; **File → Export** bounces a WAV,
+   optionally loudness-normalised for a streaming target.
+
+---
+
+## FAQ
+
+**Does `yay -S openbeats-bin` work today?**
+Not until the package is published to the AUR. The exact same `PKGBUILD` is in
+this repository and installs now with `cd packaging/arch && yay -Bi .`.
+
+**No sound on Arch?**
+Install the GStreamer plugins and one PulseAudio-compatible server listed above,
+then log out and back in. PipeWire users need `pipewire-pulse` (and usually
+`pipewire-alsa`); check with `pactl info` that the default sink is running.
+
+**The AppImage does not start.**
+Install FUSE 2 (`sudo pacman -S fuse2` on Arch, `libfuse2` on Ubuntu 22.04+) or
+run `./OpenBeats.AppImage --appimage-extract-and-run`. The Arch package avoids
+FUSE entirely by extracting the AppImage at build time.
+
+**Do I need WebKitGTK installed on Arch?**
+No. The AppImage bundles WebKitGTK 4.1 and GTK 3. The package installs the
+system GStreamer plugins that WebKit loads for audio, plus icon and desktop
+integration.
+
+**Can I use VST3, AU or CLAP plugins?**
+Not in 1.0.0. Hosting third-party plugins needs a native plugin host and audio
+bridge; the honest status and plan are in [docs/PLUGINS.md](docs/PLUGINS.md).
+MIDI, `.als` import and `.rpp` import/export are the current DAW bridge.
+
+**Does it need an account or the internet?**
+No. Projects, samples and exports stay local. The only network request is the
+optional GitHub update check, which can be disabled in **Settings → Updates**.
+
+**Where are my songs and settings?**
+In the app's local WebKit data store for your user account. **File → Projects…**
+lists saved songs, and autosave snapshots are restored from the same place. Use
+the Projects dialog rather than editing browser-storage files by hand; exports
+are written wherever you choose.
+
+**Is there an Intel Mac build?**
+Not in 1.0.0. Build from source with the steps in
+[docs/BUILDING.md](docs/BUILDING.md).
+
+**How do I update?**
+Download the latest release. The in-app banner notifies you and links to GitHub;
+silent self-update is not enabled because the release is not signed with a Tauri
+updater key.
+
+**Is OpenBeats really 1.0.0?**
+Yes. These packaging and documentation changes did not change the application
+version.
 
 ---
 

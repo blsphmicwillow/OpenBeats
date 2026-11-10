@@ -28,6 +28,8 @@ This is the first official release. Everything below shipped in this build; ther
 - Native project, song and sample file dialogs, plus reveal-in-folder, with browser fallbacks.
 - Update banner and GitHub Releases check. Automatic launch checks have a real opt-out: when disabled, no request is made.
 - `.github/workflows/release.yml` builds all three platforms on every push to `main`; a `v*` tag publishes the release.
+- **Arch Linux package** (`openbeats-bin`): the 1.0.0 AppImage extracts to `/opt/openbeats`, `/usr/bin/openbeats` is added, and GTK, GStreamer, audio-server and icon dependencies are declared. Install locally with `cd packaging/arch && yay -Bi .`; AUR publication steps are documented.
+- **[docs/INSTALL.md](docs/INSTALL.md)** now covers Arch/AUR, AppImage, deb, RPM, Windows, macOS and source builds, with a README download matrix and FAQ.
 
 ### Interchange
 
