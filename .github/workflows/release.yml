@@ -119,6 +119,21 @@ jobs:
           }
           '
 
+      - name: Build and attach installers
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          tagName: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || '' }}
+          releaseName: ${{ startsWith(github.ref, 'refs/tags/') && format('OpenBeats {0}', github.ref_name) || '' }}
+          releaseBody: |
+            Desktop installers for Linux, Windows and macOS. Full notes are in CHANGELOG.md and in the app's
+            Changelog tab.
+          releaseDraft: false
+          prerelease: false
+          includeUpdaterJson: false
       - name: Verify bundled Linux audio runtime
         if: matrix.platform == 'ubuntu-22.04'
         shell: bash
@@ -154,18 +169,3 @@ jobs:
           echo 'AppImage contains the GStreamer audio runtime.'
 
       # Only after the installers are verified should they be attached to a release.
-      - name: Build and attach installers
-        uses: tauri-apps/tauri-action@v0
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-        with:
-          tagName: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || '' }}
-          releaseName: ${{ startsWith(github.ref, 'refs/tags/') && format('OpenBeats {0}', github.ref_name) || '' }}
-          releaseBody: |
-            Desktop installers for Linux, Windows and macOS. Full notes are in CHANGELOG.md and in the app's
-            Changelog tab.
-          releaseDraft: false
-          prerelease: false
-          includeUpdaterJson: false
