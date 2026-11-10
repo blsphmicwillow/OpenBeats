@@ -500,6 +500,7 @@ export function defaultSettings(): Settings {
     reduceMotion: false,
     highContrast: false,
     focusRings: true,
+    reduceTransparency: false,
     autoSave: true,
     keymap: { ...DEFAULT_KEYMAP },
     tutorialDone: false,

@@ -48,6 +48,12 @@ Until a release is published you can build from source — see [docs/BUILDING.md
 - **Inspire Me** — four-chord progressions by key, scale and mood, with an optional root bass line.
 - **Sample tagging** — estimates BPM, brightness and instrument family on import.
 
+### Interchange with other DAWs
+- **Multi-track MIDI import/export** — one track per channel, tempo and program changes, readable by FL Studio, Ableton, Logic, Cubase, Studio One, Bitwig and REAPER.
+- **Ableton Live Set import** (`.als`) — gzipped XML, MIDI tracks and clips parsed locally.
+- **REAPER project import and export** (`.rpp`) — text project with tracks and MIDI items.
+- `.obeats` remains the lossless round-trip; WAV is the audio path. Details and fidelity limits: [docs/EXCHANGE.md](docs/EXCHANGE.md).
+
 ### Desktop integration
 - Native save/open dialogs and “reveal in folder”.
 - **Update checker** against this repository's GitHub Releases, with an in-app banner and a **Changelog** tab.
@@ -99,6 +105,8 @@ npm run icons        # regenerate app icons from scripts/make-icons.mjs
 
 Repository layout and data flow: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 Theming and the colour editor: [docs/THEMING.md](docs/THEMING.md).
+The glass design review (glassmorphism vs Liquid Glass): [docs/GLASS.md](docs/GLASS.md).
+DAW interchange matrix: [docs/EXCHANGE.md](docs/EXCHANGE.md).
 Release/signing process: [docs/BUILDING.md](docs/BUILDING.md#releases).
 
 ### Project layout

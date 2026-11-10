@@ -2520,3 +2520,138 @@ input[type='color'] {
   transition-duration: 0.001ms !important;
   scroll-behavior: auto !important;
 }
+
+/* ==========================================================================
+   Glass, revised against Apple's Liquid Glass guidance
+   --------------------------------------------------------------------------
+   ৹ Content surfaces (rack, playlist, mixer) stay almost opaque: Liquid Glass
+     is for the functional layer, not the content layer.
+   ৹ Chrome keeps a light frost plus a specular top rim and a darker bottom
+     edge, which reads as thickness without faking refraction.
+   ৹ Every glass surface has an opaque fallback for browsers without
+     backdrop-filter and for Reduce transparency.
+   ========================================================================== */
+.app.theme-glass .rack,
+.app.theme-glass .browser,
+.app.theme-glass .main {
+  background-color: color-mix(in srgb, var(--panel) 90%, transparent) !important;
+  -webkit-backdrop-filter: blur(14px) saturate(130%);
+  backdrop-filter: blur(14px) saturate(130%);
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, #fff 22%, transparent),
+    inset 0 -1px 0 color-mix(in srgb, #000 30%, transparent),
+    0 26px 60px -42px #000;
+}
+.app.theme-glass .topbar,
+.app.theme-glass .tabs {
+  background-color: color-mix(in srgb, var(--panel2) 74%, transparent) !important;
+  -webkit-backdrop-filter: blur(20px) saturate(150%);
+  backdrop-filter: blur(20px) saturate(150%);
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, #fff 32%, transparent),
+    inset 0 -1px 0 color-mix(in srgb, #000 42%, transparent),
+    0 16px 40px -30px #000;
+}
+.app.theme-glass .tab-body {
+  background-color: transparent !important;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+.app.theme-glass .tab {
+  background: color-mix(in srgb, var(--panel2) 58%, transparent);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, #fff 16%, transparent);
+}
+.app.theme-glass .tab.active {
+  background: color-mix(in srgb, var(--panel2) 86%, transparent);
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, #fff 34%, transparent),
+    0 0 0 1px color-mix(in srgb, var(--accent) 45%, transparent) inset;
+}
+.app.theme-glass .strip {
+  background-color: color-mix(in srgb, var(--panel) 88%, transparent) !important;
+}
+.app.theme-glass .modal {
+  background-color: color-mix(in srgb, var(--panel) 94%, transparent) !important;
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, #fff 24%, transparent),
+    0 60px 140px -50px #000;
+}
+.app.theme-glass .topbar .logo-mark,
+.app.theme-glass .btn.primary {
+  box-shadow: inset 0 1px 0 #fff5, 0 8px 18px -12px #000;
+}
+
+/* Solid fallback when backdrop-filter is unavailable, and when the user asks
+   for less transparency. Text contrast must never depend on a blur. */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .app.theme-glass .topbar,
+  .app.theme-glass .tabs,
+  .app.theme-glass .rack,
+  .app.theme-glass .browser,
+  .app.theme-glass .main,
+  .app.theme-glass .tab-body,
+  .app.theme-glass .strip,
+  .app.theme-glass .modal,
+  .app.theme-glass .palette,
+  .app.theme-glass .hintbar {
+    background-color: var(--panel) !important;
+  }
+}
+.app.reduce-transparency .topbar,
+.app.reduce-transparency .tabs,
+.app.reduce-transparency .rack,
+.app.reduce-transparency .browser,
+.app.reduce-transparency .main,
+.app.reduce-transparency .tab-body,
+.app.reduce-transparency .strip,
+.app.reduce-transparency .modal,
+.app.reduce-transparency .palette,
+.app.reduce-transparency .hintbar,
+.app.reduce-transparency .update-banner {
+  background-color: var(--panel) !important;
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+}
+.app.reduce-transparency .tab.active { background-color: var(--panel3) !important; }
+
+/* Exchange dialog */
+.exchange-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin: 10px 0;
+}
+.exchange-card {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 10px;
+  text-align: left;
+  background: var(--panel2);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  cursor: pointer;
+}
+.exchange-card:hover { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 10%, var(--panel2)); }
+.exchange-card:disabled { opacity: 0.55; cursor: default; }
+.exchange-card-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.exchange-card small { color: var(--dim); line-height: 1.35; }
+.exchange-badge {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
+  color: var(--text);
+}
+.exchange-works { font-size: 10px; color: var(--accent); }
+.exchange-note {
+  margin: 10px 0;
+  padding: 10px;
+  border-left: 3px solid var(--accent);
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+  color: var(--dim);
+  font-size: 11px;
+  line-height: 1.5;
+}

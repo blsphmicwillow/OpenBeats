@@ -32,6 +32,18 @@ Keep this file and `src/lib/changelog.ts` in sync, and bump `APP_VERSION` in `sr
 - **Inspire Me** generates four-chord progressions by key, scale and mood, with an optional root bass line.
 - Sample import auto-tags tempo, brightness and instrument family ("dark", "punchy", "140 bpm", …).
 
+### Interchange
+
+- **MIDI import/export** (SMF type 1) with one track per channel, tempo, programs and running-status parsing — works with FL Studio, Ableton, Logic, Cubase, Studio One, Bitwig and REAPER.
+- **Ableton Live Set (`.als`) import**: gunzips the XML and rebuilds MIDI tracks, clips and notes as channels, patterns and playlist clips.
+- **REAPER (`.rpp`) import and export**: tempo, tracks, MIDI items and note events round-trip as plain text.
+- New **Import / export song** dialog with a per-format matrix and honest fidelity notes; native binary save/open dialogs for MIDI.
+
+### Design
+
+- Glass was reworked after comparing it with Apple's Liquid Glass guidance: content panels are now near-opaque, chrome keeps the frost, surfaces have specular rims and edge depth, and there is a solid fallback when `backdrop-filter` is unavailable.
+- New **Reduce transparency** accessibility option removes every blur and renders opaque panels.
+
 ### Interface
 
 - Classic / Modern interface modes. Both read the same theme tokens, so every palette restyles either way.

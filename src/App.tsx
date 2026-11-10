@@ -18,6 +18,7 @@ import { FixMyMix } from './components/FixMyMix';
 import { HumToMelody } from './components/HumToMelody';
 import { InspireDialog } from './components/InspireDialog';
 import { UpdateBanner } from './components/UpdateBanner';
+import { ExchangeDialog } from './components/ExchangeDialog';
 import { KEY_TO_SEMITONE, comboFromEvent } from './ui/keymapLabels';
 import { IconGrid, IconMixer, IconPiano, IconWave } from './ui/icons';
 import type { KeyAction, WorkspaceTab } from './model/types';
@@ -192,7 +193,7 @@ export default function App() {
 
   return (
     <div
-      className={`app density-${settings.density} mode-${settings.uiMode} ${theme.glass ? 'theme-glass' : ''} ${theme.dark ? 'theme-dark' : 'theme-light'} ${settings.reduceMotion ? 'reduce-motion' : ''} ${settings.highContrast ? 'high-contrast' : ''} ${settings.focusRings ? 'focus-rings' : ''}`}
+      className={`app density-${settings.density} mode-${settings.uiMode} ${theme.glass ? 'theme-glass' : ''} ${theme.dark ? 'theme-dark' : 'theme-light'} ${settings.reduceMotion ? 'reduce-motion' : ''} ${settings.highContrast ? 'high-contrast' : ''} ${settings.focusRings ? 'focus-rings' : ''} ${settings.reduceTransparency ? 'reduce-transparency' : ''}`}
       style={{ ...(themeVars(theme, settings.accent) as React.CSSProperties), ['--scale' as string]: settings.scale }}
       onPointerDown={boot}
       onContextMenu={(e) => e.preventDefault()}
@@ -249,6 +250,7 @@ export default function App() {
       <FixMyMix />
       <HumToMelody />
       <InspireDialog />
+      <ExchangeDialog />
       {ui.settingsOpen && <SettingsDialog />}
       {ui.aboutOpen && <HelpDialog />}
       {ui.tutorialStep !== null && <Tutorial />}

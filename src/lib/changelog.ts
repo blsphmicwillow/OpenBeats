@@ -40,6 +40,22 @@ export const CHANGELOG: ChangelogEntry[] = [
         ],
       },
       {
+        title: 'Interchange',
+        items: [
+          'Multi-track MIDI import/export (SMF type 1) for FL Studio, Ableton, Logic, Cubase, Studio One, Bitwig and REAPER.',
+          'Ableton Live Set (.als) import: tracks, clips and notes are read from the gzipped XML.',
+          'REAPER (.rpp) import and export with tempo, tracks and MIDI items.',
+          'A dedicated Import / export song dialog, plus native save dialogs for MIDI files.',
+        ],
+      },
+      {
+        title: 'Design',
+        items: [
+          'Glass revised against Liquid Glass guidance: opaque content panels, frosted chrome, specular edges and a no-blur fallback.',
+          'New Reduce transparency accessibility option disables every backdrop blur.',
+        ],
+      },
+      {
         title: 'Interface',
         items: [
           'Classic and Modern interface modes share the same themes, so every palette restyles both ways.',

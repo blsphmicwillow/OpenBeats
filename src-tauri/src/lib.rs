@@ -1,6 +1,13 @@
+use base64::{engine::general_purpose::STANDARD, Engine as _};
 use std::path::PathBuf;
 use std::process::Command;
 use tauri_plugin_dialog::DialogExt;
+
+#[derive(serde::Serialize)]
+struct BinaryPayload {
+    name: String,
+    data: String,
+}
 
 #[tauri::command]
 fn platform() -> &'static str {
@@ -62,6 +69,44 @@ async fn save_text_file(
     Some(path.display().to_string())
 }
 
+/// Native save dialog for MIDI and other binary song files.
+#[tauri::command]
+async fn save_binary_file(
+    app: tauri::AppHandle,
+    data: String,
+    suggested_name: String,
+) -> Option<String> {
+    let bytes = STANDARD.decode(data).ok()?;
+    let picked = app
+        .dialog()
+        .file()
+        .set_file_name(&suggested_name)
+        .add_filter("Song file", &["mid", "midi", "rpp"])
+        .blocking_save_file()?;
+    let path = picked.into_path().ok()?;
+    std::fs::write(&path, bytes).ok()?;
+    Some(path.display().to_string())
+}
+
+/// Native open dialog for binary song files, returned as base64.
+#[tauri::command]
+async fn open_binary_file(app: tauri::AppHandle) -> Option<BinaryPayload> {
+    let picked = app
+        .dialog()
+        .file()
+        .add_filter("Song file", &["mid", "midi", "smf", "rpp", "als"])
+        .blocking_pick_file()?;
+    let path = picked.into_path().ok()?;
+    let bytes = std::fs::read(&path).ok()?;
+    Some(BinaryPayload {
+        name: path
+            .file_name()
+            .map(|n| n.to_string_lossy().to_string())
+            .unwrap_or_default(),
+        data: STANDARD.encode(bytes),
+    })
+}
+
 /// Native “Open project” dialog. Returns the file contents, or null.
 #[tauri::command]
 async fn open_text_file(app: tauri::AppHandle) -> Option<String> {
@@ -83,7 +128,9 @@ pub fn run() {
             open_external,
             reveal_path,
             save_text_file,
-            open_text_file
+            open_text_file,
+            save_binary_file,
+            open_binary_file
         ])
         .setup(|_app| Ok(()))
         .run(tauri::generate_context!())

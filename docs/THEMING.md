@@ -34,9 +34,11 @@ Four presets exercise the glass treatment, one per theme in each light/dark pair
 - **Liquid Glass (light)** — pale blue-white background, translucent white panels, saturated blur, blue accent and pink playhead.
 - **Liquid Glass (dark)** — near-black navy background, cyan accent and pink playhead.
 
-The implementation is deliberately dependency-free: `backdrop-filter: blur() saturate()`, `color-mix()` for translucency, and a soft radial gradient behind the window. If a platform cannot composite `backdrop-filter`, panels stay opaque because the base colours are still applied — text contrast never depends on the blur.
+The implementation is deliberately dependency-free: `backdrop-filter: blur() saturate()`, `color-mix()` for translucency, and a soft radial gradient behind the window. Content panels are 90% opaque and only chrome keeps a heavy frost; `@supports not (backdrop-filter…)` and the **Reduce transparency** setting both fall back to solid panels. See [GLASS.md](GLASS.md) for the comparison with Apple's Liquid Glass and the flaws that were corrected.
 
 To make a custom palette glassy, tick **Glass surfaces** in the colour editor (stored as `customTheme.glass`). The class is applied from the *active* theme, including the custom one.
+
+Glass is a **chrome treatment**, not a content effect: rack, playlist and mixer stay near-opaque so text contrast does not depend on what is behind them. Users who need flat surfaces can enable **Reduce transparency** in Accessibility.
 
 ## Editing colours
 
@@ -57,6 +59,7 @@ Other appearance controls:
 - **Interface scale** — 80–130%.
 - **Density** — comfortable or compact.
 - **Reduce motion** — disables pulses and transitions.
+- **Reduce transparency** — solid panels, no backdrop blur.
 
 ## Import and export
 

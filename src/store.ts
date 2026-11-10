@@ -38,7 +38,11 @@ import {
 import { downloadBlob, renderSongToWav } from './audio/export';
 import { checkForUpdate } from './lib/updates';
 import { APP_VERSION } from './lib/version';
-import { openTextNative, saveTextNative } from './lib/native';
+import { openTextNative, saveBinaryNative, saveTextNative } from './lib/native';
+import { parseMidi, writeMidi } from './lib/daw/midi';
+import { parseAls } from './lib/daw/als';
+import { parseRpp, writeRpp } from './lib/daw/rpp';
+import { exchangeFromProject, projectFromExchange } from './lib/daw/project';
 
 const PROJECT_KEY = 'openbeats.project.v1';
 const SETTINGS_KEY = 'openbeats.settings.v1';
@@ -188,6 +192,9 @@ export interface AppState {
   openProjectFile(file: File): Promise<void>;
   openProjectNative(): Promise<void>;
   exportWav(): Promise<void>;
+  importSongFile(file: File): Promise<void>;
+  exportMidi(): Promise<void>;
+  exportRpp(): Promise<void>;
   checkUpdates(silent?: boolean): Promise<void>;
   resetAll(): void;
   setKey(action: KeyAction, combo: string): void;
@@ -223,6 +230,7 @@ export const useApp = create<AppState>((set, get) => ({
     fixMixOpen: false,
     humOpen: false,
     inspireOpen: false,
+    exchangeOpen: false,
     update: null,
     updateChecking: false,
     exporting: null,
@@ -872,6 +880,75 @@ export const useApp = create<AppState>((set, get) => ({
       get().toast(`Opened “${project.name}”`);
     } catch {
       get().toast('That file is not a valid OpenBeats project');
+    }
+  },
+
+  async importSongFile(file) {
+    const ext = file.name.split('.').pop()?.toLowerCase() ?? '';
+    try {
+      if (ext === 'obeats' || ext === 'json') {
+        await get().openProjectFile(file);
+        return;
+      }
+      let song;
+      if (ext === 'mid' || ext === 'midi' || ext === 'smf') {
+        song = parseMidi(await file.arrayBuffer());
+      } else if (ext === 'als') {
+        song = await parseAls(await file.arrayBuffer());
+      } else if (ext === 'rpp') {
+        song = parseRpp(await file.text());
+      } else {
+        throw new Error('Unsupported file type');
+      }
+      const project = projectFromExchange(song);
+      get().stop();
+      set({
+        project,
+        history: { past: [...get().history.past, get().project].slice(-60), future: [] },
+        transport: { ...get().transport, step: 0, anchorStep: 0 },
+        ui: { ...get().ui, exchangeOpen: false, tab: 'playlist' },
+      });
+      engine.sync(project);
+      get().toast(
+        `Imported ${song.tracks.length} track${song.tracks.length === 1 ? '' : 's'} from ${
+          ext === 'als' ? 'Ableton' : ext === 'rpp' ? 'REAPER' : 'MIDI'
+        }`,
+      );
+    } catch (err) {
+      console.error(err);
+      get().toast(err instanceof Error ? err.message : 'That song could not be imported');
+    }
+  },
+
+  async exportMidi() {
+    const project = get().project;
+    const song = exchangeFromProject(project);
+    if (!song.tracks.length) {
+      get().toast('Add some notes before exporting MIDI');
+      return;
+    }
+    const bytes = writeMidi(song);
+    const name = `${project.name.replace(/[^\w\- ]+/g, '').trim() || 'openbeats'}.mid`;
+    if (await saveBinaryNative(bytes, name)) get().toast('MIDI saved to disk');
+    else {
+      downloadBlob(new Blob([bytes as BlobPart], { type: 'audio/midi' }), name);
+      get().toast('MIDI exported — open it in any DAW');
+    }
+  },
+
+  async exportRpp() {
+    const project = get().project;
+    const song = exchangeFromProject(project);
+    if (!song.tracks.length) {
+      get().toast('Add some notes before exporting a REAPER project');
+      return;
+    }
+    const text = writeRpp(song);
+    const name = `${project.name.replace(/[^\w\- ]+/g, '').trim() || 'openbeats'}.rpp`;
+    if (await saveTextNative(text, name)) get().toast('REAPER project saved');
+    else {
+      downloadBlob(new Blob([text], { type: 'text/plain' }), name);
+      get().toast('REAPER project exported');
     }
   },
 

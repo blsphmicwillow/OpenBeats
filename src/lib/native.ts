@@ -50,6 +50,25 @@ export async function openTextNative(): Promise<string | null> {
   return nativeInvoke<string | null>('open_text_file');
 }
 
+function toBase64(bytes: Uint8Array): string {
+  let binary = '';
+  const chunk = 0x8000;
+  for (let i = 0; i < bytes.length; i += chunk) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + chunk));
+  }
+  return btoa(binary);
+}
+
+/** Native save dialog for binary song files (MIDI). Falls back to a browser download. */
+export async function saveBinaryNative(bytes: Uint8Array, suggestedName: string): Promise<boolean> {
+  if (!isNative()) return false;
+  const result = await nativeInvoke<string | null>('save_binary_file', {
+    data: toBase64(bytes),
+    suggestedName,
+  });
+  return Boolean(result);
+}
+
 export async function nativePlatform(): Promise<string> {
   if (!isNative()) return 'web';
   return (await nativeInvoke<string>('platform')) ?? 'native';

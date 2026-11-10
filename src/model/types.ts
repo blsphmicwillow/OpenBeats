@@ -244,6 +244,8 @@ export interface Settings {
   highContrast: boolean;
   /** Always draw a visible keyboard focus ring. */
   focusRings: boolean;
+  /** Replace translucent glass with opaque panels and disable blur. */
+  reduceTransparency: boolean;
   autoSave: boolean;
   keymap: Record<KeyAction, string>;
   tutorialDone: boolean;
@@ -275,6 +277,7 @@ export interface UIState {
   fixMixOpen: boolean;
   humOpen: boolean;
   inspireOpen: boolean;
+  exchangeOpen: boolean;
   update: UpdateInfo | null;
   updateChecking: boolean;
   exporting: null | { progress: number };

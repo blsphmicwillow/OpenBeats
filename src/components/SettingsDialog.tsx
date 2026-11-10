@@ -398,6 +398,19 @@ export function SettingsDialog() {
               </div>
               <div className="field">
                 <div className="field-label">
+                  Reduce transparency
+                  <small>Replaces frosted glass with solid panels and disables backdrop blur.</small>
+                </div>
+                <div className="field-control">
+                  <input
+                    type="checkbox"
+                    checked={settings.reduceTransparency}
+                    onChange={(e) => patchSettings({ reduceTransparency: e.target.checked })}
+                  />
+                </div>
+              </div>
+              <div className="field">
+                <div className="field-label">
                   Interface scale <small>{Math.round(settings.scale * 100)}%</small>
                 </div>
                 <div className="field-control">
