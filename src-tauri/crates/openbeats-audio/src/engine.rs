@@ -234,7 +234,7 @@ impl CallbackState {
         if let Some(accent) = click {
             self.trigger_click(accent);
         }
-        let (voice_l, voice_r) = voice_pool.next_frame();
+        let (voice_l, voice_r) = self.voice_pool.next_frame();
         left += voice_l;
         right += voice_r;
 
