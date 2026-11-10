@@ -16,6 +16,17 @@ Eleven built-in themes, Classic and Modern chrome, and an editable **My theme** 
 
 ---
 
+## Audio I/O and workflow highlights
+
+- **Audio Settings tab** lists every input and output device CPAL reports and rebuilds the stream when you choose one.
+- **Linux silence fixed properly**: the picker prefers the PipeWire/PulseAudio bridge, because ALSA's `default` device can route to a null sink; F32/F64/I16/I32/U16 formats are handled and the opened device, rate and latency are logged.
+- **Hot-swap and low latency**: a failed device falls back to the system default, and Low-latency mode uses the smallest buffer the device offers with a live latency readout.
+- **Master on outputs 1/2, cue on 3/4** for four-channel interfaces, with an independent cue level.
+- **True-peak master limiter** with 4× oversampled inter-sample detection, plus Mid/Side inserts, a sidechain dynamic EQ and a `rustfft` spectrum analyser.
+- **Smart Humanize** (groove templates, deterministic), **Auto Gain Staging** to -6 dBFS, a rule-based **Melody Generator**, a held-note **Note Arpeggiator**, **Project Health Check**, **Tap Tempo** and **session recovery** every 30 seconds.
+
+---
+
 ## Install OpenBeats 1.0.0
 
 Every package is built by GitHub Actions and attached to the

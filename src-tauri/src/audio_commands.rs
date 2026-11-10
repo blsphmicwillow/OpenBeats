@@ -5,11 +5,16 @@
 
 use std::sync::Mutex;
 
+use openbeats_audio::analyzer::SpectralAnalyzer;
+use openbeats_audio::arp::{ArpEvent, Arpeggiator};
 use openbeats_audio::automation::{AutomationLane, AutomationSet};
 use openbeats_audio::chord::{chord_for, chord_stamp, suggest_progression, Chord};
 use openbeats_audio::command::{parse_command, ParsedCommand};
+use openbeats_audio::devices::AudioDeviceInfo;
 use openbeats_audio::effect_graph::ModularGraph;
+use openbeats_audio::engine::list_devices;
 use openbeats_audio::engine::{EngineSnapshot, NativeEngine};
+use openbeats_audio::melody::{self as melody_mod, MelodyOptions};
 use openbeats_audio::mixer::{MixError, MixerGraph, MixerStrip};
 use openbeats_audio::notes::{normalize_gains, note_name, KeyLabels};
 use openbeats_audio::piano_tools::{
@@ -19,6 +24,10 @@ use openbeats_audio::playlist_tools::{
     chop as chop_span, quantize_start, slice as slice_span, ClipSpan,
 };
 use openbeats_audio::sequencer::PlaybackProject;
+use openbeats_audio::theme::css_variables;
+use openbeats_audio::workflow::{
+    auto_gain_staging, health_check, humanize, tap_tempo, Groove, HealthIssue, ProjectHealth,
+};
 use serde::Serialize;
 use tauri::{AppHandle, Manager, State};
 
@@ -146,7 +155,9 @@ pub fn recover_audio_log(
     let Some(engine) = guard.as_ref() else {
         return Ok(None);
     };
-    let logger = engine.logger();
+    let logger = engine
+        .logger()
+        .ok_or_else(|| "the audio stream is not open yet".to_string())?;
     let log = logger
         .lock()
         .map_err(|_| "the audio logger is unavailable".to_string())?;
@@ -376,4 +387,219 @@ pub fn render_effect_graph(
         );
     }
     Ok(out)
+}
+
+/* ------------------------------------------------------------------ *
+ * Device selection, low latency and cue routing (native builds)
+ * ------------------------------------------------------------------ */
+
+/// Every input and output device CPAL reports, for the Audio settings tab.
+#[tauri::command]
+pub fn get_audio_devices() -> Vec<AudioDeviceInfo> {
+    list_devices()
+}
+
+/// Rebuilds the stream on `device` (or the platform preference when null).
+#[tauri::command]
+pub fn select_audio_device(
+    state: State<'_, AudioState>,
+    device: Option<String>,
+) -> Result<EngineSnapshot, String> {
+    let mut guard = state
+        .engine
+        .lock()
+        .map_err(|_| "the audio state is unavailable".to_string())?;
+    if guard.is_none() {
+        *guard = Some(NativeEngine::start_with(device, false)?);
+    } else if let Some(engine) = guard.as_mut() {
+        engine.select_device(device)?;
+    }
+    // The stream is rebuilt on the audio thread; give it a moment so the caller
+    // gets the new device name and latency rather than the old snapshot.
+    std::thread::sleep(std::time::Duration::from_millis(300));
+    Ok(guard
+        .as_ref()
+        .map(|engine| engine.snapshot())
+        .unwrap_or_else(stopped_snapshot))
+}
+
+/// Reopens the stream with the device minimum buffer (`true`) or its default.
+#[tauri::command]
+pub fn set_low_latency(
+    state: State<'_, AudioState>,
+    enabled: bool,
+) -> Result<EngineSnapshot, String> {
+    let mut guard = state
+        .engine
+        .lock()
+        .map_err(|_| "the audio state is unavailable".to_string())?;
+    if guard.is_none() {
+        *guard = Some(NativeEngine::start_with(None, enabled)?);
+    } else if let Some(engine) = guard.as_mut() {
+        engine.set_low_latency(enabled)?;
+    }
+    std::thread::sleep(std::time::Duration::from_millis(300));
+    Ok(guard
+        .as_ref()
+        .map(|engine| engine.snapshot())
+        .unwrap_or_else(stopped_snapshot))
+}
+
+/// Level of the cue bus written to outputs 3/4.
+#[tauri::command]
+pub fn set_cue_gain(state: State<'_, AudioState>, gain: f32) -> Result<(), String> {
+    let guard = state
+        .engine
+        .lock()
+        .map_err(|_| "the audio state is unavailable".to_string())?;
+    if let Some(engine) = guard.as_ref() {
+        engine.set_cue_gain(gain);
+    }
+    Ok(())
+}
+
+/// Current engine snapshot without touching the transport.
+#[tauri::command]
+pub fn audio_engine_info(state: State<'_, AudioState>) -> EngineSnapshot {
+    state
+        .engine
+        .lock()
+        .ok()
+        .and_then(|guard| guard.as_ref().map(|engine| engine.snapshot()))
+        .unwrap_or_else(stopped_snapshot)
+}
+
+/* ------------------------------------------------------------------ *
+ * Smart workflow and composition
+ * ------------------------------------------------------------------ */
+
+fn groove_for(id: &str) -> Groove {
+    match id.to_lowercase().as_str() {
+        "laid_back" | "laidback" | "laid-back" => Groove::laid_back(),
+        "pushed" | "push" => Groove::pushed(),
+        "shuffle" | "swing" => Groove::shuffle(),
+        _ => Groove::straight(),
+    }
+}
+
+/// Groove-aware humanise: the same notes and groove always give the same result.
+#[tauri::command]
+pub fn humanize_notes(notes: Vec<ToolNote>, groove: String, amount: f32) -> Vec<ToolNote> {
+    humanize(&notes, &groove_for(&groove), amount)
+}
+
+/// Fader gains that leave the requested headroom (-6 dBFS by default).
+#[tauri::command]
+pub fn auto_gain_gains(peaks: Vec<f32>, headroom_db: Option<f32>) -> Vec<f32> {
+    auto_gain_staging(&peaks, headroom_db.unwrap_or(-6.0))
+}
+
+/// Clipping, unused channels, missing samples and heavy plugins.
+#[tauri::command]
+pub fn project_health(project: ProjectHealth) -> Vec<HealthIssue> {
+    health_check(&project)
+}
+
+/// Rule-based melody generation; the same seed reproduces the same take.
+#[tauri::command]
+pub fn generate_melody(options: MelodyOptions) -> Vec<ToolNote> {
+    melody_mod::generate(&options)
+}
+
+/// BPM from tap times in milliseconds.
+#[tauri::command]
+pub fn tap_tempo_from_taps(taps_ms: Vec<u64>) -> Option<f32> {
+    tap_tempo(&taps_ms)
+}
+
+/// Renders the held-note arpeggiator into a note pattern.
+#[tauri::command]
+#[allow(clippy::too_many_arguments)]
+pub fn arp_pattern(
+    notes: Vec<ToolNote>,
+    bpm: f32,
+    mode: ArpMode,
+    rate_steps: f32,
+    octaves: u8,
+    gate: f32,
+    steps: u32,
+) -> Vec<ToolNote> {
+    if notes.is_empty() || steps == 0 {
+        return Vec::new();
+    }
+    let bpm = bpm.clamp(20.0, 300.0);
+    let mut arp = Arpeggiator::new(48_000.0, bpm);
+    arp.mode = mode;
+    arp.rate_steps = rate_steps.clamp(0.25, 4.0);
+    arp.octaves = octaves.max(1);
+    arp.gate = gate.clamp(0.05, 1.0);
+    for note in &notes {
+        arp.note_on(note.pitch);
+    }
+    let frames_per_step = ((60.0 / bpm / 4.0) * 48_000.0 * arp.rate_steps).max(1.0) as usize;
+
+    let mut out = Vec::new();
+    let mut open: Option<(u8, f32)> = None;
+    for step in 0..steps {
+        for event in arp.advance(frames_per_step) {
+            match event {
+                ArpEvent::NoteOn(pitch) => {
+                    if let Some((previous, start)) = open.take() {
+                        out.push(ToolNote::new(
+                            previous,
+                            start,
+                            (step as f32 - start).max(0.25),
+                            0.9,
+                        ));
+                    }
+                    open = Some((pitch, step as f32));
+                }
+                ArpEvent::NoteOff(_) => {
+                    if let Some((pitch, start)) = open.take() {
+                        out.push(ToolNote::new(
+                            pitch,
+                            start,
+                            (step as f32 - start).max(0.25),
+                            0.9,
+                        ));
+                    }
+                }
+            }
+        }
+    }
+    if let Some((pitch, start)) = open {
+        out.push(ToolNote::new(pitch, start, 0.5, 0.9));
+    }
+    out
+}
+
+/// Magnitudes per frequency band for the spectrum display.
+#[tauri::command]
+pub fn spectrum_bands(samples: Vec<f32>, sample_rate: f32, bands: Option<Vec<f32>>) -> Vec<f32> {
+    let edges = bands.unwrap_or_else(|| {
+        vec![
+            20.0, 60.0, 120.0, 250.0, 500.0, 1_000.0, 2_000.0, 4_000.0, 8_000.0, 16_000.0, 20_000.0,
+        ]
+    });
+    let mut analyzer = SpectralAnalyzer::new(2048);
+    analyzer.bands(&samples, &edges, sample_rate)
+}
+
+/// CSS custom properties for a theme file, validated in Rust.
+#[derive(Serialize)]
+pub struct ThemeVariables {
+    pub name: String,
+    pub variables: Vec<(String, String)>,
+    pub css: String,
+}
+
+/// Parses a JSON theme into `--variable` pairs the UI applies to the document.
+#[tauri::command]
+pub fn parse_theme(json: String) -> Result<ThemeVariables, String> {
+    let parsed = css_variables(&json)?;
+    Ok(ThemeVariables {
+        name: parsed.name.clone(),
+        css: parsed.stylesheet(),
+        variables: parsed.variables,
+    })
 }

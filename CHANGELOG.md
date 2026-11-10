@@ -20,6 +20,33 @@ This is the first official release. Everything below shipped in this build; ther
 - **VST3/CLAP hosting** on Windows and macOS through an out-of-process plugin host with crash recovery. Not available on Linux, where the plugin browser still works.
 - Local natural-language commands, all offline. No accounts, no cloud.
 
+### Audio I/O and the Linux silent-audio fix
+
+- **Audio tab device control**: every input and output CPAL reports is listed, and picking an output rebuilds the stream on that device via `select_audio_device`.
+- **Linux silence fixed at the source**: playback looked fine (the step counter moved) while nothing was audible because ALSA's `default` PCM can be a null sink under PipeWire. The device picker now prefers the PipeWire/PulseAudio bridge on Linux, handles F32, F64, I16, I32 and U16 output formats, and logs the device, rate, channel count and estimated latency it actually opened.
+- **Device hot-swap**: a stream error pauses playback, counts the error and reopens the system default, so unplugging headphones no longer ends audio for the session. The UI sees the swap count and the new device name.
+- **Low-latency mode**: one toggle reopens the stream with the device's smallest buffer and shows the estimated latency in milliseconds.
+- **Cue routing**: master is written to outputs 1/2 and the cue bus to 3/4 on interfaces with four or more channels, with its own level control.
+- The audio callback prints its frame count and peak once a second, so a silent device can be diagnosed from a terminal.
+
+### Mixing and DSP additions
+
+- **True-peak limiter** with 4× oversampled inter-sample detection, now used as the stereo master limiter instead of the sample-peak limiter.
+- **Mid/Side insert processor** with mid/side gain controls and buffer processing.
+- **Dynamic EQ** whose band gain is driven by a sidechain input.
+- **Spectral analyser** backed by `rustfft`, exposed to the UI as per-band magnitudes.
+
+### Smart workflow and composition
+
+- **Smart Humanize** applies a groove template (Straight, Laid back, Pushed, Shuffle) to timing and velocity. It is deterministic: the same notes and groove always give the same result, so it can be undone and repeated exactly.
+- **Auto Gain Staging** computes per-source fader gains that leave -6 dBFS of headroom, ignoring silent sources.
+- **Melody Generator** is a local rule-based composer: it starts on a chord tone, moves mostly by step, resolves leaps, arches the contour and ends on a chord tone, and the same seed reproduces the same melody.
+- **Note Arpeggiator** is a held-note state machine in Rust with up/down/up-down/as-played orders, octave expansion and a gate length, rendered to a pattern on request.
+- **Project Health Check** reports clipping, unused channels, missing samples, unloaded channels and high-CPU plugins.
+- **Tap Tempo** derives BPM from tap times using the median interval, so a missed tap does not derail it.
+- **Session recovery**: a background Rust thread writes a hidden `.recovery` snapshot at most every 30 seconds, atomically via a temporary file, and the Audio tab can restore or clear it.
+- **Theme engine**: JSON theme files are validated in Rust (colours only, no injected declarations) and returned as `--variable` pairs for the UI.
+
 ### Mixing, automation and editing tools
 
 - **Mixer routing** in Rust: free routing to any track, multiple sends, pre-fader sends, mute/solo and a sidechain ducker, with routing cycles refused instead of producing feedback.

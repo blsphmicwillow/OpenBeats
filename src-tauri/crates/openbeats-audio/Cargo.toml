@@ -11,6 +11,8 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 cpal = { version = "0.15", optional = true }
 fundsp = { version = "0.20", optional = true }
+# Real FFT for the spectrum display.
+rustfft = "6"
 
 [features]
 # Pure DSP + sequencing: builds and tests on any machine, no system libraries.

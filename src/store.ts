@@ -41,7 +41,7 @@ import {
 import { downloadBlob, renderSongToWav } from './audio/export';
 import { checkForUpdate } from './lib/updates';
 import { APP_VERSION, DEFAULT_UPDATE_REPO } from './lib/version';
-import { openTextNative, saveBinaryNative, saveTextNative } from './lib/native';
+import { isNative, openTextNative, saveBinaryNative, saveTextNative } from './lib/native';
 import { parseMidi, writeMidi } from './lib/daw/midi';
 import { parseAls } from './lib/daw/als';
 import { parseRpp, writeRpp } from './lib/daw/rpp';
@@ -1091,6 +1091,19 @@ export const useApp = create<AppState>((set, get) => ({
       set({ lastSaved: savedAt });
     } catch {
       /* storage full or blocked */
+    }
+    // Mirror the autosave into the native recovery thread, which flushes a
+    // hidden .recovery file at most every 30 seconds.
+    if (isNative()) {
+      const snapshot = JSON.stringify(get().project);
+      void import('./lib/nativeAudio')
+        .then(async ({ startSessionRecovery, recoveryUpdate }) => {
+          await startSessionRecovery();
+          await recoveryUpdate(snapshot);
+        })
+        .catch(() => {
+          /* recovery is best effort */
+        });
     }
   },
 

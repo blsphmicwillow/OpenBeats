@@ -1,5 +1,6 @@
 mod audio_commands;
 mod plugin_commands;
+mod recovery;
 
 use base64::{engine::general_purpose::STANDARD, Engine as _};
 use discord_rich_presence::{activity, DiscordIpc, DiscordIpcClient};
@@ -171,6 +172,7 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .manage(audio_commands::AudioState::default())
+        .manage(recovery::RecoveryState::default())
         .manage(plugin_commands::PluginState::new(helper, plugin_cache))
         .invoke_handler(tauri::generate_handler![
             platform,
@@ -212,6 +214,27 @@ pub fn run() {
             audio_commands::quantize_clip_start,
             audio_commands::effect_graph_order,
             audio_commands::render_effect_graph,
+            // Device selection, low latency and cue routing
+            audio_commands::get_audio_devices,
+            audio_commands::select_audio_device,
+            audio_commands::set_low_latency,
+            audio_commands::set_cue_gain,
+            audio_commands::audio_engine_info,
+            // Smart workflow and composition
+            audio_commands::humanize_notes,
+            audio_commands::auto_gain_gains,
+            audio_commands::project_health,
+            audio_commands::generate_melody,
+            audio_commands::tap_tempo_from_taps,
+            audio_commands::arp_pattern,
+            audio_commands::spectrum_bands,
+            audio_commands::parse_theme,
+            // Session recovery
+            recovery::start_session_recovery,
+            recovery::recovery_update,
+            recovery::recovery_flush,
+            recovery::read_recovery,
+            recovery::clear_recovery,
             // Plugin hosting
             plugin_commands::scan_plugins,
             plugin_commands::load_plugin_chain,

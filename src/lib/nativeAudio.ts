@@ -97,6 +97,49 @@ export interface NativePlaybackState {
   stream_errors: number;
   sample_rate: number;
   device: string;
+  /** Estimated output latency in milliseconds for the open buffer. */
+  latency_ms: number;
+  /** Channels the stream writes to; 4 or more means the cue bus is routed. */
+  channels: number;
+  /** How many times the stream was rebuilt (device switch or recovery). */
+  device_swaps: number;
+}
+
+export interface AudioDeviceInfo {
+  name: string;
+  kind: 'output' | 'input';
+  host: string;
+  is_default: boolean;
+  channels: number;
+  sample_rate: number;
+  /** True for the Linux PulseAudio/PipeWire bridge. */
+  is_pulse_bridge: boolean;
+}
+
+export interface NativeGroove {
+  name: string;
+  timing: number[];
+  velocity: number[];
+}
+
+export interface NativeMelodyOptions {
+  root: number;
+  scale: NativeScale;
+  bars: number;
+  rhythm: 'straight' | 'syncopated' | 'long';
+  octave: number;
+  seed: number;
+}
+
+export interface NativeHealthIssue {
+  kind: string;
+  detail: string;
+}
+
+export interface NativeThemeVariables {
+  name: string;
+  variables: [string, string][];
+  css: string;
 }
 
 export interface RecoveredLog {
@@ -239,6 +282,144 @@ export async function nativePlaybackState(): Promise<NativePlaybackState | null>
 export async function nativeAudioDevices(): Promise<string[]> {
   if (!isNative()) return [];
   return (await nativeInvoke<string[]>('native_audio_devices')) ?? [];
+}
+
+/** Every input and output device, for the Audio settings tab. */
+export async function getAudioDevices(): Promise<AudioDeviceInfo[]> {
+  if (!isNative()) return [];
+  return (await nativeInvoke<AudioDeviceInfo[]>('get_audio_devices')) ?? [];
+}
+
+/** Rebuilds the CPAL stream on a device (null restores the platform default). */
+export async function selectAudioDevice(
+  device: string | null,
+): Promise<NativePlaybackState | null> {
+  if (!isNative()) return null;
+  return nativeInvoke<NativePlaybackState>('select_audio_device', { device });
+}
+
+/** Reopens the stream with the device minimum buffer, or its default size. */
+export async function setLowLatency(enabled: boolean): Promise<NativePlaybackState | null> {
+  if (!isNative()) return null;
+  return nativeInvoke<NativePlaybackState>('set_low_latency', { enabled });
+}
+
+/** Level of the cue bus on outputs 3/4. */
+export async function setCueGain(gain: number): Promise<void> {
+  if (!isNative()) return;
+  await nativeInvoke<null>('set_cue_gain', { gain });
+}
+
+/** Groove-aware humanise using the Rust groove templates. */
+export async function nativeHumanize(
+  notes: NativeToolNote[],
+  groove: 'straight' | 'laid_back' | 'pushed' | 'shuffle',
+  amount = 1,
+): Promise<NativeToolNote[] | null> {
+  if (!isNative()) return null;
+  return nativeInvoke<NativeToolNote[]>('humanize_notes', { notes, groove, amount });
+}
+
+/** Fader gains that leave `headroomDb` of headroom on each source. */
+export async function nativeAutoGain(
+  peaks: number[],
+  headroomDb = -6,
+): Promise<number[] | null> {
+  if (!isNative()) return null;
+  return nativeInvoke<number[]>('auto_gain_gains', { peaks, headroomDb });
+}
+
+/** Project health scan: clipping, unused channels, missing samples, heavy plugins. */
+export async function nativeHealthCheck(project: {
+  peak: number;
+  channel_count: number;
+  used_channels: number;
+  missing_samples: number;
+  high_cpu_plugins: number;
+  unloaded_channels: number;
+}): Promise<NativeHealthIssue[] | null> {
+  if (!isNative()) return null;
+  return nativeInvoke<NativeHealthIssue[]>('project_health', { project });
+}
+
+/** Rule-based melody generation; the same seed reproduces the same take. */
+export async function nativeGenerateMelody(
+  options: NativeMelodyOptions,
+): Promise<NativeToolNote[] | null> {
+  if (!isNative()) return null;
+  return nativeInvoke<NativeToolNote[]>('generate_melody', { options });
+}
+
+/** BPM from tap times in milliseconds. */
+export async function nativeTapTempo(tapsMs: number[]): Promise<number | null> {
+  if (!isNative()) return null;
+  return nativeInvoke<number | null>('tap_tempo_from_taps', { tapsMs });
+}
+
+/** Renders the held-note arpeggiator into a pattern. */
+export async function nativeArpPattern(
+  notes: NativeToolNote[],
+  bpm: number,
+  mode: NativeArpMode,
+  rateSteps = 1,
+  octaves = 1,
+  gate = 0.6,
+  steps = 16,
+): Promise<NativeToolNote[] | null> {
+  if (!isNative()) return null;
+  return nativeInvoke<NativeToolNote[]>('arp_pattern', {
+    notes,
+    bpm,
+    mode,
+    rateSteps,
+    octaves,
+    gate,
+    steps,
+  });
+}
+
+/** Magnitudes per frequency band, analysed with rustfft. */
+export async function nativeSpectrum(
+  samples: number[],
+  sampleRate: number,
+  bands?: number[],
+): Promise<number[] | null> {
+  if (!isNative()) return null;
+  return nativeInvoke<number[]>('spectrum_bands', { samples, sampleRate, bands });
+}
+
+/** Validated CSS variables for a JSON theme file. */
+export async function nativeThemeVariables(json: string): Promise<NativeThemeVariables | null> {
+  if (!isNative()) return null;
+  return nativeInvoke<NativeThemeVariables>('parse_theme', { json });
+}
+
+/* ------------------------------------------------------------------ *
+ * Session recovery (a Rust thread writing a hidden .recovery file)
+ * ------------------------------------------------------------------ */
+
+/** Starts the 30-second recovery thread and returns the snapshot path. */
+export async function startSessionRecovery(): Promise<string | null> {
+  if (!isNative()) return null;
+  return nativeInvoke<string>('start_session_recovery');
+}
+
+/** Queues the current project for the recovery thread. */
+export async function recoveryUpdate(contents: string): Promise<void> {
+  if (!isNative()) return;
+  await nativeInvoke<null>('recovery_update', { contents });
+}
+
+/** The last recovery snapshot, or null when there is none. */
+export async function readRecovery(): Promise<string | null> {
+  if (!isNative()) return null;
+  return nativeInvoke<string | null>('read_recovery');
+}
+
+/** Removes the snapshot after a successful restore or save. */
+export async function clearRecovery(): Promise<void> {
+  if (!isNative()) return;
+  await nativeInvoke<null>('clear_recovery');
 }
 
 export async function playNativeTestTone(): Promise<boolean> {

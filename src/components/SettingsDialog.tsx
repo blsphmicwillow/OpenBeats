@@ -1,10 +1,23 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useApp } from '../store';
 import { Modal } from '../ui/Modal';
 import { THEMES, themeById } from '../themes';
 import { ThemeColorEditor } from './ThemeColorEditor';
 import { DEFAULT_KEYMAP, defaultSettings } from '../model/defaults';
 import { engine } from '../audio/engine';
+import {
+  clearRecovery,
+  getAudioDevices,
+  nativePlaybackState,
+  playNativeTestTone,
+  readRecovery,
+  recoverAudioLog,
+  selectAudioDevice,
+  setCueGain,
+  setLowLatency,
+  type AudioDeviceInfo,
+  type NativePlaybackState,
+} from '../lib/nativeAudio';
 import { KEY_ACTION_LABELS, comboFromEvent } from '../ui/keymapLabels';
 import { APP_VERSION } from '../lib/version';
 import type { KeyAction, Settings, Theme } from '../model/types';
@@ -712,6 +725,13 @@ function AudioTab() {
 
   return (
     <>
+      <h3>Native audio device</h3>
+      <p className="hinttext">
+        The desktop build plays through the Rust engine and CPAL. Pick a device here if the default one is silent — on
+        Linux the PulseAudio/PipeWire bridge is preferred automatically, because ALSA’s default device can point at a
+        null sink while the step counter keeps moving.
+      </p>
+      <NativeDevicePanel />
       <h3>Audio engine</h3>
       <p className="hinttext">
         OpenBeats renders everything with Web Audio: instruments are synthesised per note, effects run as native nodes, and
@@ -776,6 +796,220 @@ function AudioTab() {
         Browsers only allow sound after a click or key press — press Space or click anywhere in the studio to start the
         engine. The Bounce button renders faster than real time.
       </p>
+    </>
+  );
+}
+
+function errorText(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
+}
+
+/**
+ * Native device controls: enumeration, stream rebuilds, low-latency buffer,
+ * cue level, the test tone and the recovery tools. In the browser build the
+ * device list is empty and the panel explains why.
+ */
+function NativeDevicePanel() {
+  const [devices, setDevices] = useState<AudioDeviceInfo[]>([]);
+  const [snapshot, setSnapshot] = useState<NativePlaybackState | null>(null);
+  const [output, setOutput] = useState('');
+  const [input, setInput] = useState('');
+  const [lowLatency, setLowLatencyMode] = useState(false);
+  const [cue, setCue] = useState(1);
+  const [note, setNote] = useState<string | null>(null);
+
+  const refresh = useCallback(async () => {
+    const list = await getAudioDevices();
+    setDevices(list);
+    setSnapshot(await nativePlaybackState());
+    const out = list.find((d) => d.kind === 'output' && d.is_default) ?? list.find((d) => d.kind === 'output');
+    const inp = list.find((d) => d.kind === 'input' && d.is_default) ?? list.find((d) => d.kind === 'input');
+    setOutput((current) => current || out?.name || '');
+    setInput((current) => current || inp?.name || '');
+  }, []);
+
+  useEffect(() => {
+    void refresh();
+    const id = window.setInterval(() => {
+      void nativePlaybackState().then(setSnapshot);
+    }, 1000);
+    return () => window.clearInterval(id);
+  }, [refresh]);
+
+  const outputs = devices.filter((d) => d.kind === 'output');
+  const inputs = devices.filter((d) => d.kind === 'input');
+
+  const chooseOutput = async (name: string) => {
+    setOutput(name);
+    try {
+      const next = await selectAudioDevice(name || null);
+      if (next) setSnapshot(next);
+      setNote(next ? `Rebuilt the stream on ${next.device || 'the system default'}.` : 'Device selection needs the desktop build.');
+    } catch (err) {
+      setNote(errorText(err));
+    }
+  };
+
+  const toggleLowLatency = async (enabled: boolean) => {
+    setLowLatencyMode(enabled);
+    try {
+      const next = await setLowLatency(enabled);
+      if (next) setSnapshot(next);
+      setNote(enabled ? 'Using the device minimum buffer.' : 'Using the device default buffer.');
+    } catch (err) {
+      setNote(errorText(err));
+    }
+  };
+
+  const recoverSession = async () => {
+    try {
+      const text = await readRecovery();
+      if (!text) {
+        setNote('No recovered session was found yet.');
+        return;
+      }
+      await useApp
+        .getState()
+        .openProjectFile(new File([text], 'recovered-session.obeats', { type: 'application/json' }));
+      await clearRecovery();
+      setNote('Recovered the last autosaved session.');
+    } catch (err) {
+      setNote(errorText(err));
+    }
+  };
+
+  return (
+    <>
+      <div className="field">
+        <div className="field-label">
+          Output device
+          <small>
+            {snapshot
+              ? `Open: ${snapshot.device || 'none'} · ${Math.round(snapshot.sample_rate)} Hz · ${snapshot.channels} ch`
+              : 'The stream opens on the first play or test tone.'}
+          </small>
+        </div>
+        <div className="field-control">
+          <select
+            className="text-input"
+            value={output}
+            onChange={(e) => void chooseOutput(e.target.value)}
+            disabled={outputs.length === 0}
+            aria-label="Output device"
+          >
+            {outputs.length === 0 && <option value="">No native devices (browser build)</option>}
+            {outputs.map((device) => (
+              <option key={device.name} value={device.name}>
+                {device.name}
+                {device.is_default ? ' · default' : ''}
+                {device.is_pulse_bridge ? ' · Pulse/PipeWire' : ''}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+      <div className="field">
+        <div className="field-label">
+          Input device
+          <small>Inputs are enumerated for recording; playback always uses the output above.</small>
+        </div>
+        <div className="field-control">
+          <select
+            className="text-input"
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            disabled={inputs.length === 0}
+            aria-label="Input device"
+          >
+            {inputs.length === 0 && <option value="">No inputs found</option>}
+            {inputs.map((device) => (
+              <option key={device.name} value={device.name}>
+                {device.name}
+                {device.is_default ? ' · default' : ''}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+      <div className="field">
+        <div className="field-label">
+          Low-latency mode
+          <small>Rebuilds the stream with the device’s smallest buffer for tighter key response.</small>
+        </div>
+        <div className="field-control">
+          <input
+            type="checkbox"
+            checked={lowLatency}
+            onChange={(e) => void toggleLowLatency(e.target.checked)}
+            aria-label="Low-latency mode"
+          />
+          <span className="chip">{snapshot ? `${snapshot.latency_ms.toFixed(1)} ms` : '—'}</span>
+        </div>
+      </div>
+      <div className="field">
+        <div className="field-label">
+          Cue level (outputs 3/4)
+          <small>Master stays on 1/2; a four-channel interface gets the cue bus on 3/4.</small>
+        </div>
+        <div className="field-control">
+          <input
+            type="range"
+            min={0}
+            max={1}
+            step={0.01}
+            value={cue}
+            onChange={(e) => {
+              const value = Number(e.target.value);
+              setCue(value);
+              void setCueGain(value);
+            }}
+            aria-label="Cue level"
+          />
+          <span className="tiny-note">{Math.round(cue * 100)}%</span>
+        </div>
+      </div>
+      <div className="field">
+        <div className="field-label">
+          Check the device
+          <small>A 440 Hz tone proves data is reaching the output; “Recover” saves the last 60 seconds.</small>
+        </div>
+        <div className="field-control">
+          <button
+            className="btn"
+            onClick={async () => {
+              const ok = await playNativeTestTone();
+              setNote(ok ? 'Playing a 440 Hz test tone for 1.5 s.' : 'The test tone needs the desktop build.');
+            }}
+          >
+            Test tone
+          </button>
+          <button
+            className="btn ghost"
+            onClick={async () => {
+              const log = await recoverAudioLog(60);
+              setNote(
+                log
+                  ? `Saved ${Math.round(log.seconds)} s to ${log.path}`
+                  : 'Nothing has been recorded yet — press play first.',
+              );
+            }}
+          >
+            Recover 60 s
+          </button>
+        </div>
+      </div>
+      <div className="field">
+        <div className="field-label">
+          Session recovery
+          <small>A Rust thread writes a hidden .recovery file every 30 seconds while you work.</small>
+        </div>
+        <div className="field-control">
+          <button className="btn ghost" onClick={() => void recoverSession()}>
+            Restore last session
+          </button>
+        </div>
+      </div>
+      {note && <p className="hinttext">{note}</p>}
     </>
   );
 }
