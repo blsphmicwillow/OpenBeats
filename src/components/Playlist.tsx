@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { patternById, useApp } from '../store';
 import { songLengthSteps } from '../audio/sequencer';
 import { IconGrid, IconPiano, IconPlus, IconTrash } from '../ui/icons';
@@ -8,7 +8,9 @@ const HEAD = 142;
 type DragState =
   | { kind: 'clip'; id: string; startX: number; origStart: number; origLen: number }
   | { kind: 'resize'; id: string; startX: number; origLen: number }
-  | { kind: 'loop'; edge: 'start' | 'end'; startX: number; orig: number };
+  | { kind: 'loop'; edge: 'start' | 'end'; startX: number; orig: number }
+  | { kind: 'loop-move'; startX: number; origStart: number; origEnd: number }
+  | { kind: 'playhead'; startX: number; rulerLeft: number };
 
 export function Playlist() {
   const project = useApp((s) => s.project);
@@ -18,6 +20,12 @@ export function Playlist() {
   const [zoom, setZoom] = useState(9);
   const [selectedClip, setSelectedClip] = useState<string | null>(null);
   const drag = useRef<DragState | null>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const dragStartScroll = useRef(0);
+  const lastPointerX = useRef(0);
+  const autoEdgeRef = useRef<'left' | 'right' | null>(null);
+  const [autoEdge, setAutoEdge] = useState<'left' | 'right' | null>(null);
+  const [dragging, setDragging] = useState<DragState['kind'] | null>(null);
   const [renaming, setRenaming] = useState<number | null>(null);
   const [draft, setDraft] = useState('');
 
@@ -48,18 +56,59 @@ export function Playlist() {
 
   const snapStep = (step: number) => (snap ? Math.round(step / snap) * snap : Math.round(step));
 
+  // Starts any drag: remembers the scroll offset so auto-scroll keeps the
+  // dragged element under the pointer, and sets the visible affordance.
+  const beginDrag = useCallback((e: React.PointerEvent, next: DragState) => {
+    drag.current = next;
+    dragStartScroll.current = scrollRef.current?.scrollLeft ?? 0;
+    lastPointerX.current = e.clientX;
+    setDragging(next.kind);
+    document.body.style.cursor =
+      next.kind === 'playhead'
+        ? 'col-resize'
+        : next.kind === 'clip' || next.kind === 'loop-move'
+          ? 'grabbing'
+          : 'ew-resize';
+  }, []);
+
   useEffect(() => {
-    const move = (e: PointerEvent) => {
+    // Coalesce pointer moves into one state commit per animation frame: the
+    // project clone and engine sync are far heavier than the pointer events.
+    let frame = 0;
+    let autoFrame = 0;
+    let pendingX: number | null = null;
+
+    const schedule = () => {
+      if (!frame) frame = requestAnimationFrame(apply);
+    };
+
+    const apply = () => {
+      frame = 0;
+      const clientX = pendingX;
+      pendingX = null;
       const d = drag.current;
-      if (!d) return;
-      const deltaSteps = (e.clientX - d.startX) / zoom;
+      if (clientX === null || !d) return;
+      // Scrolling the lane moves the content under the pointer, so the drag has
+      // to account for the distance scrolled since it started.
+      const pointer = clientX + ((scrollRef.current?.scrollLeft ?? 0) - dragStartScroll.current);
+      const deltaSteps = (pointer - d.startX) / zoom;
+      const state = useApp.getState();
       if (d.kind === 'clip') {
         updateClip(d.id, { start: Math.max(0, snapStep(d.origStart + deltaSteps)) }, `clip-move:${d.id}`);
       } else if (d.kind === 'resize') {
         updateClip(d.id, { len: Math.max(1, snapStep(d.origLen + deltaSteps)) }, `clip-resize:${d.id}`);
+      } else if (d.kind === 'playhead') {
+        state.seek(Math.max(0, snapStep((pointer - d.rulerLeft) / zoom)));
+      } else if (d.kind === 'loop-move') {
+        // Keep the loop length and slide the whole window.
+        const length = Math.max(1, d.origEnd - d.origStart);
+        const start = Math.max(0, d.origStart + snapStep(deltaSteps));
+        state.patchProject((p) => {
+          p.loopStart = start;
+          p.loopEnd = start + length;
+        }, { coalesce: 'loop' });
       } else {
         const value = snapStep(d.orig + deltaSteps);
-        const state = useApp.getState();
         const current = state.project;
         if (d.edge === 'start') {
           const start = Math.max(0, Math.min(current.loopEnd - 1, value));
@@ -74,16 +123,74 @@ export function Playlist() {
         }
       }
     };
-    const up = () => {
+
+    const EDGE = 64;
+    const MAX_SPEED = 22;
+    const tick = () => {
+      autoFrame = 0;
+      const el = scrollRef.current;
+      if (!el || !drag.current) {
+        if (autoEdgeRef.current !== null) {
+          autoEdgeRef.current = null;
+          setAutoEdge(null);
+        }
+        return;
+      }
+      const rect = el.getBoundingClientRect();
+      const x = lastPointerX.current;
+      let speed = 0;
+      if (x < rect.left + EDGE) speed = -MAX_SPEED * Math.min(1, (rect.left + EDGE - x) / EDGE);
+      else if (x > rect.right - EDGE) speed = MAX_SPEED * Math.min(1, (x - (rect.right - EDGE)) / EDGE);
+      const edge = speed < 0 ? 'left' : speed > 0 ? 'right' : null;
+      if (edge !== autoEdgeRef.current) {
+        autoEdgeRef.current = edge;
+        setAutoEdge(edge);
+      }
+      if (edge) {
+        const before = el.scrollLeft;
+        el.scrollLeft = Math.max(0, before + speed);
+        if (el.scrollLeft !== before) {
+          // Re-evaluate the drag with the new scroll position.
+          pendingX = lastPointerX.current;
+          schedule();
+        }
+      }
+      autoFrame = requestAnimationFrame(tick);
+    };
+
+    const move = (e: PointerEvent) => {
+      if (!drag.current) return;
+      lastPointerX.current = e.clientX;
+      pendingX = e.clientX;
+      schedule();
+      // The edge loop keeps scrolling even when the pointer stops moving.
+      if (!autoFrame) autoFrame = requestAnimationFrame(tick);
+    };
+    const finish = () => {
+      if (frame) {
+        cancelAnimationFrame(frame);
+        apply();
+      }
+      if (autoFrame) cancelAnimationFrame(autoFrame);
+      autoFrame = 0;
       drag.current = null;
+      setDragging(null);
+      setAutoEdge(null);
+      autoEdgeRef.current = null;
+      document.body.style.cursor = '';
     };
     window.addEventListener('pointermove', move);
-    window.addEventListener('pointerup', up);
+    window.addEventListener('pointerup', finish);
+    window.addEventListener('pointercancel', finish);
     return () => {
       window.removeEventListener('pointermove', move);
-      window.removeEventListener('pointerup', up);
+      window.removeEventListener('pointerup', finish);
+      window.removeEventListener('pointercancel', finish);
+      if (frame) cancelAnimationFrame(frame);
+      if (autoFrame) cancelAnimationFrame(autoFrame);
+      document.body.style.cursor = '';
     };
-  }, [zoom, snap, updateClip]);
+  }, [zoom, snap, updateClip, beginDrag]);
 
   const clipMenu = (e: React.MouseEvent, clipId: string) => {
     e.preventDefault();
@@ -276,9 +383,23 @@ export function Playlist() {
         </button>
       </div>
 
-      <div className="pl-scroll">
+      <div
+        ref={scrollRef}
+        className={`pl-scroll ${dragging ? 'dragging' : ''} ${autoEdge ? `auto-${autoEdge}` : ''}`}
+      >
         <div className="pl-inner" style={{ width: HEAD + width }}>
-          <div className="pl-ruler" style={{ marginLeft: HEAD, width }}>
+          <div
+            className={`pl-ruler ${dragging === 'playhead' ? 'dragging' : ''}`}
+            style={{ marginLeft: HEAD, width }}
+            onPointerDown={(e) => {
+              if (e.button !== 0) return;
+              if ((e.target as HTMLElement).closest('.loop-region, .loop-handle')) return;
+              const rect = e.currentTarget.getBoundingClientRect();
+              seek(Math.max(0, snapStep((e.clientX - rect.left) / zoom)));
+              beginDrag(e, { kind: 'playhead', startX: e.clientX, rulerLeft: rect.left });
+            }}
+            title="Click or drag to move the playhead"
+          >
             {Array.from({ length: bars }, (_, bar) => (
               <div
                 key={bar}
@@ -289,33 +410,70 @@ export function Playlist() {
               </div>
             ))}
             <div
-              className="loop-region"
+              className={`loop-region ${dragging === 'loop-move' ? 'dragging' : ''}`}
               style={{ left: project.loopStart * zoom, width: Math.max(2, (project.loopEnd - project.loopStart) * zoom) }}
+              onPointerDown={(e) => {
+                e.stopPropagation();
+                e.preventDefault();
+                pushHistory();
+                beginDrag(e, {
+                  kind: 'loop-move',
+                  startX: e.clientX,
+                  origStart: project.loopStart,
+                  origEnd: project.loopEnd,
+                });
+              }}
+              title="Drag to slide the loop bar, or grab an edge to resize it"
             />
             <div
-              className="loop-handle"
+              className={`loop-handle ${dragging === 'loop' ? 'dragging' : ''}`}
               style={{ left: project.loopStart * zoom, borderRadius: '2px 0 0 2px' }}
               onPointerDown={(e) => {
                 e.stopPropagation();
                 pushHistory();
-                drag.current = { kind: 'loop', edge: 'start', startX: e.clientX, orig: project.loopStart };
+                beginDrag(e, { kind: 'loop', edge: 'start', startX: e.clientX, orig: project.loopStart });
               }}
               title="Drag the loop start"
             />
             <div
-              className="loop-handle"
+              className={`loop-handle ${dragging === 'loop' ? 'dragging' : ''}`}
               style={{ left: project.loopEnd * zoom - 7, borderRadius: '0 2px 2px 0' }}
               onPointerDown={(e) => {
                 e.stopPropagation();
                 pushHistory();
-                drag.current = { kind: 'loop', edge: 'end', startX: e.clientX, orig: project.loopEnd };
+                beginDrag(e, { kind: 'loop', edge: 'end', startX: e.clientX, orig: project.loopEnd });
               }}
               title="Drag the loop end"
             />
+            {(dragging === 'loop' || dragging === 'loop-move') && (
+              <div
+                className="loop-readout"
+                style={{ left: Math.max(0, Math.min(project.loopStart * zoom - 4, width - 128)) }}
+              >
+                Bars {Math.floor(project.loopStart / barSteps) + 1}–
+                {Math.max(1, Math.ceil(project.loopEnd / barSteps))}
+              </div>
+            )}
             <div
-              className="playhead-head"
+              className={`playhead-head ${dragging === 'playhead' ? 'dragging' : ''}`}
               style={{ left: transport.step * zoom, top: 2, position: 'absolute' }}
+              onPointerDown={(e) => {
+                if (e.button !== 0) return;
+                e.stopPropagation();
+                const ruler = (e.currentTarget.parentElement as HTMLElement).getBoundingClientRect();
+                beginDrag(e, { kind: 'playhead', startX: e.clientX, rulerLeft: ruler.left });
+              }}
+              title="Drag the playhead"
             />
+            {dragging === 'playhead' && (
+              <div
+                className="playhead-readout"
+                style={{ left: Math.max(0, Math.min(transport.step * zoom - 4, width - 110)) }}
+              >
+                Bar {Math.floor(transport.step / barSteps) + 1} · Beat{' '}
+                {Math.floor((transport.step % barSteps) / 4) + 1}
+              </div>
+            )}
           </div>
 
           {project.tracks.map((track, index) => (
@@ -399,7 +557,9 @@ export function Playlist() {
                     return (
                       <div
                         key={clip.id}
-                        className={`clip ${selectedClip === clip.id ? 'selected' : ''}`}
+                        className={`clip ${selectedClip === clip.id ? 'selected' : ''} ${
+                          dragging === 'clip' && selectedClip === clip.id ? 'dragging' : ''
+                        } ${dragging === 'resize' && selectedClip === clip.id ? 'resizing' : ''}`}
                         style={{ left: clip.start * zoom, width: Math.max(6, clip.len * zoom), ['--clip-color' as string]: color }}
                         title={`${pat?.name ?? 'Pattern'} — drag to move, drag the right edge to resize, double-click to edit`}
                         onPointerDown={(e) => {
@@ -407,7 +567,7 @@ export function Playlist() {
                           e.stopPropagation();
                           setSelectedClip(clip.id);
                           pushHistory();
-                          drag.current = { kind: 'clip', id: clip.id, startX: e.clientX, origStart: clip.start, origLen: clip.len };
+                          beginDrag(e, { kind: 'clip', id: clip.id, startX: e.clientX, origStart: clip.start, origLen: clip.len });
                         }}
                         onDoubleClick={(e) => {
                           e.stopPropagation();
@@ -434,7 +594,7 @@ export function Playlist() {
                           onPointerDown={(e) => {
                             e.stopPropagation();
                             pushHistory();
-                            drag.current = { kind: 'resize', id: clip.id, startX: e.clientX, origLen: clip.len };
+                            beginDrag(e, { kind: 'resize', id: clip.id, startX: e.clientX, origLen: clip.len });
                           }}
                         />
                       </div>
@@ -445,7 +605,7 @@ export function Playlist() {
           ))}
 
           <div
-            className="playhead-line"
+            className={`playhead-line ${dragging === 'playhead' ? 'dragging' : ''}`}
             style={{ left: HEAD + transport.step * zoom, top: 24, zIndex: 4 }}
           />
         </div>
@@ -458,7 +618,7 @@ export function Playlist() {
       <div className="tiny-note" style={{ padding: '3px 8px', borderTop: '1px solid var(--border)', display: 'flex', gap: 10 }}>
         <span><IconTrash size={10} /> right-click a clip to delete</span>
         <span>double-click empty lane to paint</span>
-        <span>drag the orange loop bar in the ruler</span>
+        <span>drag the playhead or the orange loop bar in the ruler</span>
       </div>
     </div>
   );

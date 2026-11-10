@@ -1,7 +1,15 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { previewChannel, useApp } from '../store';
 import { PRESETS, createChannel } from '../model/defaults';
 import { SAMPLE_BANK } from '../audio/instruments';
+import {
+  nativeGetPacks,
+  nativeImportPack,
+  nativePreviewSample,
+  nativeReadSample,
+  nativeStopPreview,
+  type NativePack,
+} from '../lib/nativeAudio';
 import { IconDownload, IconFolder, IconPlus, IconSearch, IconWave } from '../ui/icons';
 import type { PresetId } from '../model/types';
 
@@ -12,9 +20,16 @@ export function BrowserPanel() {
   const project = useApp((s) => s.project);
   const [tab, setTab] = useState<Tab>('packs');
   const [query, setQuery] = useState('');
+  const [packs, setPacks] = useState<NativePack[]>([]);
+  const [openPacks, setOpenPacks] = useState<string[]>([]);
   const sampleInput = useRef<HTMLInputElement>(null);
   const projectInput = useRef<HTMLInputElement>(null);
-  const { addChannel, saveProjectFile, openProjectFile, newProject, exportWav, updateChannel, importSampleFiles, setUI, hint } = useApp.getState();
+  const { addChannel, saveProjectFile, openProjectFile, newProject, exportWav, importSampleFiles, setUI, hint, toast } = useApp.getState();
+
+  useEffect(() => {
+    if (!ui.browserOpen) return;
+    void nativeGetPacks().then((loaded) => setPacks(loaded));
+  }, [ui.browserOpen]);
 
   if (!ui.browserOpen) return null;
 
@@ -24,6 +39,33 @@ export function BrowserPanel() {
   const groups = Array.from(new Set(filtered.map((p) => p.category)));
 
   const loadSample = async (file: File) => {
+    await importSampleFiles([file], true);
+  };
+
+  const importPack = async () => {
+    const pack = await nativeImportPack();
+    if (!pack) {
+      toast('Pack import is only available in the desktop app');
+      return;
+    }
+    setPacks((previous) => [...previous.filter((p) => p.root !== pack.root), pack]);
+    setOpenPacks((previous) => [...previous, pack.root]);
+    hint(`Imported ${pack.name} — ${pack.samples.length} samples`);
+  };
+
+  const audition = async (path: string) => {
+    const result = await nativePreviewSample(path);
+    if (result) hint(`Preview: ${result}`);
+  };
+
+  const addPackSample = async (path: string) => {
+    const payload = await nativeReadSample(path);
+    if (!payload) {
+      toast('Could not read that sample');
+      return;
+    }
+    const bytes = Uint8Array.from(atob(payload.data), (c) => c.charCodeAt(0));
+    const file = new File([bytes], payload.name);
     await importSampleFiles([file], true);
   };
 
@@ -49,53 +91,107 @@ export function BrowserPanel() {
       </div>
 
       <div className="browser-list">
-        {tab === 'packs' &&
-          groups.map((group) => (
-            <div key={group}>
-              <div className="browser-group">{group}</div>
-              {filtered
-                .filter((p) => p.category === group)
-                .map((preset) => (
+        {tab === 'packs' && (
+          <>
+            <div className="browser-group">Imported packs</div>
+            {packs.length === 0 && (
+              <div className="browser-empty">
+                No packs yet. Import a folder or a .zip to tag and browse its samples.
+              </div>
+            )}
+            {packs.map((pack) => {
+              const expanded = openPacks.includes(pack.root);
+              const visible = pack.samples.filter(
+                (sample) =>
+                  !query ||
+                  sample.name.toLowerCase().includes(query.toLowerCase()) ||
+                  sample.tags.some((tag) => tag.toLowerCase().includes(query.toLowerCase())),
+              );
+              return (
+                <div key={pack.root}>
                   <div
-                    key={preset.id}
                     className="browser-item"
-                    title={`${preset.blurb} — click to audition, double-click to add a channel`}
-                    onClick={() => {
-                      previewChannel(
-                        createChannel({
-                          preset: preset.id as PresetId,
-                          name: preset.name,
-                          root: preset.root,
-                          tone: preset.tone,
-                          decay: preset.decay,
-                          attack: preset.attack,
-                          release: preset.release,
-                          gain: preset.gain,
-                          color: '#888',
-                          mixer: 0,
-                        }),
-                      );
-                      hint(`${preset.name}: ${preset.blurb}`);
-                    }}
-                    onDoubleClick={() => addChannel(preset.id as PresetId)}
+                    title={`${pack.root} — click to expand`}
+                    onClick={() =>
+                      setOpenPacks((previous) =>
+                        previous.includes(pack.root)
+                          ? previous.filter((root) => root !== pack.root)
+                          : [...previous, pack.root],
+                      )
+                    }
                   >
-                    <span className="dot" style={{ background: 'var(--accent)', opacity: 0.75 }} />
-                    <span>{preset.name}</span>
-                    <button
-                      className="tbtn small flat"
-                      style={{ marginLeft: 'auto' }}
-                      title="Add channel"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        addChannel(preset.id as PresetId);
-                      }}
-                    >
-                      <IconPlus size={10} />
-                    </button>
+                    <span className="dot" style={{ background: 'var(--accent)' }} />
+                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{pack.name}</span>
+                    <span className="bi-meta">{expanded ? '▾' : '▸'} {pack.samples.length}</span>
                   </div>
-                ))}
-            </div>
-          ))}
+                  {expanded &&
+                    visible.map((sample) => (
+                      <div
+                        key={sample.path}
+                        className="browser-item"
+                        style={{ paddingLeft: 22 }}
+                        title={`${sample.tags.join(', ') || 'untagged'} — click to preview, double-click to load`}
+                        onClick={() => void audition(sample.path)}
+                        onDoubleClick={() => void addPackSample(sample.path)}
+                      >
+                        <IconWave size={10} />
+                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{sample.name}</span>
+                        <span className="bi-meta">{sample.tags[0] ?? ''}</span>
+                      </div>
+                    ))}
+                </div>
+              );
+            })}
+
+            <div className="browser-group">Instruments</div>
+            {groups.map((group) => (
+              <div key={group}>
+                <div className="browser-group">{group}</div>
+                {filtered
+                  .filter((p) => p.category === group)
+                  .map((preset) => (
+                    <div
+                      key={preset.id}
+                      className="browser-item"
+                      title={`${preset.blurb} — click to audition, double-click to add a channel`}
+                      onClick={() => {
+                        previewChannel(
+                          createChannel({
+                            preset: preset.id as PresetId,
+                            name: preset.name,
+                            root: preset.root,
+                            tone: preset.tone,
+                            decay: preset.decay,
+                            attack: preset.attack,
+                            release: preset.release,
+                            gain: preset.gain,
+                            color: '#888',
+                            mixer: 0,
+                          }),
+                        );
+                        hint(`${preset.name}: ${preset.blurb}`);
+                      }}
+                      onDoubleClick={() => addChannel(preset.id as PresetId)}
+                    >
+                      <span className="dot" style={{ background: 'var(--accent)', opacity: 0.75 }} />
+                      <span>{preset.name}</span>
+                      <button
+                        className="tbtn small flat"
+                        style={{ marginLeft: 'auto' }}
+                        title="Add channel"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          addChannel(preset.id as PresetId);
+                        }}
+                      >
+                        <IconPlus size={10} />
+                      </button>
+                    </div>
+                  ))}
+              </div>
+            ))}
+          </>
+        )}
 
         {tab === 'projects' && (
           <>
@@ -177,8 +273,24 @@ export function BrowserPanel() {
       </div>
 
       <div className="browser-foot">
-        <button className="btn ghost" style={{ flex: 1 }} onClick={() => sampleInput.current?.click()}>
-          Import sample
+        {tab === 'packs' ? (
+          <button className="btn ghost" style={{ flex: 1 }} onClick={() => void importPack()} data-tour="pack-import" title="Import a sample pack folder or .zip">
+            Import pack
+          </button>
+        ) : (
+          <button className="btn ghost" style={{ flex: 1 }} onClick={() => sampleInput.current?.click()}>
+            Import sample
+          </button>
+        )}
+        <button
+          className="btn ghost"
+          onClick={() => {
+            void nativeStopPreview();
+            hint('Preview stopped');
+          }}
+          title="Stop the sample preview"
+        >
+          ■
         </button>
         <button className="btn ghost" onClick={() => projectInput.current?.click()} title="Open project">
           <IconFolder size={12} />

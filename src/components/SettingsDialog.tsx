@@ -3,6 +3,7 @@ import { useApp } from '../store';
 import { Modal } from '../ui/Modal';
 import { THEMES, themeById } from '../themes';
 import { ThemeColorEditor } from './ThemeColorEditor';
+import { InputPanel } from './InputPanel';
 import { DEFAULT_KEYMAP, defaultSettings } from '../model/defaults';
 import { engine } from '../audio/engine';
 import {
@@ -732,6 +733,7 @@ function AudioTab() {
         null sink while the step counter keeps moving.
       </p>
       <NativeDevicePanel />
+      <InputPanel />
       <h3>Audio engine</h3>
       <p className="hinttext">
         OpenBeats renders everything with Web Audio: instruments are synthesised per note, effects run as native nodes, and

@@ -1,6 +1,8 @@
 mod audio_commands;
+mod export_commands;
 mod plugin_commands;
 mod recovery;
+mod system_commands;
 
 use base64::{engine::general_purpose::STANDARD, Engine as _};
 use discord_rich_presence::{activity, DiscordIpc, DiscordIpcClient};
@@ -173,6 +175,7 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .manage(audio_commands::AudioState::default())
         .manage(recovery::RecoveryState::default())
+        .manage(system_commands::SystemState::default())
         .manage(plugin_commands::PluginState::new(helper, plugin_cache))
         .invoke_handler(tauri::generate_handler![
             platform,
@@ -235,6 +238,25 @@ pub fn run() {
             recovery::recovery_flush,
             recovery::read_recovery,
             recovery::clear_recovery,
+            // Splash, export, suggestions and updates
+            system_commands::close_splash,
+            system_commands::submit_suggestion,
+            system_commands::check_for_updates,
+            export_commands::export_audio,
+            audio_commands::play_chime,
+            // Sample preview and packs
+            system_commands::preview_sample,
+            system_commands::stop_preview,
+            system_commands::import_pack,
+            system_commands::get_packs,
+            system_commands::read_sample,
+            // Input monitoring, recording and the tuner
+            system_commands::start_input,
+            system_commands::set_input_monitor,
+            system_commands::start_input_recording,
+            system_commands::stop_input_recording,
+            system_commands::input_status,
+            system_commands::stop_input,
             // Plugin hosting
             plugin_commands::scan_plugins,
             plugin_commands::load_plugin_chain,

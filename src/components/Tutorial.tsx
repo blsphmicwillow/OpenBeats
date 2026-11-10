@@ -12,7 +12,7 @@ interface Step {
 
 const STEPS: Step[] = [
   {
-    title: 'Welcome to OpenBeats',
+    title: 'Welcome to OpenBeats 1.0.1',
     body: (
       <>
         <p>
@@ -21,18 +21,18 @@ const STEPS: Step[] = [
         </p>
         <p>
           A demo called <b>Neon Drift</b> is already loaded. Press <span className="kbd">Space</span> to hear it, then take
-          this two-minute tour — you can replay it any time from Help.
+          this tour — Help ▸ Tutorial replays it any time.
         </p>
         <ul>
-          <li>The engine starts on your first click or key press.</li>
-          <li>Everything you change is autosaved in this browser.</li>
-          <li>Nothing here is a copy of another DAW: it is original GPL software.</li>
+          <li>The desktop build runs its own Rust audio engine and plays a short chime on startup.</li>
+          <li>Everything you change is autosaved, so a crash never loses the song.</li>
+          <li>Nothing here is a copy of another studio: it is original GPL software.</li>
         </ul>
       </>
     ),
   },
   {
-    title: 'Transport and tempo',
+    title: 'Transport, tempo and mix',
     body: (
       <>
         <p>
@@ -40,8 +40,8 @@ const STEPS: Step[] = [
           tempo display (or scroll it) to change BPM, and use the swing knob for a shuffled feel.
         </p>
         <p>
-          <b>Bounce</b> renders the whole song to a WAV file faster than real time. <b>R</b> arms recording so the QWERTY
-          keys write notes while the song rolls.
+          <b>Loop</b> follows the orange bar in the playlist, <b>Metro</b> adds a click, and the master knob sets the final
+          level. <b>Bounce</b> renders the song to WAV faster than real time; <b>R</b> arms QWERTY recording.
         </p>
       </>
     ),
@@ -52,13 +52,37 @@ const STEPS: Step[] = [
     body: (
       <>
         <p>
-          Packs are built-in instruments — click one to audition it, double-click to add it as a channel. The Projects tab
-          saves and opens <span className="code">.obeats</span> files, and Samples lets you import your own one-shots.
+          <b>Packs</b> holds imported samples above the built-in instruments. Single-click auditions on a preview stream
+          that never interrupts playback, and double-click adds an instrument or loads a sample.
         </p>
-        <p>Search filters the pack list, so a full library stays usable.</p>
+        <p>
+          The <b>Projects</b> tab saves and opens <span className="code">.obeats</span> songs; <b>Samples</b> lists your
+          one-shots and drops. Search filters every tab at once.
+        </p>
       </>
     ),
     target: '[data-tour="browser"]',
+    needsBrowser: true,
+  },
+  {
+    title: 'Packs and previews',
+    body: (
+      <>
+        <p>
+          <b>Import pack</b> takes a folder or a <span className="code">.zip</span>. OpenBeats scans it recursively and
+          tags each sample from its name and folder — kick, snare, hat, 808, bass and more.
+        </p>
+        <p>
+          Click a sample to hear it, double-click to load it as a channel. The ■ button stops the preview without touching
+          the song.
+        </p>
+        <ul>
+          <li>Previews decode wav, mp3, ogg, flac and m4a on every platform.</li>
+          <li>The pack index is kept locally, so packs survive a restart.</li>
+        </ul>
+      </>
+    ),
+    target: '[data-tour="pack-import"]',
     needsBrowser: true,
   },
   {
@@ -67,9 +91,9 @@ const STEPS: Step[] = [
       <>
         <p>
           Every row is an instrument. Click the name to hear it, use <b>M</b> and <b>S</b> to mute or solo, and watch the
-          thin meter for its level. The gear opens the instrument: preset, tone, envelope, transposition and mixer routing.
+          thin meter for its level. The gear opens the instrument: preset, tone, envelope, transposition and routing.
         </p>
-        <p>Right-click a row for clone, unload, transpose and delete.</p>
+        <p>Right-click a row for clone, unload, transpose and delete. <b>+ Channel</b> adds another one.</p>
       </>
     ),
     target: '[data-tour="rack"]',
@@ -83,8 +107,8 @@ const STEPS: Step[] = [
           writes a real note, so it appears in the piano roll too — the two are the same data.
         </p>
         <p>
-          Change the pattern length next to the pattern name, and switch patterns to build sections. <b>+ Channel</b> adds
-          another instrument.
+          Change the pattern length next to the pattern name, and switch patterns to build sections. The top bar’s pattern
+          menu clones or deletes them.
         </p>
       </>
     ),
@@ -96,12 +120,12 @@ const STEPS: Step[] = [
       <>
         <p>
           Double-click an empty lane to paint the selected pattern as a clip. Drag clips to arrange, drag their right edge
-          to lengthen, right-click for clone and track moves. Double-click a clip to edit its notes.
+          to lengthen, right-click for clone and track moves.
         </p>
         <ul>
-          <li>Click the ruler to move the playhead; drag the orange loop bar to set the loop.</li>
-          <li>Tracks have mute, solo and a collapse switch.</li>
-          <li>Song mode plays this arrangement from top to bottom.</li>
+          <li>Drag the orange loop bar to set the loop; drag the playhead to scrub.</li>
+          <li>Dragging near the left or right edge scrolls the timeline — clips, loop and playhead stay under the pointer.</li>
+          <li>Tracks have mute, solo and a collapse switch; song mode plays the arrangement.</li>
         </ul>
       </>
     ),
@@ -117,8 +141,8 @@ const STEPS: Step[] = [
           double-click to delete. The velocity lane at the bottom shapes how hard each note hits.
         </p>
         <p>
-          Choose a key and scale to shade the safe notes, then use <b>Quantise</b> to tidy timing. <b>+1 / −1</b> transposes
-          the channel instantly.
+          Choose a key and scale to shade safe notes, then use <b>Quantise</b> to tidy timing. The chips show the detected
+          song key and the chord under the playhead. Dragging near an edge auto-scrolls the grid in both directions.
         </p>
       </>
     ),
@@ -143,20 +167,52 @@ const STEPS: Step[] = [
     tab: 'mixer',
   },
   {
-    title: 'Make it yours',
+    title: 'Bounce, save and interchange',
     body: (
       <>
         <p>
-          Settings holds six built-in themes, an editable custom theme, accent overrides, interface scale and every
-          shortcut. The Open source tab exports your settings and explains the license.
+          <b>Bounce</b> renders the arrangement to a 16-bit stereo WAV. <b>Save</b> writes a portable{' '}
+          <span className="code">.obeats</span> project with channels, patterns, clips and mixer state.
         </p>
         <p>
-          Press <span className="kbd">F1</span> any time for the full manual, or <span className="kbd">F11</span> for
-          settings.
+          File ▸ Import / export song… moves music through MIDI, and imports Live Set (.als) and REAPER (.rpp) projects.
+          Projects autosave, and the Projects dialog reopens old songs.
+        </p>
+      </>
+    ),
+    target: '[data-tour="bounce"]',
+  },
+  {
+    title: 'Audio, input and Dev Mode',
+    body: (
+      <>
+        <p>
+          Settings ▸ Audio picks the output device, low-latency mode, cue gain and a test tone. Below that, the input panel
+          monitors a microphone, records a take to WAV and shows a tuner while you play.
+        </p>
+        <p>
+          <b>Dev Mode</b> reveals raw device strings, host APIs, channel counts and sample rates. The other tabs hold
+          appearance, accessibility, workflow and keyboard shortcuts.
         </p>
       </>
     ),
     target: '[data-tour="settings"]',
+  },
+  {
+    title: 'Plugins, help and feedback',
+    body: (
+      <>
+        <p>
+          <b>Plugins</b> opens the VST3/CLAP library. <b>F1</b> opens the full manual and every shortcut; the same dialog
+          hosts <b>Suggestions &amp; Fixes</b>, which sends a report with your OS and version.
+        </p>
+        <p>
+          Help ▸ Check for updates compares your build with the newest GitHub release, and the Changelog tab keeps the
+          notes offline.
+        </p>
+      </>
+    ),
+    target: '[data-tour="help"]',
   },
   {
     title: 'You are ready',
@@ -167,7 +223,9 @@ const STEPS: Step[] = [
           bounce a WAV when it is done.
         </p>
         <p>
-          The studio is GPL-3.0: read it, change it, share it. Have fun — and make something loud.
+          Try <span className="kbd">Ctrl</span>+<span className="kbd">K</span> for the command palette, and{' '}
+          <span className="kbd">F11</span> for settings. The studio is GPL-3.0: read it, change it, share it. Have fun —
+          and make something loud.
         </p>
       </>
     ),
@@ -179,7 +237,7 @@ export function Tutorial() {
   const browserOpen = useApp((s) => s.ui.browserOpen);
   const [rect, setRect] = useState<DOMRect | null>(null);
 
-  // The browser panel is hidden on narrow screens, so drop its tour stop there.
+  // The browser panel is hidden on narrow screens, so drop its tour stops there.
   const steps = STEPS.filter((s) => !s.needsBrowser || window.innerWidth > 1020);
   const step = stepIndex === null ? null : steps[Math.min(stepIndex, steps.length - 1)];
 
@@ -246,20 +304,22 @@ export function Tutorial() {
   if (!step || stepIndex === null) return null;
 
   const pad = 5;
-  const tipWidth = 366;
+  const tipWidth = Math.min(380, window.innerWidth - 24);
+  const tipMax = Math.max(220, window.innerHeight - 24);
   let tipStyle: React.CSSProperties;
   if (rect) {
     const below = rect.bottom + 16;
-    const above = rect.top - 16 - 210;
-    const top = below + 200 < window.innerHeight ? below : Math.max(12, above);
+    const above = rect.top - 16 - Math.min(320, tipMax);
+    const top = below + 220 < window.innerHeight ? below : Math.max(12, above);
     const left = Math.min(Math.max(12, rect.left + rect.width / 2 - tipWidth / 2), window.innerWidth - tipWidth - 12);
-    tipStyle = { top, left, width: tipWidth };
+    tipStyle = { top, left, width: tipWidth, maxHeight: tipMax };
   } else {
     tipStyle = {
       top: '50%',
       left: '50%',
       transform: 'translate(-50%, -50%)',
       width: tipWidth,
+      maxHeight: tipMax,
     };
   }
 

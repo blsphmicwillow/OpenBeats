@@ -3,6 +3,66 @@
 The same entries are bundled into the app and shown in the **Changelog** tab, so the notes ship with the build.
 Keep this file and `src/lib/changelog.ts` in sync, and bump `APP_VERSION` in `src/lib/version.ts`.
 
+## 1.0.1 — 2026-11-10
+
+**Exporters, sample packs, input tools, a rebuilt tour and smoother timeline editing.**
+
+Linux, Windows and macOS installers are built by CI from the `v1.0.1` tag and attached to that GitHub release.
+1.0.0 stays available from its own tag.
+
+### Export engine
+
+- Native WAV (16/24-bit) writing and a pure-Rust FLAC encoder (`flacenc`), with MP3/OGG/M4A transcoding through
+  `ffmpeg` when it is installed. Encoding runs on a blocking thread behind the desktop export command, which opens a
+  native save dialog. The Bounce button keeps rendering WAV directly.
+- Sample preview runs on its own stream, so auditioning never interrupts project playback and a second click replaces
+  the first preview.
+
+### Packs, samples and preview
+
+- Pack import from a folder or a `.zip`, recursive scanning, name/folder auto-tagging (kick, snare, hat, 808, bass, …)
+  and a JSON pack index that the Browser reloads on every launch.
+- Symphonia decoding for wav/mp3/ogg/flac/m4a previews on every platform.
+
+### Input, monitoring and tuning
+
+- A CPAL input stream with an optional monitor path, a mono take recorder that writes 16-bit WAV, and a
+  normalised-autocorrelation tuner with note and cents display.
+- **Dev Mode** in Settings ▸ Audio shows raw device strings, host APIs, channel counts and sample rates.
+
+### Startup, updates and feedback
+
+- A native splash window that the main window closes when it mounts, and the startup chime played through the CPAL
+  engine from a bundled WAV asset.
+- GitHub release checks parse tag, notes, assets and platform download links in Rust; preview and production releases
+  are compared numerically.
+- Help ▸ Suggestions & Fixes posts a validated report with OS and version metadata.
+
+### Timeline and editing
+
+- Edge auto-scroll while dragging: the playlist scrolls for clips, the loop bar and the playhead, and the piano roll
+  scrolls in both directions for note moves and resizes. The dragged item stays under the pointer and the edge glows.
+- Drags are coalesced into one project commit per animation frame, which removes the lag behind the pointer.
+- Visible grab and resize handles, loop and playhead readouts, and grabbing cursors for every drag.
+
+### Guided tour
+
+- The tour is rebuilt around this app: transport, browser and packs, rack, steps, playlist, piano roll, mixer, bounce
+  and files, audio and input, plugins, help and feedback. Thirteen stops, each highlighting its own target, with the
+  replay entry points in Help and Settings.
+
+### Composition and DSP modules
+
+- Chord progression generator with pop/jazz/lo-fi/trap/house/cinematic/blues recipes.
+- Velocity curve maths (linear, exponential, logarithmic, S-curve, compress).
+- Spectral freeze/blur (rustfft) and a seeded granular engine, all covered by unit tests.
+
+### Tests
+
+- 239 unit tests in the audio crate, including WAV/FLAC headers, decode round-trips, tuner pitch, progression
+  diatonicism, velocity curves, spectral freeze, granular grains, release JSON parsing, webhook payloads and pack
+  scanning.
+
 ## 1.0.0 — 2026-11-10
 
 **The first public OpenBeats release: a native studio, DAW interchange, autosave and accessibility.**

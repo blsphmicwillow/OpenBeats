@@ -62,7 +62,13 @@ export default function App() {
 
   useEffect(() => {
     const startup = useApp.getState().settings;
-    if (startup.startupChime) playStartupChime();
+    const native = Boolean((window as unknown as { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__);
+    if (startup.startupChime) {
+      // The desktop build plays the bundled chime through CPAL, not Web Audio.
+      if (native) void nativeInvoke('play_chime');
+      else playStartupChime();
+    }
+    if (native) void nativeInvoke('close_splash');
     const hold = startup.reduceMotion ? 650 : 1600;
     const leave = window.setTimeout(() => setSplash('leaving'), hold);
     const hide = window.setTimeout(() => setSplash('hidden'), hold + 380);

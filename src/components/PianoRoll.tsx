@@ -9,6 +9,7 @@ const HIGH = 108;
 
 const BLACK = new Set([1, 3, 6, 8, 10]);
 import { detectKey } from '../lib/theory';
+import { scrollAtEdges, type ScrollEdge } from '../lib/edgeScroll';
 import { chordAtStep } from '../lib/chords';
 
 const NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
@@ -38,6 +39,10 @@ export function PianoRoll() {
   const drag = useRef<Drag | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const keyRef = useRef<HTMLDivElement>(null);
+  const scrollStart = useRef({ x: 0, y: 0 });
+  const lastPointer = useRef({ x: 0, y: 0 });
+  const edgeRef = useRef<ScrollEdge | null>(null);
+  const [scrollEdge, setScrollEdge] = useState<ScrollEdge | null>(null);
 
   const {
     addNote,
@@ -53,6 +58,7 @@ export function PianoRoll() {
   } = useApp.getState();
 
   const channel = project.channels.find((c) => c.id === project.selectedChannel) ?? project.channels[0];
+  const channelId = channel?.id ?? null;
   const pattern = currentPattern(project);
   const notes = channel ? channelNotes(project, channel.id) : [];
   const totalSteps = Math.max(16, (pattern?.bars ?? 1) * 16);
@@ -71,17 +77,36 @@ export function PianoRoll() {
     return (SCALES[scale] ?? []).includes(rel);
   };
 
+  // Remembers the scroll offset so edge auto-scroll keeps the note under the
+  // pointer instead of letting it drift away with the grid.
+  const startNoteDrag = (e: React.PointerEvent, next: Drag) => {
+    const el = scrollRef.current;
+    lastPointer.current = { x: e.clientX, y: e.clientY };
+    scrollStart.current = { x: el?.scrollLeft ?? 0, y: el?.scrollTop ?? 0 };
+    drag.current = next;
+  };
+
   useEffect(() => {
-    const move = (e: PointerEvent) => {
+    // One project commit per animation frame: the clone and engine sync are
+    // heavier than the pointer events themselves.
+    let frame = 0;
+    let autoFrame = 0;
+
+    const apply = () => {
+      frame = 0;
       const d = drag.current;
-      if (!d) return;
+      if (!d || !channelId) return;
       const state = useApp.getState();
-      if (!channel) return;
+      const el = scrollRef.current;
+      // Auto-scrolling moves the grid under the pointer, so add the distance
+      // scrolled since the drag started to the pointer position.
+      const px = lastPointer.current.x + (el ? el.scrollLeft - scrollStart.current.x : 0);
+      const py = lastPointer.current.y + (el ? el.scrollTop - scrollStart.current.y : 0);
       if (d.kind === 'move') {
-        const steps = (e.clientX - d.startX) / zoom;
-        const rows = Math.round((d.startY - e.clientY) / ROW_H);
+        const steps = (px - d.startX) / zoom;
+        const rows = Math.round((d.startY - py) / ROW_H);
         state.updateNote(
-          channel.id,
+          channelId,
           d.noteId,
           {
             start: Math.max(0, snapStep(d.origStart + steps)),
@@ -90,23 +115,69 @@ export function PianoRoll() {
           `note-move:${d.noteId}`,
         );
       } else if (d.kind === 'resize') {
-        const steps = (e.clientX - d.startX) / zoom;
-        state.updateNote(channel.id, d.noteId, { len: Math.max(0.25, snapStep(d.origLen + steps)) }, `note-len:${d.noteId}`);
+        const steps = (px - d.startX) / zoom;
+        state.updateNote(channelId, d.noteId, { len: Math.max(0.25, snapStep(d.origLen + steps)) }, `note-len:${d.noteId}`);
       } else {
-        const dy = d.startY - e.clientY;
-        state.updateNote(channel.id, d.noteId, { vel: Math.max(0.05, Math.min(1, d.origVel + dy / 60)) }, `note-vel:${d.noteId}`);
+        const dy = d.startY - py;
+        state.updateNote(channelId, d.noteId, { vel: Math.max(0.05, Math.min(1, d.origVel + dy / 60)) }, `note-vel:${d.noteId}`);
       }
     };
-    const up = () => {
-      drag.current = null;
+
+    const schedule = () => {
+      if (!frame) frame = requestAnimationFrame(apply);
     };
+
+    const tick = () => {
+      autoFrame = 0;
+      const d = drag.current;
+      const el = scrollRef.current;
+      if (!d || !el || d.kind === 'velocity') {
+        if (edgeRef.current !== null) {
+          edgeRef.current = null;
+          setScrollEdge(null);
+        }
+        return;
+      }
+      const { dx, dy, edge } = scrollAtEdges(el, lastPointer.current.x, lastPointer.current.y, { zone: 56 });
+      if (edge !== edgeRef.current) {
+        edgeRef.current = edge;
+        setScrollEdge(edge);
+      }
+      if (dx || dy) schedule();
+      // Keep looping while the drag lives, even if the pointer stops moving.
+      autoFrame = requestAnimationFrame(tick);
+    };
+
+    const move = (e: PointerEvent) => {
+      if (!drag.current) return;
+      lastPointer.current = { x: e.clientX, y: e.clientY };
+      schedule();
+      if (!autoFrame) autoFrame = requestAnimationFrame(tick);
+    };
+
+    const finish = () => {
+      if (frame) {
+        cancelAnimationFrame(frame);
+        apply();
+      }
+      if (autoFrame) cancelAnimationFrame(autoFrame);
+      autoFrame = 0;
+      drag.current = null;
+      edgeRef.current = null;
+      setScrollEdge(null);
+    };
+
     window.addEventListener('pointermove', move);
-    window.addEventListener('pointerup', up);
+    window.addEventListener('pointerup', finish);
+    window.addEventListener('pointercancel', finish);
     return () => {
       window.removeEventListener('pointermove', move);
-      window.removeEventListener('pointerup', up);
+      window.removeEventListener('pointerup', finish);
+      window.removeEventListener('pointercancel', finish);
+      if (frame) cancelAnimationFrame(frame);
+      if (autoFrame) cancelAnimationFrame(autoFrame);
     };
-  }, [zoom, snap, channel]);
+  }, [zoom, snap, channelId]);
 
   useEffect(() => {
     const el = scrollRef.current;
@@ -240,7 +311,7 @@ export function PianoRoll() {
         <span className="tiny-note">{notes.length} notes</span>
       </div>
 
-      <div className="pr-scroll" ref={scrollRef}>
+      <div className={`pr-scroll ${scrollEdge ? `auto-${scrollEdge}` : ''}`} ref={scrollRef}>
         <div className="pr-inner" style={{ display: 'flex', width: 70 + width, height }}>
           <div className="pr-keys" ref={keyRef} style={{ height }}>
             {rows.map((pitch) => {
@@ -308,14 +379,14 @@ export function PianoRoll() {
                   e.stopPropagation();
                   setSelected(note.id);
                   pushHistory();
-                  drag.current = {
+                  startNoteDrag(e, {
                     kind: 'move',
                     noteId: note.id,
                     startX: e.clientX,
                     startY: e.clientY,
                     origStart: note.start,
                     origPitch: note.pitch,
-                  };
+                  });
                 }}
                 onDoubleClick={(e) => {
                   e.stopPropagation();
@@ -329,7 +400,7 @@ export function PianoRoll() {
                   onPointerDown={(e) => {
                     e.stopPropagation();
                     pushHistory();
-                    drag.current = { kind: 'resize', noteId: note.id, startX: e.clientX, origLen: note.len };
+                    startNoteDrag(e, { kind: 'resize', noteId: note.id, startX: e.clientX, origLen: note.len });
                   }}
                 />
               </div>
@@ -359,7 +430,7 @@ export function PianoRoll() {
               onPointerDown={(e) => {
                 e.stopPropagation();
                 pushHistory();
-                drag.current = { kind: 'velocity', noteId: note.id, startY: e.clientY, origVel: note.vel };
+                startNoteDrag(e, { kind: 'velocity', noteId: note.id, startY: e.clientY, origVel: note.vel });
               }}
             />
           ))}

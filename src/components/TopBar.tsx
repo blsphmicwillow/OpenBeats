@@ -417,6 +417,7 @@ export function TopBar() {
           className="tbtn"
           onClick={() => void exportWav()}
           disabled={!!ui.exporting}
+          data-tour="bounce"
           title="Bounce the song to WAV"
           aria-label="Bounce the song to WAV"
           onMouseEnter={() => hint('Bounce the arrangement to a 16-bit stereo WAV using an offline render.')}
@@ -433,13 +434,13 @@ export function TopBar() {
         >
           <IconFolder size={13} />
         </button>
-        <button className="tbtn" onClick={() => setUI({ pluginsOpen: true })} title="Browse VST3/CLAP plugins" aria-label="Open plugin library">
+        <button className="tbtn" onClick={() => setUI({ pluginsOpen: true })} data-tour="plugins" title="Browse VST3/CLAP plugins" aria-label="Open plugin library">
           Plugins
         </button>
         <button className="tbtn" onClick={() => setUI({ settingsOpen: true })} title="Settings (F11)" aria-label="Open settings" data-tour="settings">
           <IconGear size={13} />
         </button>
-        <button className="tbtn" onClick={() => setUI({ aboutOpen: true })} title="Manual, shortcuts and credits (F1)" aria-label="Open manual and shortcuts">
+        <button className="tbtn" onClick={() => setUI({ aboutOpen: true })} data-tour="help" title="Manual, shortcuts and credits (F1)" aria-label="Open manual and shortcuts">
           <IconHelp size={13} />
         </button>
       </div>

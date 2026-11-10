@@ -667,3 +667,139 @@ export async function nativeEffectGraphOrder(graph: unknown): Promise<number[] |
   if (!isNative()) return null;
   return nativeInvoke<number[]>('effect_graph_order', { graph });
 }
+
+/* ------------------------------------------------------------------ *
+ * 1.0.1: splash, preview, packs, suggestions, input, export
+ * ------------------------------------------------------------------ */
+
+export interface NativePackSample {
+  name: string;
+  path: string;
+  tags: string[];
+  bytes: number;
+}
+
+export interface NativePack {
+  name: string;
+  root: string;
+  samples: NativePackSample[];
+}
+
+export interface NativeInputReading {
+  device: string;
+  rms: number;
+  peak: number;
+  recording: boolean;
+  tuning: { frequency: number; midi: number; cents: number; clarity: number } | null;
+}
+
+/** Plays the native chime through the CPAL engine. */
+export async function nativePlayChime(): Promise<boolean> {
+  if (!isNative()) return false;
+  return (await nativeInvoke<null>('play_chime')) !== undefined;
+}
+
+/** Closes the native splash window. */
+export async function nativeCloseSplash(): Promise<boolean> {
+  if (!isNative()) return false;
+  return Boolean(await nativeInvoke<boolean>('close_splash'));
+}
+
+/** Decodes and previews a file on the separate preview stream. */
+export async function nativePreviewSample(path: string): Promise<string | null> {
+  if (!isNative()) return null;
+  try {
+    return await nativeInvoke<string>('preview_sample', { path });
+  } catch {
+    return null;
+  }
+}
+
+export async function nativeStopPreview(): Promise<boolean> {
+  if (!isNative()) return false;
+  return Boolean(await nativeInvoke<boolean>('stop_preview'));
+}
+
+/** Imports a folder or .zip; the native dialog opens when `path` is omitted. */
+export async function nativeImportPack(path?: string): Promise<NativePack | null> {
+  if (!isNative()) return null;
+  try {
+    return await nativeInvoke<NativePack>('import_pack', { path: path ?? null });
+  } catch {
+    return null;
+  }
+}
+
+export async function nativeGetPacks(): Promise<NativePack[]> {
+  if (!isNative()) return [];
+  return (await nativeInvoke<NativePack[]>('get_packs')) ?? [];
+}
+
+export async function nativeReadSample(path: string): Promise<{ name: string; data: string } | null> {
+  if (!isNative()) return null;
+  return nativeInvoke<{ name: string; data: string }>('read_sample', { path });
+}
+
+/** Posts the suggestion to the webhook; null means it did not send. */
+export async function nativeSubmitSuggestion(message: string): Promise<boolean> {
+  if (!isNative()) return false;
+  try {
+    await nativeInvoke<null>('submit_suggestion', { message });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export async function nativeStartInput(device?: string): Promise<string | null> {
+  if (!isNative()) return null;
+  return nativeInvoke<string>('start_input', { device: device ?? null });
+}
+
+export async function nativeSetInputMonitor(enabled: boolean, gain = 0.7): Promise<void> {
+  if (!isNative()) return;
+  await nativeInvoke<null>('set_input_monitor', { enabled, gain });
+}
+
+export async function nativeStartInputRecording(): Promise<boolean> {
+  if (!isNative()) return false;
+  return (await nativeInvoke<null>('start_input_recording')) !== undefined;
+}
+
+export async function nativeStopInputRecording(): Promise<{ path: string; seconds: number } | null> {
+  if (!isNative()) return null;
+  return nativeInvoke<{ path: string; seconds: number }>('stop_input_recording', { path: null });
+}
+
+export async function nativeInputStatus(): Promise<NativeInputReading | null> {
+  if (!isNative()) return null;
+  return nativeInvoke<NativeInputReading>('input_status');
+}
+
+/** Encodes interleaved f32 PCM and writes it, opening a save dialog when path is null. */
+export async function nativeExportAudio(opts: {
+  format: string;
+  quality?: number;
+  sampleRate: number;
+  channels: number;
+  pcm: Float32Array;
+  path?: string | null;
+}): Promise<string | null> {
+  if (!isNative()) return null;
+  let binary = '';
+  const bytes = new Uint8Array(opts.pcm.length * 4);
+  const view = new DataView(bytes.buffer);
+  opts.pcm.forEach((sample, index) => view.setFloat32(index * 4, sample, true));
+  const chunk = 0x8000;
+  for (let i = 0; i < bytes.length; i += chunk) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + chunk));
+  }
+  return nativeInvoke<string>('export_audio', {
+    format: opts.format,
+    quality: opts.quality ?? 5,
+    sampleRate: opts.sampleRate,
+    channels: opts.channels,
+    pcmBase64: btoa(binary),
+    path: opts.path ?? null,
+  });
+}

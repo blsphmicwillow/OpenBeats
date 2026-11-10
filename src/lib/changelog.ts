@@ -11,6 +11,71 @@ export interface ChangelogEntry {
  */
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '1.0.1',
+    date: '2026-11-10',
+    headline: 'Exporters, sample packs, input tools, a rebuilt tour and smoother timeline editing.',
+    groups: [
+      {
+        title: 'Export and preview',
+        items: [
+          'Native WAV (16/24-bit) writing and a pure-Rust FLAC encoder, with MP3/OGG/M4A transcoding through ffmpeg when it is installed. Exports run on a blocking thread behind the desktop export command and its save dialog; Bounce keeps rendering WAV.',
+          'Sample preview runs on its own stream: auditioning never interrupts playback and a second click replaces the first preview.',
+        ],
+      },
+      {
+        title: 'Packs and samples',
+        items: [
+          'Import a sample pack from a folder or a .zip. Samples are scanned recursively and tagged from their names and folders (kick, snare, hat, 808, bass and more).',
+          'The pack index is stored as JSON and reloaded at launch, so imported packs survive a restart.',
+          'Symphonia decodes wav, mp3, ogg, flac and m4a previews on every platform.',
+        ],
+      },
+      {
+        title: 'Input and tuning',
+        items: [
+          'A CPAL input stream with an optional monitor path, a mono take recorder that saves 16-bit WAV, and a tuner with note and cents display.',
+          'Dev Mode in Settings → Audio reveals raw device strings, host APIs, channel counts and sample rates.',
+        ],
+      },
+      {
+        title: 'Startup, updates and feedback',
+        items: [
+          'A native splash window closes itself when the studio mounts, and the startup chime plays through the CPAL engine from a bundled WAV asset.',
+          'Release checks parse tags, notes, assets and platform download links in Rust, and compare preview and production versions numerically.',
+          'Help → Suggestions & Fixes posts a validated report with your OS and app version.',
+        ],
+      },
+      {
+        title: 'Timeline and editing',
+        items: [
+          'Edge auto-scroll while dragging: the playlist scrolls for clips, the loop bar and the playhead; the piano roll scrolls in both directions for note moves and resizes. The dragged item stays under the pointer and the edge glows.',
+          'Drags commit once per animation frame, so items no longer lag behind the pointer.',
+          'Visible grab and resize handles, loop and playhead readouts, and grabbing cursors for every drag.',
+        ],
+      },
+      {
+        title: 'Guided tour',
+        items: [
+          'The tour is rebuilt around the whole studio: transport, browser and packs, rack, steps, playlist, piano roll, mixer, bounce and files, audio and input, plugins, help and feedback — thirteen targeted stops.',
+        ],
+      },
+      {
+        title: 'Composition and DSP',
+        items: [
+          'Chord progression generator with pop, jazz, lo-fi, trap, house, cinematic and blues recipes.',
+          'Velocity curve maths (linear, exponential, logarithmic, S-curve, compress), spectral freeze/blur and a seeded granular engine.',
+        ],
+      },
+      {
+        title: 'Builds and tests',
+        items: [
+          'Linux (.deb, RPM, AppImage), Windows (msi, nsis) and macOS (dmg) installers are built from the v1.0.1 tag.',
+          '239 unit tests cover WAV/FLAC headers, decode round-trips, tuner pitch, progression diatonicism, velocity curves, spectral freeze, granular grains, release parsing, webhook payloads and pack scanning.',
+        ],
+      },
+    ],
+  },
+  {
     version: '1.0.0',
     date: '2026-11-10',
     headline: 'The first public OpenBeats release: a native studio, DAW interchange, autosave and accessibility.',

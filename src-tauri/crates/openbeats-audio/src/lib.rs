@@ -18,44 +18,65 @@
 pub mod analyzer;
 pub mod arp;
 pub mod automation;
+pub mod chime;
 pub mod chord;
 pub mod clips;
 pub mod command;
 pub mod devices;
 pub mod dsp;
 pub mod effect_graph;
+pub mod export;
+pub mod granular;
 pub mod logger;
 pub mod melody;
 pub mod mixer;
 pub mod notes;
+pub mod packs;
 pub mod piano_tools;
+pub mod pitch;
 pub mod playlist_tools;
+pub mod progression;
 pub mod sequencer;
+pub mod spectral_freeze;
+pub mod suggestion;
 pub mod synth;
 pub mod theme;
+pub mod update;
+pub mod velocity;
 pub mod workflow;
 
+#[cfg(feature = "decode")]
+pub mod decode;
 #[cfg(feature = "device")]
 pub mod engine;
+#[cfg(feature = "device")]
+pub mod io;
 
 pub use analyzer::SpectralAnalyzer;
 pub use arp::{ArpEvent, Arpeggiator};
 pub use automation::{AutomationLane, AutomationPoint, AutomationSet, Curve};
+pub use chime::{bundled as bundled_chime, decode_wav};
 pub use chord::{chord_for, suggest_progression, Chord};
 pub use clips::{expand_clip, PlaybackClip, PlaybackPattern};
 pub use command::{parse_command, ParsedCommand};
 pub use devices::AudioDeviceInfo;
 pub use dsp::{Compressor, Eq3, Limiter, Transmitter};
 pub use effect_graph::{ModularGraph, NodeKind};
+pub use export::{encode as encode_export, wav_bytes, ExportFormat};
+pub use granular::GranularEngine;
 pub use logger::AudioLogger;
 pub use melody::{generate as generate_melody, MelodyOptions, Rhythm};
 pub use mixer::{MixError, MixerGraph, MixerStrip, Send, Sidechain};
 pub use notes::{display_name, normalize_gains, note_name, note_names};
 pub use piano_tools::{arpeggiate, flam, strum, ArpMode, Scale, ToolNote};
+pub use pitch::{detect as detect_pitch, note_for, Tuning};
 pub use playlist_tools::{chop, duplicate, quantize_start, slice, trim, ClipSpan};
+pub use progression::{generate as generate_progression, ProgressionBar, Quality};
 pub use sequencer::{PlaybackChannel, PlaybackNote, PlaybackProject, Sequencer};
 pub use synth::{Preset, VoicePool};
 pub use theme::{css_variables, CssVariables, ThemeFile};
+pub use update::{compare as compare_versions, parse as parse_release, UpdateInfo};
+pub use velocity::{apply as apply_velocity_curve, VelocityCurve};
 pub use workflow::{
     auto_gain_staging, health_check, humanize, tap_tempo, Groove, HealthIssue, ProjectHealth,
 };

@@ -606,3 +606,19 @@ pub fn parse_theme(json: String) -> Result<ThemeVariables, String> {
         variables: parsed.variables,
     })
 }
+
+/// Plays the bundled startup chime through the main output stream.
+#[tauri::command]
+pub fn play_chime(state: State<'_, AudioState>) -> Result<(), String> {
+    let mut guard = state
+        .engine
+        .lock()
+        .map_err(|_| "the audio state is unavailable".to_string())?;
+    if guard.is_none() {
+        *guard = Some(NativeEngine::start()?);
+    }
+    guard
+        .as_ref()
+        .ok_or_else(|| "the audio engine did not start".to_string())?
+        .chime()
+}

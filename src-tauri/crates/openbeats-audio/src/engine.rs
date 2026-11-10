@@ -38,6 +38,8 @@ pub enum EngineCommand {
     /// Level of the cue (headphone) bus on outputs 3/4.
     SetCueGain(f32),
     TestTone(f32),
+    /// Startup chime: decoded samples plus their original sample rate.
+    Chime(Vec<f32>, u32),
     /// Reopen the stream on a named device, or the system default when `None`.
     SwitchDevice(Option<String>),
     /// Reopen the stream with the device's smallest buffer, or the default one.
@@ -125,6 +127,9 @@ struct CallbackState {
     cue_gain: f32,
     tone_seconds_left: f32,
     tone_phase: f32,
+    chime: Vec<f32>,
+    chime_pos: f32,
+    chime_step: f32,
     callbacks: u64,
 }
 
@@ -153,6 +158,9 @@ impl CallbackState {
             cue_gain: 1.0,
             tone_seconds_left: 0.0,
             tone_phase: 0.0,
+            chime: Vec::new(),
+            chime_pos: 0.0,
+            chime_step: 1.0,
             callbacks: 0,
         }
     }
@@ -197,6 +205,18 @@ impl CallbackState {
             left += tone;
             right += tone;
             self.tone_seconds_left -= 1.0 / self.sample_rate;
+        }
+
+        // Startup chime, resampled to the open device rate.
+        let chime_len = self.chime.len() as f32;
+        if chime_len > 0.0 && self.chime_pos < chime_len {
+            let index = self.chime_pos as usize;
+            let frac = self.chime_pos - index as f32;
+            let next = self.chime.get(index + 1).copied().unwrap_or(0.0);
+            let value = (self.chime[index] * (1.0 - frac) + next * frac) * 0.9;
+            left += value;
+            right += value;
+            self.chime_pos += self.chime_step.max(0.01);
         }
 
         let transient = self
@@ -332,6 +352,14 @@ impl NativeEngine {
 
     pub fn test_tone(&self, seconds: f32) {
         let _ = self.commands.send(EngineCommand::TestTone(seconds));
+    }
+
+    /// Plays the bundled startup chime through the main output stream.
+    pub fn chime(&self) -> Result<(), String> {
+        let (samples, rate) = crate::chime::bundled()?;
+        self.commands
+            .send(EngineCommand::Chime(samples, rate))
+            .map_err(|_| "the audio engine stopped".to_string())
     }
 
     pub fn snapshot(&self) -> EngineSnapshot {
@@ -542,6 +570,11 @@ fn apply_command(state: &mut CallbackState, shared: &Arc<Shared>, command: Engin
         EngineCommand::SetMasterGain(gain) => state.master_gain = gain.clamp(0.0, 2.0),
         EngineCommand::SetCueGain(gain) => state.cue_gain = gain.clamp(0.0, 2.0),
         EngineCommand::TestTone(seconds) => state.tone_seconds_left = seconds.max(0.0),
+        EngineCommand::Chime(samples, rate) => {
+            state.chime = samples;
+            state.chime_pos = 0.0;
+            state.chime_step = rate as f32 / state.sample_rate.max(1.0);
+        }
         // Handled by the session loop, which has to drop and rebuild the stream.
         EngineCommand::SwitchDevice(_) | EngineCommand::SetLowLatency(_) => {}
         EngineCommand::Shutdown => {}
