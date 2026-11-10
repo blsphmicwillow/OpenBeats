@@ -92,6 +92,14 @@ export const CHANGELOG: ChangelogEntry[] = [
         ],
       },
       {
+        title: 'Workflow research',
+        items: [
+          'Project-wide key detection in the piano roll toolbar, estimated from all note pitch classes.',
+          'Rounded playlist clip edges for clearer section boundaries, a recurring Ableton request.',
+          'Audited FL Studio 2026 and Ableton Live 12 requests; dynamic mixer tracks, loop/chord generation, device A/B and project portability were already covered.',
+        ],
+      },
+      {
         title: 'Design',
         items: [
           'Glass reworked against Apple Liquid Glass guidance: opaque content, frosted chrome, specular rims and a solid fallback.',

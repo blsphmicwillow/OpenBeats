@@ -8,6 +8,8 @@ const LOW = 24;
 const HIGH = 108;
 
 const BLACK = new Set([1, 3, 6, 8, 10]);
+import { detectKey } from '../lib/theory';
+
 const NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 const SCALES: Record<string, number[]> = {
   Off: [],
@@ -59,6 +61,7 @@ export function PianoRoll() {
   const snap = settings.snap || 0;
   const snapStep = (v: number) => (snap ? Math.round(v / snap) * snap : Math.round(v));
   const color = channel?.color ?? 'var(--accent)';
+  const detectedKey = detectKey(project.patterns.flatMap((p) => Object.values(p.notes).flat()));
 
   const inScale = (pitch: number) => {
     if (!scale || scale === 'Off') return false;
@@ -175,6 +178,9 @@ export function PianoRoll() {
             </option>
           ))}
         </select>
+        <span className="chip" title="Estimated key across every pattern and channel">
+          {detectedKey ?? 'no notes'}
+        </span>
         <div className="sep" />
         <button
           className="tbtn small"

@@ -70,6 +70,13 @@ This is the first official release. Everything below shipped in this build; ther
 - Colour editor with a colour wheel, HEX field and R/G/B inputs for every theme token, glass toggle and JSON import/export.
 - Command palette (Ctrl/Cmd+K) covering transport, views, channels, audio tools and project actions.
 
+### Workflow research
+
+- Added project-wide **key detection** (major/minor profile) to the piano roll toolbar.
+- Rounded playlist clip edges for clearer section boundaries, a recurring Ableton user request.
+- Audited current FL Studio and Ableton requests; already covered: dynamic mixer tracks, loop/chord generation,
+  command palette, device A/B, browser and project portability through `.obeats`. See `docs/RESEARCH.md`.
+
 ### Design
 
 - Glass reworked after comparing it with Apple's Liquid Glass guidance: near-opaque content panels, frosted chrome,

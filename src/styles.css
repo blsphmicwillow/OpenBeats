@@ -990,7 +990,7 @@ textarea {
   position: absolute;
   top: 3px;
   bottom: 3px;
-  border-radius: 3px;
+  border-radius: 7px;
   background: linear-gradient(
     180deg,
     color-mix(in srgb, var(--clip-color) 45%, var(--panel2)),

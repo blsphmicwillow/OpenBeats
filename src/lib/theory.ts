@@ -70,6 +70,24 @@ export interface InspireOptions {
   seed?: number;
 }
 
+/** Estimates the project key from note pitch classes with Krumhansl-style profiles. */
+export function detectKey(notes: { pitch: number }[]): string | null {
+  if (!notes.length) return null;
+  const histogram = new Array(12).fill(0);
+  for (const note of notes) histogram[((note.pitch % 12) + 12) % 12] += 1;
+  const major = [6.35, 2.23, 3.48, 2.33, 4.38, 4.09, 2.52, 5.19, 2.39, 3.66, 2.29, 2.88];
+  const minor = [6.33, 2.68, 3.52, 5.38, 2.6, 3.53, 2.54, 4.75, 3.98, 2.69, 3.34, 3.17];
+  let best = { score: -Infinity, root: 0, mode: 'major' };
+  for (const [profile, mode] of [[major, 'major'], [minor, 'minor']] as const) {
+    for (let root = 0; root < 12; root += 1) {
+      let score = 0;
+      for (let i = 0; i < 12; i += 1) score += histogram[(root + i) % 12] * profile[i];
+      if (score > best.score) best = { score, root, mode };
+    }
+  }
+  return `${NOTE_NAMES[best.root]} ${best.mode}`;
+}
+
 export function generateProgression(opts: InspireOptions): { chords: ProgressionChord[]; bpm: number; scale: string } {
   const bars = opts.bars ?? 4;
   const mood = MOODS[opts.mood];
