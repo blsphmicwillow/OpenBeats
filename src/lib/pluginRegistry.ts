@@ -156,7 +156,11 @@ async function fetchRelease(plugin: RegistryPlugin, force: boolean): Promise<Plu
   const cache = readCache();
   const cacheKey = `${plugin.repo}@${plugin.releaseTag ?? 'latest'}`;
   const cached = cache[cacheKey];
-  if (!force && cached && Date.now() - cached.fetchedAt < CACHE_TTL_MS) return cached.release;
+  // Never treat a cached miss as a successful empty release: releases are
+  // published after the registry entry, and a miss should be retried.
+  if (!force && cached?.release && Date.now() - cached.fetchedAt < CACHE_TTL_MS) {
+    return cached.release;
+  }
 
   const endpoint = plugin.releaseTag
     ? `https://api.github.com/repos/${plugin.repo}/releases/tags/${encodeURIComponent(plugin.releaseTag)}`
@@ -173,8 +177,6 @@ async function fetchRelease(plugin: RegistryPlugin, force: boolean): Promise<Plu
   }
 
   if (response.status === 404) {
-    cache[cacheKey] = { fetchedAt: Date.now(), release: null };
-    writeCache(cache);
     throw new Error(plugin.releaseTag ? `Release ${plugin.releaseTag} is not published yet` : 'No public release yet');
   }
   if (!response.ok) {
