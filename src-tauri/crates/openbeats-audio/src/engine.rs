@@ -189,7 +189,8 @@ pub struct NativeEngine {
 impl NativeEngine {
     /// Opens the default output device and keeps the stream alive on its thread.
     pub fn start() -> Result<Self, String> {
-        let (ready_tx, ready_rx) = mpsc::channel::<Result<(String, f32), String>>();
+        let (ready_tx, ready_rx) =
+            mpsc::channel::<Result<(String, f32, Arc<Mutex<AudioLogger>>), String>>();
         let (command_tx, command_rx) = mpsc::channel::<EngineCommand>();
         let shared = Arc::new(Shared::default());
         let thread_shared = Arc::clone(&shared);
@@ -199,14 +200,14 @@ impl NativeEngine {
             .spawn(move || audio_thread(command_rx, thread_shared, ready_tx))
             .map_err(|e| format!("could not start the audio thread: {e}"))?;
 
-        let (device, sample_rate) = ready_rx
+        let (device, sample_rate, logger) = ready_rx
             .recv_timeout(Duration::from_secs(10))
             .map_err(|_| "the audio device did not open in time".to_string())??;
 
         Ok(Self {
             commands: command_tx,
             shared,
-            logger: shared_logger,
+            logger,
             sample_rate,
             device,
             thread: Some(thread),
@@ -280,7 +281,7 @@ impl Drop for NativeEngine {
 fn audio_thread(
     commands: Receiver<EngineCommand>,
     shared: Arc<Shared>,
-    ready: Sender<Result<(String, f32), String>>,
+    ready: Sender<Result<(String, f32, Arc<Mutex<AudioLogger>>), String>>,
 ) {
     let host = cpal::default_host();
     let device = match host.default_output_device() {
@@ -375,7 +376,7 @@ fn audio_thread(
         return;
     }
 
-    let _ = ready.send(Ok((name, sample_rate)));
+    let _ = ready.send(Ok((name, sample_rate, Arc::clone(&logger))));
 
     while let Ok(command) = commands.recv() {
         let mut guard = match state.lock() {
@@ -463,7 +464,10 @@ fn render<T: WriteFrame + Copy>(
     let mut peak_left = 0.0f32;
     let mut peak_right = 0.0f32;
     let mut peak_transient = 0.0f32;
-    let mut log = guard.logger.try_lock().ok();
+    // Clone the Arc first: borrowing the guard's field across `next_frame`
+    // would conflict with the mutable borrow that call needs.
+    let logger = Arc::clone(&guard.logger);
+    let mut log = logger.try_lock().ok();
 
     for frame in 0..frames {
         let (left, right, transient) = guard.next_frame();
