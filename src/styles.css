@@ -2717,3 +2717,20 @@ input[type='color'] {
 .drop-card strong { font-size: 20px; letter-spacing: -0.02em; }
 .drop-card span { color: var(--dim); font-size: 12px; line-height: 1.5; }
 .reduce-motion .skip-link { transition: none; }
+
+/* --- Project library --- */
+.project-list { display: grid; gap: 8px; }
+.project-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--panel2);
+}
+.project-row.active { border-color: var(--accent); }
+.project-icon { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 9px; background: color-mix(in srgb, var(--accent) 18%, transparent); color: var(--accent); }
+.project-meta { display: grid; gap: 2px; flex: 1; min-width: 0; }
+.project-meta b { font-size: 13px; }
+.project-meta span { color: var(--dim); font-size: 10.5px; }

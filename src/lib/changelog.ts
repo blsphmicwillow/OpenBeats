@@ -25,6 +25,14 @@ export const CHANGELOG: ChangelogEntry[] = [
         ],
       },
       {
+        title: 'Projects',
+        items: [
+          'First launch opens a saved “Tutorial” project instead of a blank song.',
+          'Projects dialog for opening old songs, starting a new one, saving the current song and deleting library entries.',
+          'The last project is restored on launch; the Tutorial project cannot be deleted.',
+        ],
+      },
+      {
         title: 'Desktop',
         items: [
           'Tauri 2 shell with Linux (.deb and AppImage), Windows (msi and nsis) and macOS (dmg) installers built by CI.',
@@ -95,6 +103,7 @@ export const CHANGELOG: ChangelogEntry[] = [
         items: [
           'Third-party VST3/AU hosting is not included in 1.0.0; MIDI, .als import and .rpp provide the DAW bridge.',
           'FL Studio .flp is a proprietary binary format, so FL Studio projects travel through MIDI rather than .flp.',
+          'The Rust/CPAL audio migration is planned in docs/RUST_AUDIO.md; 1.0.0 still renders with Web Audio.',
         ],
       },
     ],

@@ -48,6 +48,10 @@ Until a release is published you can build from source — see [docs/BUILDING.md
 - **Inspire Me** — four-chord progressions by key, scale and mood, with an optional root bass line.
 - **Sample tagging** — estimates BPM, brightness and instrument family on import.
 
+### Projects
+- **Projects** dialog (File → Projects…): open old songs, start a new one, save the current song and delete entries.
+- First launch opens a saved **Tutorial** project, not a blank song; the last project is restored after that.
+
 ### Interchange with other DAWs
 - **Multi-track MIDI import/export** — one track per channel, tempo and program changes, readable by FL Studio, Ableton, Logic, Cubase, Studio One, Bitwig and REAPER.
 - **Ableton Live Set import** (`.als`) — gzipped XML, MIDI tracks and clips parsed locally.
@@ -115,6 +119,7 @@ Theming and the colour editor: [docs/THEMING.md](docs/THEMING.md).
 The glass design review (glassmorphism vs Liquid Glass): [docs/GLASS.md](docs/GLASS.md).
 DAW interchange matrix: [docs/EXCHANGE.md](docs/EXCHANGE.md).
 Plugin support status and roadmap: [docs/PLUGINS.md](docs/PLUGINS.md).
+Native Rust/CPAL audio migration plan: [docs/RUST_AUDIO.md](docs/RUST_AUDIO.md).
 Release/signing process: [docs/BUILDING.md](docs/BUILDING.md#releases).
 
 ### Project layout

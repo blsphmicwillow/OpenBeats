@@ -70,6 +70,7 @@ export function TopBar() {
   const selectedChannel = project.channels.find((c) => c.id === project.selectedChannel);
 
   const fileMenu: MenuItem[] = [
+    { label: 'Projects…', shortcut: 'Ctrl+Shift+O', onClick: () => setUI({ projectHubOpen: true }) },
     { label: 'New project', shortcut: '', onClick: () => newProject('blank') },
     { label: 'Load demo song', onClick: () => newProject('demo') },
     { separator: true },
@@ -160,6 +161,7 @@ export function TopBar() {
   const stepBpm = (delta: number) => setBpm(project.bpm + delta);
 
   const compactMenu: MenuItem[] = [
+    { label: 'Projects…', onClick: () => setUI({ projectHubOpen: true }) },
     { label: 'New project', onClick: () => newProject('blank') },
     { label: 'Load demo song', onClick: () => newProject('demo') },
     { label: 'Open project…', onClick: () => fileRef.current?.click() },

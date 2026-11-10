@@ -48,6 +48,7 @@ export function CommandPalette() {
       { id: 'updates', section: 'Audio', label: 'Check for updates', run: () => void s.checkUpdates() },
       { id: 'save', section: 'Project', label: 'Save project file', hint: 'Ctrl+S', run: () => void s.saveProjectFile() },
       { id: 'open', section: 'Project', label: 'Open project…', run: () => void s.openProjectNative() },
+      { id: 'projects', section: 'Project', label: 'Projects — new or old project', run: () => s.setUI({ projectHubOpen: true }) },
       { id: 'new', section: 'Project', label: 'New empty project', run: () => s.newProject('blank') },
       { id: 'demo', section: 'Project', label: 'Load the “Neon Drift” demo', run: () => s.newProject('demo') },
       { id: 'undo', section: 'Edit', label: 'Undo', hint: 'Ctrl+Z', run: () => s.undo() },

@@ -9,6 +9,7 @@ import type {
   Pattern,
   PresetId,
   Project,
+  SavedProject,
   Settings,
   Strip,
   UIState,
@@ -49,6 +50,7 @@ import { exchangeFromProject, projectFromExchange } from './lib/daw/project';
 const PROJECT_KEY = 'openbeats.project.v1';
 const SETTINGS_KEY = 'openbeats.settings.v1';
 const AUTOSAVE_KEY = 'openbeats.autosave.v1';
+const LIBRARY_KEY = 'openbeats.projects.v1';
 export const AUTOSAVE_INTERVALS = [0, 2, 5, 10, 15, 30, 60] as const;
 
 export function currentPattern(project: Project): Pattern | undefined {
@@ -124,6 +126,7 @@ interface History {
 
 export interface AppState {
   project: Project;
+  savedProjects: SavedProject[];
   settings: Settings;
   ui: UIState;
   transport: { playing: boolean; songMode: boolean; record: boolean; step: number; anchorStep: number; anchorTime: number };
@@ -198,6 +201,9 @@ export interface AppState {
   removeSend(stripId: number, index: number): void;
 
   newProject(kind: 'blank' | 'demo'): void;
+  saveCurrentProject(name?: string): void;
+  openSavedProject(id: string): void;
+  deleteSavedProject(id: string): void;
   saveProjectFile(): void;
   openProjectFile(file: File): Promise<void>;
   openProjectNative(): Promise<void>;
@@ -220,12 +226,30 @@ let nextTime = 0;
 let lastCoalesceKey: string | null = null;
 let lastCoalesceAt = 0;
 
+function seedLibrary(): SavedProject[] {
+  let list = loadStored<SavedProject[]>(LIBRARY_KEY) ?? [];
+  if (!list.some((entry) => entry.name === 'Tutorial')) {
+    const tutorial = demoProject();
+    tutorial.name = 'Tutorial';
+    list = [{ id: 'tutorial', name: 'Tutorial', updatedAt: Date.now(), project: tutorial }, ...list];
+    try {
+      localStorage.setItem(LIBRARY_KEY, JSON.stringify(list));
+    } catch {
+      /* storage unavailable */
+    }
+  }
+  return list;
+}
+
 const storedSettings = normalizeSettings(loadStored<Settings>(SETTINGS_KEY));
 const storedProject = loadStored<Project>(PROJECT_KEY);
-const initialProject = storedProject ? normalizeProject(storedProject) : demoProject();
+const savedProjects = seedLibrary();
+const tutorialProject = savedProjects.find((entry) => entry.name === 'Tutorial')?.project;
+const initialProject = storedProject ? normalizeProject(storedProject) : normalizeProject(tutorialProject ?? demoProject());
 
 export const useApp = create<AppState>((set, get) => ({
   project: initialProject,
+  savedProjects,
   settings: storedSettings,
   ui: {
     tab: 'playlist',
@@ -243,6 +267,7 @@ export const useApp = create<AppState>((set, get) => ({
     humOpen: false,
     inspireOpen: false,
     exchangeOpen: false,
+    projectHubOpen: false,
     update: null,
     updateChecking: false,
     exporting: null,
@@ -817,6 +842,7 @@ export const useApp = create<AppState>((set, get) => ({
   newProject(kind) {
     get().stop();
     const project = kind === 'demo' ? demoProject() : blankProject();
+    if (kind === 'blank') project.name = 'Untitled';
     set({
       project,
       history: { past: [...get().history.past, get().project].slice(-60), future: [] },
@@ -824,6 +850,60 @@ export const useApp = create<AppState>((set, get) => ({
     });
     engine.sync(project);
     get().toast(kind === 'demo' ? 'Demo song loaded' : 'New project');
+  },
+
+  saveCurrentProject(name) {
+    const current = get().project;
+    const project = structuredClone(current);
+    if (name?.trim()) project.name = name.trim();
+    const now = Date.now();
+    const existing = get().savedProjects.find((entry) => entry.name === project.name || entry.id === project.name);
+    const entry: SavedProject = {
+      id: existing?.id ?? uid('prj'),
+      name: project.name,
+      updatedAt: now,
+      project: { ...project, updatedAt: now },
+    };
+    const savedProjects = existing
+      ? get().savedProjects.map((item) => (item.id === existing.id ? entry : item))
+      : [entry, ...get().savedProjects];
+    set({ savedProjects, project: { ...project, updatedAt: now } });
+    try {
+      localStorage.setItem(LIBRARY_KEY, JSON.stringify(savedProjects));
+    } catch {
+      /* storage full */
+    }
+    get().toast(`Saved “${project.name}” to Projects`);
+  },
+
+  openSavedProject(id) {
+    const entry = get().savedProjects.find((item) => item.id === id);
+    if (!entry) return;
+    const project = normalizeProject(structuredClone(entry.project));
+    get().stop();
+    set({
+      project,
+      history: { past: [...get().history.past, get().project].slice(-60), future: [] },
+      transport: { ...get().transport, step: 0, anchorStep: 0 },
+      ui: { ...get().ui, projectHubOpen: false },
+    });
+    engine.sync(project);
+    get().toast(`Opened “${project.name}”`);
+  },
+
+  deleteSavedProject(id) {
+    if (id === 'tutorial') {
+      get().toast('The Tutorial project is part of the app');
+      return;
+    }
+    const savedProjects = get().savedProjects.filter((entry) => entry.id !== id);
+    set({ savedProjects });
+    try {
+      localStorage.setItem(LIBRARY_KEY, JSON.stringify(savedProjects));
+    } catch {
+      /* storage full */
+    }
+    get().toast('Project removed from the library');
   },
 
   async saveProjectFile() {

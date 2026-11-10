@@ -255,6 +255,13 @@ export interface Settings {
 
 export type WorkspaceTab = 'playlist' | 'pianoroll' | 'mixer' | 'changelog';
 
+export interface SavedProject {
+  id: string;
+  name: string;
+  updatedAt: number;
+  project: Project;
+}
+
 export interface UpdateInfo {
   version: string;
   notes: string;
@@ -279,6 +286,7 @@ export interface UIState {
   humOpen: boolean;
   inspireOpen: boolean;
   exchangeOpen: boolean;
+  projectHubOpen: boolean;
   update: UpdateInfo | null;
   updateChecking: boolean;
   exporting: null | { progress: number };

@@ -16,6 +16,12 @@ This is the first official release. Everything below shipped in this build; ther
 - Offline WAV bounce, mastering targets, **Fix My Mix** analysis with A/B, **Hum to Melody** and **Inspire Me**.
 - Guided first-run tour and an in-app manual.
 
+### Projects
+
+- First launch opens a saved **Tutorial** project instead of a blank song.
+- **Projects** dialog lists saved songs, opens old ones, starts new projects, saves the current song and deletes entries.
+- The last project is restored on launch; the Tutorial project is built in and cannot be deleted.
+
 ### Desktop
 
 - Tauri 2 shell (`src-tauri/`) with Linux (deb + AppImage), Windows (msi + nsis) and macOS (dmg) installers.
@@ -75,3 +81,5 @@ This is the first official release. Everything below shipped in this build; ther
 - Third-party **VST3/AU hosting is not included** in 1.0.0. MIDI, `.als` import and `.rpp` provide the DAW bridge; a
   native plugin host needs per-platform SDK work that is not part of this release.
 - FL Studio `.flp` is a proprietary binary event stream, so FL Studio projects travel through MIDI rather than `.flp`.
+- The **Rust/CPAL audio migration plan** is published in `docs/RUST_AUDIO.md`. 1.0.0 still renders with Web Audio; a
+  native engine requires ALSA development headers (and equivalent platform work) plus the staged port described there.
