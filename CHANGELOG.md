@@ -69,6 +69,12 @@ This is the first official release. Everything below shipped in this build; ther
 - Workspace panels are memoised, so theme, dialog and settings changes do not rerender the rack, playlist or mixer.
 - Playhead painting stays on `requestAnimationFrame` and only updates when the step changes.
 
+### Interface fixes
+
+- **Undo/redo is global** across the studio, including when a dropdown has focus; `Ctrl/Cmd+Z`, `Ctrl/Cmd+Shift+Z` and `Ctrl/Cmd+Y` work from the playlist, rack, piano roll and mixer.
+- Select and option text is explicitly themed against its background, with `color-scheme` set for light and dark themes so native menus never inherit white-on-white or white-on-dark text.
+- **Discord Rich Presence** toggle and application-ID field in Settings → Workflow. When configured it reports “Making a beat..” with the current project name; turning it off clears the presence.
+
 ### Interface
 
 - Classic / Modern interface modes over the same theme tokens.

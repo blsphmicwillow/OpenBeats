@@ -346,6 +346,35 @@ export function SettingsDialog() {
               </div>
               <div className="field">
                 <div className="field-label">
+                  Discord Rich Presence
+                  <small>Show “Making a beat..” and the current project name in Discord. Leave the app ID blank to disable the connection.</small>
+                </div>
+                <div className="field-control">
+                  <input
+                    type="checkbox"
+                    checked={settings.discordRpc}
+                    onChange={(e) => patchSettings({ discordRpc: e.target.checked })}
+                    aria-label="Enable Discord Rich Presence"
+                  />
+                </div>
+              </div>
+              <div className="field">
+                <div className="field-label">
+                  Discord application ID
+                  <small>Create an application at discord.com/developers and paste its Application ID here.</small>
+                </div>
+                <div className="field-control">
+                  <input
+                    className="select"
+                    value={settings.discordClientId}
+                    placeholder="Discord application ID"
+                    aria-label="Discord application ID"
+                    onChange={(e) => patchSettings({ discordClientId: e.target.value.trim() })}
+                  />
+                </div>
+              </div>
+              <div className="field">
+                <div className="field-label">
                   Default snap
                   <small>Used by the playlist and piano roll.</small>
                 </div>

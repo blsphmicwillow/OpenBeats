@@ -48,6 +48,10 @@ Until a release is published you can build from source — see [docs/BUILDING.md
 - **Inspire Me** — four-chord progressions by key, scale and mood, with an optional root bass line.
 - **Sample tagging** — estimates BPM, brightness and instrument family on import.
 
+### Discord Rich Presence
+- Toggle in **Settings → Workflow**. When enabled, Discord shows **“Making a beat..”** with the current project name.
+- Discord requires an application client ID: create an app at [discord.com/developers](https://discord.com/developers/applications), paste its Application ID into Settings, and the native bridge connects over Discord IPC. Switching the toggle off disconnects it.
+
 ### Projects
 - **Projects** dialog (File → Projects…): open old songs, start a new one, save the current song and delete entries.
 - First launch opens a saved **Tutorial** project, not a blank song; the last project is restored after that.

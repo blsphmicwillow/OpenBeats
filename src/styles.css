@@ -2734,3 +2734,27 @@ input[type='color'] {
 .project-meta { display: grid; gap: 2px; flex: 1; min-width: 0; }
 .project-meta b { font-size: 13px; }
 .project-meta span { color: var(--dim); font-size: 10.5px; }
+
+/* Selects and native option popups must never inherit invisible text. */
+select,
+.mini-select,
+.select {
+  color: var(--text);
+  background-color: var(--panel2);
+}
+select option,
+.mini-select option,
+.select option {
+  color: var(--text);
+  background-color: var(--panel2);
+}
+select option:checked,
+.mini-select option:checked,
+.select option:checked {
+  color: var(--text);
+  background-color: color-mix(in srgb, var(--accent) 35%, var(--panel2));
+}
+.app.theme-dark select { color-scheme: dark; }
+.app.theme-light select { color-scheme: light; }
+.app.high-contrast select,
+.app.high-contrast option { color: var(--text); background: var(--panel); }

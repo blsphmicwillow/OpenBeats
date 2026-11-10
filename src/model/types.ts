@@ -248,6 +248,10 @@ export interface Settings {
   reduceTransparency: boolean;
   /** Minutes between autosaves; 0 disables timed autosave. */
   autosaveMinutes: 0 | 2 | 5 | 10 | 15 | 30 | 60;
+  /** Discord Rich Presence, including the "Making a beat.." activity. */
+  discordRpc: boolean;
+  /** Discord application client ID used for Rich Presence. */
+  discordClientId: string;
   keymap: Record<KeyAction, string>;
   tutorialDone: boolean;
   sweepDemo: boolean;

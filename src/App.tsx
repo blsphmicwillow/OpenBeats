@@ -10,6 +10,7 @@ import { Mixer } from './components/Mixer';
 import { HintBar } from './components/HintBar';
 import { UpdateBanner } from './components/UpdateBanner';
 import { KEY_TO_SEMITONE, comboFromEvent } from './ui/keymapLabels';
+import { nativeInvoke } from './lib/native';
 import { IconGrid, IconMixer, IconPiano, IconWave } from './ui/icons';
 import type { KeyAction, WorkspaceTab } from './model/types';
 
@@ -43,6 +44,7 @@ const TABS: { id: WorkspaceTab; label: string; icon: React.ReactNode }[] = [
 export default function App() {
   const settings = useApp((s) => s.settings);
   const ui = useApp((s) => s.ui);
+  const project = useApp((s) => s.project);
   const toast = useApp((s) => s.ui.toast);
   const theme = themeById(settings.themeId, settings.customTheme);
   const booted = useRef(false);
@@ -64,6 +66,18 @@ export default function App() {
     window.addEventListener('keydown', unlock, { once: true });
     return () => window.removeEventListener('keydown', unlock);
   }, []);
+
+  useEffect(() => {
+    if (!settings.discordRpc || !settings.discordClientId) {
+      void nativeInvoke('discord_clear');
+      return;
+    }
+    void nativeInvoke('discord_presence', {
+      clientId: settings.discordClientId,
+      details: 'Making a beat..',
+      state: project.name,
+    });
+  }, [settings.discordRpc, settings.discordClientId, project.name]);
 
   useEffect(() => {
     if (!useApp.getState().settings.autoCheckUpdates) return;
@@ -157,15 +171,25 @@ export default function App() {
 
     const onKeyDown = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement | null;
-      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT' || target.isContentEditable)) {
+      const isTextField =
+        target &&
+        (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable);
+      if (isTextField) return;
+      const state = useApp.getState();
+      if ((e.ctrlKey || e.metaKey) && (e.key.toLowerCase() === 'z' || e.key.toLowerCase() === 'y')) {
+        e.preventDefault();
+        if (e.key.toLowerCase() === 'y' || e.shiftKey) state.redo();
+        else state.undo();
         return;
       }
-      const state = useApp.getState();
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
         e.preventDefault();
         state.setUI({ paletteOpen: !state.ui.paletteOpen });
         return;
       }
+      // A select keeps focus after a choice; Space/letters must not hijack it,
+      // but undo, redo and the command palette above stay global.
+      if (target?.tagName === 'SELECT') return;
       if (state.ui.settingsOpen || state.ui.aboutOpen || state.ui.tutorialStep !== null || state.ui.paletteOpen) return;
 
       const combo = comboFromEvent(e);

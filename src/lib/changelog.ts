@@ -91,6 +91,14 @@ export const CHANGELOG: ChangelogEntry[] = [
         ],
       },
       {
+        title: 'Interface fixes',
+        items: [
+          'Undo and redo are global, including when a select or dropdown has focus (Ctrl/Cmd+Z, Shift+Z, Y).',
+          'Select and option text is explicitly colored against light and dark themes, with native color-scheme support.',
+          'Discord Rich Presence setting with an application-ID field; reports “Making a beat..” and the project name, and can be switched off.',
+        ],
+      },
+      {
         title: 'Interface',
         items: [
           'Classic and Modern interface modes over the same theme tokens.',

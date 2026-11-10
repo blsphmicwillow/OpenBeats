@@ -1,7 +1,44 @@
 use base64::{engine::general_purpose::STANDARD, Engine as _};
+use discord_rich_presence::{activity, DiscordIpc, DiscordIpcClient};
 use std::path::PathBuf;
 use std::process::Command;
+use std::sync::Mutex;
 use tauri_plugin_dialog::DialogExt;
+
+static DISCORD: Mutex<Option<DiscordIpcClient>> = Mutex::new(None);
+
+#[tauri::command]
+fn discord_presence(client_id: String, details: String, state: String) -> bool {
+    let mut guard = match DISCORD.lock() {
+        Ok(guard) => guard,
+        Err(_) => return false,
+    };
+    if guard.is_none() {
+        let mut client = match DiscordIpcClient::new(&client_id) {
+            Ok(client) => client,
+            Err(_) => return false,
+        };
+        if client.connect().is_err() {
+            return false;
+        }
+        *guard = Some(client);
+    }
+    let payload = activity::Activity::new().details(&details).state(&state);
+    guard
+        .as_mut()
+        .map(|client| client.set_activity(payload).is_ok())
+        .unwrap_or(false)
+}
+
+#[tauri::command]
+fn discord_clear() -> bool {
+    if let Ok(mut guard) = DISCORD.lock() {
+        if let Some(mut client) = guard.take() {
+            let _ = client.close();
+        }
+    }
+    true
+}
 
 #[derive(serde::Serialize)]
 struct BinaryPayload {
@@ -130,7 +167,9 @@ pub fn run() {
             save_text_file,
             open_text_file,
             save_binary_file,
-            open_binary_file
+            open_binary_file,
+            discord_presence,
+            discord_clear
         ])
         .setup(|_app| Ok(()))
         .run(tauri::generate_context!())
