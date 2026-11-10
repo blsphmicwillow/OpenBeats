@@ -61,6 +61,8 @@ jobs:
             gstreamer1.0-tools gstreamer1.0-plugins-base gstreamer1.0-plugins-good \
             gstreamer1.0-plugins-bad gstreamer1.0-plugins-ugly gstreamer1.0-libav \
             gstreamer1.0-pulseaudio gstreamer1.0-alsa
+          # linuxdeploy-plugin-gtk expects this loader directory to exist.
+          sudo mkdir -p /usr/lib/gdk-pixbuf-2.0/2.10.0/loaders
 
       - name: Install frontend dependencies
         run: npm ci
@@ -134,6 +136,8 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          # Prevent linuxdeploy's bundled strip from corrupting modern ELF payloads.
+          NO_STRIP: 1
         with:
           args: --bundles ${{ matrix.bundles }}
           tagName: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || '' }}

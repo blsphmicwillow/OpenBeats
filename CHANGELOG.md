@@ -41,8 +41,11 @@ Linux, Windows and macOS installers are built by CI from the `v1.0.3` tag and at
 ### Linux AppImage compatibility
 
 - The rebuilt 1.0.3 AppImage carries `X-AppImage-Version=1.0.3`, has an executable payload and bundles no `libfuse`.
-  It installs and lists correctly with both Shelly 3.0.6 and Shelly 3.2.1.
+  It installs and lists correctly with both Shelly 3.0.6 and Shelly 3.2.1, and its main window opens at 1440×900 in a
+  fresh Linux display.
 - Linux release builds now request `appimage,deb,rpm` explicitly instead of relying on Tauri's `all` target.
+- AppImage builds set `NO_STRIP=1` so linuxdeploy cannot run an outdated strip binary over modern ELF payloads. This
+  prevents the malformed-binary/`InvalidExe` failure mode in package managers such as Shelly.
 - On Arch, install FUSE 3 with `sudo pacman -S fuse3`. If FUSE is unavailable, or an older package frontend rejects
   the file, run `./OpenBeats_1.0.3_amd64.AppImage --appimage-extract-and-run`.
 

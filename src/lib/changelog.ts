@@ -36,8 +36,9 @@ export const CHANGELOG: ChangelogEntry[] = [
       {
         title: 'Linux AppImage compatibility',
         items: [
-          'The rebuilt 1.0.3 AppImage includes X-AppImage-Version=1.0.3, has an executable payload and bundles no libfuse; it installs and lists correctly with Shelly 3.0.6 and 3.2.1.',
-          'Linux release builds request appimage, deb and rpm explicitly. On Arch, install FUSE 3 with sudo pacman -S fuse3, or use --appimage-extract-and-run if FUSE is unavailable.',
+          'The rebuilt 1.0.3 AppImage includes X-AppImage-Version=1.0.3, has an executable payload and bundles no libfuse; it installs and lists correctly with Shelly 3.0.6 and 3.2.1, and its main window opens at 1440×900 in a fresh Linux display.',
+          'Linux release builds request appimage, deb and rpm explicitly, and set NO_STRIP=1 so linuxdeploy cannot run an outdated strip binary over modern ELF payloads.',
+          'On Arch, install FUSE 3 with sudo pacman -S fuse3, or use --appimage-extract-and-run if FUSE is unavailable.',
         ],
       },
       {
