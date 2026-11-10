@@ -1,0 +1,16 @@
+[package]
+name = "openbeats-plugins"
+version = "1.0.0"
+edition = "2021"
+rust-version = "1.92"
+description = "OpenBeats VST3/CLAP plugin hosting via plughost helper processes"
+license = "MIT"
+
+# plughost-core 0.2.1 has no Linux implementation of its platform layer, so the
+# dependency is only pulled in where it can actually build. On Linux this crate
+# compiles to a stub that reports hosting as unavailable.
+[target.'cfg(not(target_os = "linux"))'.dependencies]
+plughost = "=0.2.1"
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }

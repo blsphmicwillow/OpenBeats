@@ -1,0 +1,15 @@
+[package]
+name = "openbeats-plughost-helper"
+version = "1.0.0"
+edition = "2021"
+rust-version = "1.92"
+description = "Sandboxed plugin host helper process for OpenBeats"
+license = "MIT"
+
+[[bin]]
+name = "plughost-helper"
+path = "src/main.rs"
+
+# Only the platforms plughost supports; Linux builds this binary as a stub.
+[target.'cfg(not(target_os = "linux"))'.dependencies]
+plughost-helper = "=0.2.1"

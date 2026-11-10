@@ -1,3 +1,6 @@
+mod audio_commands;
+mod plugin_commands;
+
 use base64::{engine::general_purpose::STANDARD, Engine as _};
 use discord_rich_presence::{activity, DiscordIpc, DiscordIpcClient};
 use std::path::PathBuf;
@@ -159,8 +162,16 @@ async fn open_text_file(app: tauri::AppHandle) -> Option<String> {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    let app_dir = std::env::current_exe()
+        .ok()
+        .and_then(|exe| exe.parent().map(|dir| dir.to_path_buf()));
+    let helper = openbeats_plugins::PluginHost::helper_path(app_dir.as_deref());
+    let plugin_cache = std::env::temp_dir().join("openbeats-plugin-scan.json");
+
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
+        .manage(audio_commands::AudioState::default())
+        .manage(plugin_commands::PluginState::new(helper, plugin_cache))
         .invoke_handler(tauri::generate_handler![
             platform,
             open_external,
@@ -170,7 +181,25 @@ pub fn run() {
             save_binary_file,
             open_binary_file,
             discord_presence,
-            discord_clear
+            discord_clear,
+            // Native audio engine
+            audio_commands::start_playback,
+            audio_commands::stop_playback,
+            audio_commands::playback_state,
+            audio_commands::native_audio_devices,
+            audio_commands::play_test_tone,
+            audio_commands::recover_audio_log,
+            audio_commands::detect_chord,
+            audio_commands::parse_native_command,
+            audio_commands::pitch_names,
+            audio_commands::chord_suggestions,
+            audio_commands::normalise_clip_gains,
+            // Plugin hosting
+            plugin_commands::scan_plugins,
+            plugin_commands::load_plugin_chain,
+            plugin_commands::unload_plugin_chain,
+            plugin_commands::recover_plugin_chain,
+            plugin_commands::plugin_host_support
         ])
         .setup(|_app| Ok(()))
         .run(tauri::generate_context!())

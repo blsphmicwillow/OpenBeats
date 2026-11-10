@@ -114,6 +114,61 @@ export function Playlist() {
         onClick: () => updateClip(clip.id, { track: clip.track + 1 }),
       },
       { separator: true },
+      {
+        label: `Clip gain: ${clip.gain && clip.gain !== 1 ? `${(20 * Math.log10(clip.gain)).toFixed(1)} dB` : '0.0 dB'}`,
+        disabled: true,
+      },
+      {
+        label: 'Clip gain +1 dB',
+        onClick: () => updateClip(clip.id, { gain: Math.min(4, (clip.gain ?? 1) * 1.122) }),
+      },
+      {
+        label: 'Clip gain −1 dB',
+        onClick: () => updateClip(clip.id, { gain: Math.max(0, (clip.gain ?? 1) / 1.122) }),
+      },
+      { label: 'Reset clip gain', onClick: () => updateClip(clip.id, { gain: 1 }) },
+      { separator: true },
+      {
+        label: `Pan: ${(clip.pan ?? 0) === 0 ? 'center' : (clip.pan ?? 0) < 0 ? `${Math.round(Math.abs(clip.pan ?? 0) * 100)}% left` : `${Math.round((clip.pan ?? 0) * 100)}% right`}`,
+        disabled: true,
+      },
+      {
+        label: 'Pan left',
+        onClick: () => updateClip(clip.id, { pan: Math.max(-1, (clip.pan ?? 0) - 0.1) }),
+      },
+      {
+        label: 'Pan right',
+        onClick: () => updateClip(clip.id, { pan: Math.min(1, (clip.pan ?? 0) + 0.1) }),
+      },
+      { label: 'Center pan', onClick: () => updateClip(clip.id, { pan: 0 }) },
+      { separator: true },
+      { label: `Pitch: ${clip.pitch ?? 0} st`, disabled: true },
+      { label: 'Pitch +1', onClick: () => updateClip(clip.id, { pitch: (clip.pitch ?? 0) + 1 }) },
+      { label: 'Pitch −1', onClick: () => updateClip(clip.id, { pitch: (clip.pitch ?? 0) - 1 }) },
+      { label: 'Reset pitch', onClick: () => updateClip(clip.id, { pitch: 0 }) },
+      { separator: true },
+      {
+        label: `Stretch: ${(clip.stretch ?? 1).toFixed(2)}×`,
+        onClick: () => updateClip(clip.id, { stretch: Math.min(4, (clip.stretch ?? 1) * 1.1) }),
+      },
+      {
+        label: 'Reset stretch',
+        onClick: () => updateClip(clip.id, { stretch: 1 }),
+      },
+      { separator: true },
+      {
+        label: `Fade in: ${clip.fadeIn ?? 0} steps`,
+        onClick: () => updateClip(clip.id, { fadeIn: ((clip.fadeIn ?? 0) + 2) % 18 }),
+      },
+      {
+        label: `Fade out: ${clip.fadeOut ?? 0} steps`,
+        onClick: () => updateClip(clip.id, { fadeOut: ((clip.fadeOut ?? 0) + 2) % 18 }),
+      },
+      {
+        label: 'Clear fades',
+        onClick: () => updateClip(clip.id, { fadeIn: 0, fadeOut: 0 }),
+      },
+      { separator: true },
       { label: `Pattern: ${pat?.name ?? 'unknown'}`, disabled: true },
       { label: 'Delete clip', danger: true, onClick: () => removeClip(clip.id) },
     ]);

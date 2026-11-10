@@ -22,7 +22,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - label: Linux (deb + AppImage)
+          - label: Linux (deb + RPM + AppImage)
             platform: ubuntu-22.04
           - label: Windows (msi + nsis)
             platform: windows-latest
@@ -49,11 +49,109 @@ jobs:
         if: matrix.platform == 'ubuntu-22.04'
         run: |
           sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev patchelf
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev \
+            librsvg2-dev patchelf rpm libasound2-dev \
+            libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev \
+            gstreamer1.0-tools gstreamer1.0-plugins-base gstreamer1.0-plugins-good \
+            gstreamer1.0-plugins-bad gstreamer1.0-plugins-ugly gstreamer1.0-libav \
+            gstreamer1.0-pulseaudio gstreamer1.0-alsa
 
       - name: Install frontend dependencies
         run: npm ci
 
+      # The DSP, sequencer and feature maths are pure Rust and must stay green.
+      - name: Native engine tests
+        working-directory: src-tauri
+        run: cargo test -p openbeats-audio --features fundsp-graph
+
+      # plughost does not build on Linux, so its helper only ships on Windows and macOS.
+      - name: Stage plugin host helper
+        if: matrix.platform != 'ubuntu-22.04'
+        shell: bash
+        working-directory: src-tauri
+        run: |
+          set -euo pipefail
+          cargo build --release -p openbeats-plughost-helper
+          triple="$(rustc -vV | sed -n 's|host: ||p')"
+          exe=""
+          if [ "${{ runner.os }}" = "Windows" ]; then exe=".exe"; fi
+          mkdir -p binaries
+          cp "target/release/plughost-helper${exe}" "binaries/plughost-helper-${triple}${exe}"
+          ls -l binaries
+
+      # Cheap guard: audio must be packaged by the bundle config, not by users.
+      - name: Verify installer runtime configuration
+        shell: bash
+        run: |
+          node -e '
+          const c = require("./src-tauri/tauri.conf.json");
+          const linux = c.bundle?.linux ?? {};
+          const deb = linux.deb?.depends ?? [];
+          const rpm = linux.rpm?.depends ?? [];
+          const win = c.bundle?.windows ?? {};
+          const checks = [
+            ["AppImage must bundle the media framework",
+              linux.appimage?.bundleMediaFramework === true],
+            ["deb must depend on the GStreamer audio plugins",
+              deb.some((d) => d.startsWith("gstreamer1.0-plugins-") || d === "gstreamer1.0-libav")],
+            ["deb must depend on a PulseAudio-compatible server",
+              deb.some((d) => d.includes("pipewire-pulse") || d.includes("pulseaudio"))],
+            ["RPM must depend on the GStreamer audio plugins",
+              rpm.some((d) => d.startsWith("gstreamer1-plugins-") || d === "gstreamer1-plugin-libav")],
+            ["RPM must depend on a PulseAudio-compatible server",
+              rpm.some((d) => d.includes("pipewire-pulse") || d.includes("pulseaudio"))],
+            ["Windows installer must embed the WebView2 runtime",
+              win.webviewInstallMode?.type === "offlineInstaller"],
+            ["Windows installer must bundle the VC++ runtime",
+              win.bundleVCRuntime === true],
+          ];
+          let failed = false;
+          for (const [name, ok] of checks) {
+            console.log(`${ok ? "ok  " : "FAIL"} ${name}`);
+            if (!ok) failed = true;
+          }
+          if (failed) {
+            console.error("::error::Installer audio/runtime packaging regressed");
+            process.exit(1);
+          }
+          '
+
+      - name: Verify bundled Linux audio runtime
+        if: matrix.platform == 'ubuntu-22.04'
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          deb="$(find src-tauri/target/release/bundle/deb -maxdepth 1 -name '*.deb' -print -quit)"
+          test -n "$deb" || { echo '::error::No deb was produced'; exit 1; }
+          dpkg-deb -f "$deb" Depends | grep -Fq 'gstreamer1.0-pulseaudio'
+          dpkg-deb -f "$deb" Depends | grep -Fq 'gstreamer1.0-plugins-good'
+
+          rpm="$(find src-tauri/target/release/bundle/rpm -maxdepth 1 -name '*.rpm' -print -quit)"
+          test -n "$rpm" || { echo '::error::No RPM was produced'; exit 1; }
+          rpm -qp --requires "$rpm" | grep -Fq 'gstreamer1-plugins-good'
+
+          appimage="$(find src-tauri/target/release/bundle/appimage -maxdepth 1 -name '*.AppImage' -print -quit)"
+          test -n "$appimage" || { echo '::error::No AppImage was produced'; exit 1; }
+
+          work="$(mktemp -d)"
+          trap 'rm -rf "$work"' EXIT
+          cd "$work"
+          "$GITHUB_WORKSPACE/$appimage" --appimage-extract >/dev/null
+
+          for plugin in \
+            libgstpulseaudio.so libgstalsa.so libgstaudioparsers.so \
+            libgstmpg123.so libgstflac.so libgstwavparse.so libgstlibav.so
+          do
+            if ! find squashfs-root -name "$plugin" -print -quit | grep -q .; then
+              echo "::error::AppImage is missing GStreamer plugin $plugin"
+              exit 1
+            fi
+          done
+          echo 'AppImage contains the GStreamer audio runtime.'
+
+      # Only after the installers are verified should they be attached to a release.
       - name: Build and attach installers
         uses: tauri-apps/tauri-action@v0
         env:

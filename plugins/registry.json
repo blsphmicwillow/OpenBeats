@@ -6,6 +6,7 @@
       "id": "openbeats-gain",
       "name": "OpenBeats Gain",
       "author": "OpenBeats",
+      "category": "Utility - Gain",
       "description": "A transparent, smoothed ±30 dB gain utility with stereo and mono layouts. The first-party proof that OpenBeats plugins can ship as native VST3 and CLAP bundles.",
       "homepage": "https://github.com/blsphmicwillow/OpenBeats/tree/main/plugins/openbeats-gain",
       "repo": "blsphmicwillow/OpenBeats",

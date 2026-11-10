@@ -54,6 +54,7 @@ export function TopBar() {
     clearChannelSteps,
     resetAll,
     toggleMetronome,
+    checkUpdates,
   } = useApp.getState();
 
   const [openName, setOpenName] = useState<string | null>(null);
@@ -112,6 +113,11 @@ export function TopBar() {
   const helpMenu: MenuItem[] = [
     { label: 'Tutorial', onClick: () => setUI({ tutorialStep: 0 }) },
     { label: 'Manual & shortcuts', shortcut: 'F1', onClick: () => setUI({ aboutOpen: true }) },
+    {
+      label: ui.updateChecking ? 'Checking for updates…' : 'Check for updates…',
+      disabled: ui.updateChecking,
+      onClick: () => void checkUpdates(),
+    },
     { separator: true },
     { label: 'OpenBeats is free software (GPL-3.0)', disabled: true },
   ];
@@ -181,6 +187,7 @@ export function TopBar() {
     { separator: true },
     { label: 'Tutorial', onClick: () => setUI({ tutorialStep: 0 }) },
     { label: 'Manual & shortcuts', onClick: () => setUI({ aboutOpen: true }) },
+    { label: 'Check for updates…', disabled: ui.updateChecking, onClick: () => void checkUpdates() },
     { label: 'Settings…', onClick: () => setUI({ settingsOpen: true }) },
   ];
 

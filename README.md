@@ -1,6 +1,6 @@
 # OpenBeats
 
-**An open-source beatmaking studio for the desktop.** Channel Rack, step sequencer, piano roll, playlist, mixer and a native audio engine — built with Rust + Tauri and a React/Web Audio front end. Linux, Windows and macOS.
+**An open-source beatmaking studio for the desktop.** Channel Rack, step sequencer, piano roll, playlist and mixer — built with a Rust/Tauri desktop shell and a React/Web Audio front end. Linux, Windows and macOS.
 
 ![OpenBeats](artifacts/final-1.1.png)
 
@@ -92,22 +92,25 @@ sudo apt install ./OpenBeats_1.0.0_amd64.deb
 openbeats
 ```
 
-The package pulls WebKitGTK 4.1 and the GStreamer plugins it needs. If your
-system blocks audio, also install `gstreamer1.0-pulseaudio`.
+The package declares WebKitGTK 4.1, the full GStreamer audio stack and a
+PulseAudio-compatible sound server (`pipewire-pulse` or `pulseaudio`). You
+should not need to install audio plugins by hand.
 
 ### Fedora
 
 ```bash
-sudo dnf install gstreamer1-plugins-{base,good,bad-free,ugly-free} gstreamer1-plugin-libav \
-  pulseaudio-libs alsa-lib libayatana-appindicator-gtk3 librsvg2 openssl
 sudo dnf install ./OpenBeats-1.0.0-1.x86_64.rpm
+openbeats
 ```
+
+The RPM declares the GStreamer audio plugins and a PipeWire-Pulse/PulseAudio
+server, so no separate multimedia package list is required.
 
 ### Windows
 
 1. Download `OpenBeats_1.0.0_x64-setup.exe` (or the `.msi`) from the release.
-2. Run it. WebView2 is included with Windows 11 and current Windows 10; the
-   installer offers to install it if missing.
+2. Run it. Current installers embed the WebView2 offline runtime, so the app
+   does not depend on a separate WebView2 download.
 3. SmartScreen may warn because the build is not code-signed: **More info →
    Run anyway**.
 
@@ -135,19 +138,20 @@ Not until the package is published to the AUR. The exact same `PKGBUILD` is in
 this repository and installs now with `cd packaging/arch && yay -Bi .`.
 
 **No sound on Arch?**
-Install the GStreamer plugins and one PulseAudio-compatible server listed above,
-then log out and back in. PipeWire users need `pipewire-pulse` (and usually
-`pipewire-alsa`); check with `pactl info` that the default sink is running.
+The package declares the GStreamer plugins and requires `pipewire-pulse` or
+`pulseaudio`. If you are on an older install, reinstall the package so pacman
+pulls the current dependency set, then log out and back in.
 
 **The AppImage does not start.**
 Install FUSE 2 (`sudo pacman -S fuse2` on Arch, `libfuse2` on Ubuntu 22.04+) or
 run `./OpenBeats.AppImage --appimage-extract-and-run`. The Arch package avoids
 FUSE entirely by extracting the AppImage at build time.
 
-**Do I need WebKitGTK installed on Arch?**
-No. The AppImage bundles WebKitGTK 4.1 and GTK 3. The package installs the
-system GStreamer plugins that WebKit loads for audio, plus icon and desktop
-integration.
+**Do I need WebKitGTK or GStreamer installed on Arch?**
+The package installs the system GStreamer plugins that WebKit loads for audio,
+plus icon and desktop integration. The AppImage bundles WebKitGTK 4.1, GTK 3
+and the GStreamer runtime itself; the one thing an AppImage cannot provide is
+the system audio server, so PipeWire-Pulse or PulseAudio must be running.
 
 **Can I use VST3, AU or CLAP plugins?**
 OpenBeats 1.0.0 includes a **plugin library** for browsing and downloading native
@@ -171,9 +175,9 @@ Not in 1.0.0. Build from source with the steps in
 [docs/BUILDING.md](docs/BUILDING.md).
 
 **How do I update?**
-Download the latest release. The in-app banner notifies you and links to GitHub;
-silent self-update is not enabled because the release is not signed with a Tauri
-updater key.
+Download the latest release. The in-app banner and **Help → Check for updates…**
+notify you and link to GitHub; silent self-update is not enabled because the
+release is not signed with a Tauri updater key.
 
 **Is OpenBeats really 1.0.0?**
 Yes. These packaging and documentation changes did not change the application
@@ -218,7 +222,7 @@ version.
 - Imported one-shots are auto-tagged (BPM, brightness, family) and kept in the session sample bank.
 
 ### Plugin library
-- **View → Plugin library…** (or the **Plugins** button) lists community VST3/CLAP releases from the GitHub-backed registry in [`plugins/registry.json`](plugins/registry.json).
+- **View → Plugin library…** (or the **Plugins** button) lists community VST3/CLAP releases from the GitHub-backed registry in [`plugins/registry.json`](plugins/registry.json), with vendor-style category filtering.
 - The first-party **OpenBeats Gain** proof plugin is built in [`plugins/openbeats-gain`](plugins/openbeats-gain); its release archive contains both `.clap` and `.vst3` bundles.
 - Download links open the publisher's GitHub Release. There is no silent install and no fake host: **loading plugins into OpenBeats is still not implemented in 1.0.0**.
 - Community submissions go through [the plugin submission form](.github/ISSUE_TEMPLATE/plugin-submission.yml); `npm run plugins:check` validates the registry.
@@ -226,11 +230,12 @@ version.
 ### Desktop integration
 - Native save/open dialogs and “reveal in folder”.
 - **Autosave** on a 2/5/10/15/30/60-minute timer (or Never), a final snapshot on window close, automatic restore after a crash, and **Save now** in Settings → Workflow.
-- **Update checker** against this repository's GitHub Releases, with an in-app banner and a **Changelog** tab.
+- **Update checker** against this repository's GitHub Releases, with an in-app banner, **Help → Check for updates…**, and a **Changelog** tab.
 - Native window chrome, resize handling and platform-aware shortcuts.
 
 ### Interface
 - **Classic** and **Modern** interface modes over the same theme tokens.
+- Startup splash with a short, synthesized ding; the chime can be switched off in **Settings → Workflow**.
 - Built-in themes, including **Glass (dark)** and **Liquid Glass (light)** glassmorphism styles.
 - **My theme** editor: colour wheel, HEX field and RGB sliders for every token; import/export theme JSON.
 - Command palette, density switch, interface scale, accent override.
@@ -305,6 +310,7 @@ scripts/        icon generation and plugin validation/fetching
 - Installers are produced by CI. Building them requires the platform SDKs (Xcode on macOS, MSVC on Windows); cross-building installers is not supported.
 - The Linux packages built here target Ubuntu 24.04 (glibc 2.39). CI builds on Ubuntu 22.04 for a wider glibc range; rebuild there if you need older distributions.
 - The update checker **notifies** and links to the release. Silent in-app installation is prepared but needs a signed Tauri updater key pair (`TAURI_SIGNING_PRIVATE_KEY`, `plugins.updater.pubkey`) — see the build guide.
+- The audio engine is still **Web Audio inside the Tauri WebView**. The Rust layer is the desktop shell, not a native audio engine; the migration plan is in [docs/RUST_AUDIO.md](docs/RUST_AUDIO.md).
 - The plugin library downloads public GitHub Release assets only; it does **not** load them. Native hosting remains a separate engine milestone.
 - The assistants are deterministic local DSP, not a hosted language model. Nothing is uploaded.
 - Not implemented yet: stem separation, a WASM wavetable synth, mixer folders, track freeze, PDC, per-clip effects, project snapshots, dockable panels, a spectral editor and a live-performance mode. See [ROADMAP.md](ROADMAP.md).

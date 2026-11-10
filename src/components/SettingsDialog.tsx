@@ -290,6 +290,7 @@ export function SettingsDialog() {
 
               {(
                 [
+                  ['startupChime', 'Startup chime', 'Play a short synthesized ding when OpenBeats opens. Takes effect on the next launch.'],
                   ['showMeters', 'Channel rack meters', 'Display a live level meter on every channel.'],
                   ['autoScroll', 'Follow the playhead', 'Keep the playlist and piano roll near the playhead.'],
                 ] as const
@@ -570,7 +571,7 @@ export function SettingsDialog() {
                     className="text-input"
                     value={settings.updateRepo}
                     onChange={(e) => patchSettings({ updateRepo: e.target.value })}
-                    placeholder="openbeats/openbeats"
+                    placeholder="blsphmicwillow/OpenBeats"
                   />
                 </div>
               </div>

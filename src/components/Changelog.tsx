@@ -77,9 +77,9 @@ export function Changelog() {
       </div>
 
       <div className="cl-foot">
-        Updates are checked against <code>github.com/{repo}/releases</code> when the app starts. Change the repository in
-        Settings → Workflow. The desktop builds use the same release feed, so a pushed tag publishes Linux, Windows and
-        macOS installers together.
+        Updates are checked against <code>github.com/{repo}/releases</code> when the app starts, or from Help → Check for
+        updates. Change the repository in Settings → Updates. The desktop builds use the same release feed, so a pushed
+        tag publishes Linux, Windows and macOS installers together.
       </div>
     </div>
   );

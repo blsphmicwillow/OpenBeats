@@ -9,6 +9,17 @@ Keep this file and `src/lib/changelog.ts` in sync, and bump `APP_VERSION` in `sr
 
 This is the first official release. Everything below shipped in this build; there was no earlier public version.
 
+### Native audio engine (Rust)
+
+- The desktop build plays through a native CPAL engine in Rust instead of Web Audio: a sample-accurate sequencer, 16 procedural synth voices, a 3-band EQ, compressor and limiter on the master chain. The web demo keeps the Web Audio fallback.
+- **Transmitter**: transient/sustain split with hold and release detection; the two parts always sum back to the input.
+- **Audio Logger**: the last 60 seconds of master output are kept in memory and can be written to a WAV file at any time.
+- **Chord detection** in the piano roll, plus local in-key chord suggestions.
+- **Clip gain, pan, pitch, stretch and fades** are applied by the native engine, with matching behaviour in the Web Audio fallback (pan is native-only).
+- **Note names** and **clip normalisation** (individually or as a selection) are computed in Rust.
+- **VST3/CLAP hosting** on Windows and macOS through an out-of-process plugin host with crash recovery. Not available on Linux, where the plugin browser still works.
+- Local natural-language commands, all offline. No accounts, no cloud.
+
 ### Studio
 
 - Channel rack with step sequencer, per-channel knobs, audition previews and live meters.
@@ -26,11 +37,13 @@ This is the first official release. Everything below shipped in this build; ther
 
 - Tauri 2 shell (`src-tauri/`) with Linux (deb + AppImage), Windows (msi + nsis) and macOS (dmg) installers.
 - Native project, song and sample file dialogs, plus reveal-in-folder, with browser fallbacks.
-- Update banner and GitHub Releases check. Automatic launch checks have a real opt-out: when disabled, no request is made.
+- Animated startup splash with a short, warm synthesized chime; the chime can be switched off in **Settings → Workflow**.
+- Update banner and GitHub Releases check, plus **Help → Check for updates…**. Automatic launch checks have a real opt-out: when disabled, no request is made. The checker and Tauri endpoint now point at the actual `blsphmicwillow/OpenBeats` repository, and saved settings are migrated away from the old placeholder path.
 - `.github/workflows/release.yml` builds all three platforms on every push to `main`; a `v*` tag publishes the release.
 - **Arch Linux package** (`openbeats-bin`): the 1.0.0 AppImage extracts to `/opt/openbeats`, a `/usr/bin/openbeats` launcher is installed, and GTK, GStreamer, audio-server and icon dependencies are declared. Package revision 2 fixes the launcher path and makes the extracted tree readable by normal users. Install locally with `cd packaging/arch && yay -Bi .`; AUR publication steps are documented.
+- **Installer audio runtime:** Linux AppImage builds now bundle GStreamer and the base/good/bad/ugly/libav audio plugins; `.deb` and `.rpm` packages declare the full GStreamer and PulseAudio/PipeWire dependency set. Windows installers embed the WebView2 offline runtime and bundle the VC runtime. CI extracts the AppImage and fails if the audio plugins are missing.
 - **[docs/INSTALL.md](docs/INSTALL.md)** now covers Arch/AUR, AppImage, deb, RPM, Windows, macOS and source builds, with a README download matrix and FAQ.
-- **Plugin library** (View → Plugin library…): a searchable, format-filtered browser backed by [`plugins/registry.json`](plugins/registry.json) and live GitHub Release metadata, with an offline bundled fallback and download links.
+- **Plugin library** (View → Plugin library…): a searchable browser with VST3/CLAP and vendor-style category filters (for example `Dynamics - Compressor`), backed by [`plugins/registry.json`](plugins/registry.json) and live GitHub Release metadata, with an offline bundled fallback and download links.
 - **OpenBeats Gain** proof plugin in [`plugins/openbeats-gain`](plugins/openbeats-gain): a Rust `nice-plug` audio effect exporting both VST3 and CLAP, with a Linux release bundle and build script. OpenBeats 1.0.0 browses and downloads plugins; it still does not host them in the mixer.
 - Community plugin submission template and registry validator (`npm run plugins:check`).
 

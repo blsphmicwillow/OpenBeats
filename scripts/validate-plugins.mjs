@@ -66,6 +66,9 @@ for (const [index, plugin] of (doc.plugins ?? []).entries()) {
     errors.push(`${label}.platforms must be a non-empty array`);
   }
   if (typeof plugin.verified !== 'boolean') errors.push(`${label}.verified must be boolean`);
+  if (plugin.category !== undefined && (typeof plugin.category !== 'string' || !plugin.category.trim())) {
+    errors.push(`${label}.category must be a non-empty string when present`);
+  }
 }
 
 if (errors.length) {

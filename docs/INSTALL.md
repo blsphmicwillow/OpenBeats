@@ -139,28 +139,18 @@ chmod +x OpenBeats.AppImage
 ./OpenBeats.AppImage
 ```
 
-The AppImage bundles WebKitGTK, GTK 3 and the other GUI libraries. The host must
-provide:
+The AppImage bundles WebKitGTK, GTK 3, GStreamer and the audio plugins used by
+Web Audio (`bundleMediaFramework`), so `gst-inspect-1.0` on the host is not
+needed. This applies to AppImages produced from the current packaging config;
+artifacts built before that change (including any 1.0.0 file published earlier)
+still rely on the host's GStreamer installation. The host must provide:
 
 - a working X11 or Wayland session;
-- GStreamer and its base/good/bad/ugly/libav plugins for Web Audio;
 - a PulseAudio-compatible server (`pipewire-pulse` or `pulseaudio`);
 - FUSE 2, **or** launch with `--appimage-extract-and-run`.
 
-Debian/Ubuntu example:
-
-```bash
-sudo apt install libfuse2 gstreamer1.0-plugins-base gstreamer1.0-plugins-good \
-  gstreamer1.0-plugins-bad gstreamer1.0-plugins-ugly gstreamer1.0-libav \
-  gstreamer1.0-pulseaudio
-```
-
-Fedora example:
-
-```bash
-sudo dnf install fuse fuse-libs gstreamer1-plugins-{base,good,bad-free,ugly-free} \
-  gstreamer1-plugin-libav pulseaudio-libs
-```
+The AppImage cannot bundle a system sound server. Every mainstream Linux desktop
+ships one; on a minimal install, install `pipewire-pulse` (or `pulseaudio`).
 
 To keep it on the desktop, move it somewhere permanent and create a menu entry;
 or use the `.deb`/`.rpm` packages, which do this for you.
@@ -177,25 +167,21 @@ openbeats
 The package is built for Ubuntu 24.04 / glibc 2.39. Older distributions may
 need the AppImage or a source build.
 
-If audio is silent after install:
-
-```bash
-sudo apt install gstreamer1.0-pulseaudio
-```
+The package declares the GStreamer audio plugins and a PulseAudio-compatible
+server. If the system has no sound server at all, install `pipewire-pulse` or
+`pulseaudio`, then log out and back in.
 
 Uninstall: `sudo apt remove open-beats`.
 
 ## Fedora / RHEL
 
 ```bash
-sudo dnf install \
-  gstreamer1-plugins-base gstreamer1-plugins-good gstreamer1-plugins-bad-free \
-  gstreamer1-plugins-ugly-free gstreamer1-plugin-libav \
-  pulseaudio-libs alsa-lib libayatana-appindicator-gtk3 librsvg2 openssl
-
 sudo dnf install ./OpenBeats-1.0.0-1.x86_64.rpm
 openbeats
 ```
+
+The RPM declares the GStreamer audio plugins and a PipeWire-Pulse/PulseAudio
+server; a separate multimedia package list is not required.
 
 Uninstall: `sudo dnf remove open-beats`.
 
@@ -204,9 +190,9 @@ Uninstall: `sudo dnf remove open-beats`.
 1. Download `OpenBeats_1.0.0_x64-setup.exe` from the release page.
 2. Run it and complete the installer. Administrators can deploy the `.msi`
    instead.
-3. WebView2 is preinstalled on Windows 11 and current Windows 10. If the app
-   shows a blank window, install the
-   [WebView2 Evergreen Runtime](https://developer.microsoft.com/microsoft-edge/webview2/).
+3. The installer carries the WebView2 offline runtime and the Visual C++
+   runtime, so it does not need an internet connection or a preinstalled
+   Evergreen Runtime. No extra download is offered during setup.
 4. The executable is unsigned, so SmartScreen may show “Windows protected your
    PC”. Choose **More info → Run anyway** only if the file came from the release
    page above.
@@ -261,7 +247,8 @@ can be bundled; build Windows on Windows and macOS on macOS.
 ```bash
 sudo pacman -S --needed base-devel webkit2gtk-4.1 gtk3 libayatana-appindicator \
   librsvg libsoup3 openssl gstreamer gst-plugins-base gst-plugins-good \
-  gst-plugins-bad gst-plugins-ugly gst-libav libpulse alsa-lib
+  gst-plugins-bad gst-plugins-ugly gst-libav libpulse alsa-lib \
+  pipewire-pulse   # or pulseaudio
 ```
 
 ### Debian/Ubuntu build dependencies
@@ -269,7 +256,10 @@ sudo pacman -S --needed base-devel webkit2gtk-4.1 gtk3 libayatana-appindicator \
 ```bash
 sudo apt install libwebkit2gtk-4.1-dev libgtk-3-dev \
   libayatana-appindicator3-dev librsvg2-dev libsoup-3.0-dev libssl-dev \
-  build-essential curl file
+  build-essential curl file rpm patchelf \
+  libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev gstreamer1.0-tools \
+  gstreamer1.0-plugins-base gstreamer1.0-plugins-good gstreamer1.0-plugins-bad \
+  gstreamer1.0-plugins-ugly gstreamer1.0-libav gstreamer1.0-pulseaudio gstreamer1.0-alsa
 ```
 
 ### Fedora build dependencies
@@ -294,10 +284,10 @@ More detail, including signing and release automation, is in
 
 | Symptom | Fix |
 | --- | --- |
-| Transport turns green but the playhead does not move | Web Audio never resumed. Install the GStreamer/PulseAudio packages, restart the app, and click the window once before pressing Space. |
+| Transport turns green but the playhead does not move | Web Audio never resumed. Make sure a PipeWire-Pulse or PulseAudio server is running, restart the app, and click the window once before pressing Space. |
 | AppImage says “dlopen(): error loading libfuse.so.2” | Install FUSE 2, or run `./OpenBeats.AppImage --appimage-extract-and-run`. |
 | Blank white window on Linux | Install/repair Mesa/GPU drivers, then try `WEBKIT_DISABLE_COMPOSITING_MODE=1 openbeats`. |
-| Blank window on Windows | Install the WebView2 Evergreen Runtime. |
+| Blank window on Windows | Reinstall with the current installer; it embeds the WebView2 runtime. If you built the installer yourself, rebuild with the repository's `tauri.conf.json`. |
 | macOS says the app is damaged | Clear quarantine with the `xattr` command above; do not disable Gatekeeper globally. |
 | “App is already running” / old version opens | Close all OpenBeats windows and relaunch; packages install side-by-side with a previously extracted AppImage only if both are kept. |
 | Plugins do not appear | VST3/AU/CLAP hosting is not implemented in 1.0.0. See [PLUGINS.md](PLUGINS.md). |

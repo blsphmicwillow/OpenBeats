@@ -16,6 +16,15 @@ export const CHANGELOG: ChangelogEntry[] = [
     headline: 'The first public OpenBeats release: a native studio, DAW interchange, autosave and accessibility.',
     groups: [
       {
+        title: 'Native audio engine',
+        items: [
+          'Desktop playback runs in Rust: CPAL output, a sample-accurate sequencer, 16 synth voices, a 3-band EQ, compressor and limiter on the master chain. Web Audio stays as the browser fallback.',
+          'Transmitter transient/sustain split with hold and release, and a 60-second Audio Logger you can recover to WAV at any time.',
+          'Chord detection and in-key chord suggestions, per-clip gain, pan, pitch, stretch and fades, custom note names and clip normalisation, all computed natively.',
+          'VST3/CLAP hosting on Windows and macOS with out-of-process crash recovery; on Linux the plugin browser works and hosting is reported as unavailable.',
+        ],
+      },
+      {
         title: 'Studio',
         items: [
           'Channel rack with step sequencer, per-channel knobs, audition previews and live meters.',
@@ -35,12 +44,14 @@ export const CHANGELOG: ChangelogEntry[] = [
       {
         title: 'Desktop',
         items: [
-          'Tauri 2 shell with Linux (.deb and AppImage), Windows (msi and nsis) and macOS (dmg) installers built by CI.',
+          'Tauri 2 shell with Linux (.deb, RPM and AppImage), Windows (msi and nsis) and macOS (dmg) installers built by CI.',
+          'Linux AppImage builds bundle GStreamer and the audio plugins; .deb and .rpm declare GStreamer plus a PulseAudio-compatible server. Windows installers embed WebView2 offline.',
           'Native window chrome, project/song/sample file dialogs and reveal-in-folder, with browser fallbacks.',
-          'Update checks against GitHub Releases with a dismissible banner; automatic launch checks can be switched off completely.',
+          'Animated startup splash with a short synthesized chime, switchable in Settings → Workflow.',
+          'Update checks against GitHub Releases with a dismissible banner and Help → Check for updates; automatic launch checks can be switched off completely.',
           'Arch Linux openbeats-bin package: installs the 1.0.0 AppImage to /opt/openbeats with GTK, GStreamer and PulseAudio dependencies declared.',
           'Install guide covers Arch/AUR, AppImage, deb, RPM, Windows, macOS and source builds, plus a README FAQ.',
-          'Plugin library with search and VST3/CLAP filters, backed by a GitHub registry and bundled offline fallback; downloads open the publisher release.',
+          'Plugin library with search, VST3/CLAP filters and vendor-style category filters, backed by a GitHub registry and bundled offline fallback; downloads open the publisher release.',
           'OpenBeats Gain proof plugin: Rust nice-plug source exporting VST3 and CLAP, with a Linux bundle and build script. Hosting inside OpenBeats remains future work.',
           'Community plugin submission template and registry validation scripts.',
         ],

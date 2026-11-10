@@ -1,6 +1,6 @@
 # Building OpenBeats
 
-OpenBeats is a Tauri 2 application: a Rust host process (`src-tauri/`) that owns the window, dialogs and filesystem access, and a React + Web Audio front end (`src/`) that Tauri embeds at compile time.
+OpenBeats is a Tauri 2 application: a Rust host process (`src-tauri/`) that owns the window, dialogs and filesystem access, and a React + Web Audio front end (`src/`) that Tauri embeds at compile time. The Rust process is the desktop shell, not an audio engine; see [RUST_AUDIO.md](RUST_AUDIO.md) for the native-engine migration.
 
 ## Prerequisites
 
@@ -13,7 +13,10 @@ OpenBeats is a Tauri 2 application: a Rust host process (`src-tauri/`) that owns
 ```bash
 sudo apt update
 sudo apt install -y libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev \
-  librsvg2-dev libsoup-3.0-dev libssl-dev build-essential curl file
+  librsvg2-dev libsoup-3.0-dev libssl-dev build-essential curl file rpm patchelf \
+  libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev gstreamer1.0-tools \
+  gstreamer1.0-plugins-base gstreamer1.0-plugins-good gstreamer1.0-plugins-bad \
+  gstreamer1.0-plugins-ugly gstreamer1.0-libav gstreamer1.0-pulseaudio gstreamer1.0-alsa
 ```
 `libwebkit2gtk-4.1-dev` is required for 24.04/24.10; older distributions ship 4.0 and need a newer base image.
 
@@ -61,6 +64,26 @@ This runs `tauri build`, which produces a release binary and platform bundles:
 | macOS | `dmg/*.dmg`, `macos/*.app` |
 
 Only the current platform can be bundled. Build Linux on Linux, Windows on Windows and macOS on macOS — that is what CI does.
+
+### Installer audio runtime
+
+The Linux AppImage sets `bundle.linux.appimage.bundleMediaFramework`, so Tauri
+includes GStreamer and the installed base/good/bad/ugly/libav plugins in the
+AppImage. The build machine must have those plugins installed; the CI workflow
+installs them before bundling. The AppImage still uses the host's PipeWire-Pulse
+or PulseAudio server.
+
+The `.deb` and `.rpm` packages declare GStreamer, the audio plugins and a
+PulseAudio-compatible server. Windows installers embed the WebView2 offline
+runtime and bundle the VC runtime; macOS uses the system WebKit/CoreAudio stack.
+
+To verify a Linux bundle locally:
+
+```bash
+appimage=$(find src-tauri/target/release/bundle/appimage -name '*.AppImage' -print -quit)
+"$appimage" --appimage-extract
+find squashfs-root -name 'libgstpulseaudio.so' -o -name 'libgstalsa.so'
+```
 
 ### Versioning
 

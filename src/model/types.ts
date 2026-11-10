@@ -117,6 +117,20 @@ export interface Clip {
   start: number;
   /** Length in steps. */
   len: number;
+  /**
+   * Clip gain envelope value, 1 = unity. Multiplies the clip's velocity in both
+   * the Web Audio path and the native Rust sequencer.
+   */
+  gain?: number;
+  /** Per-clip pan, -1 (left) .. 1 (right). Applied by the native engine. */
+  pan?: number;
+  /** Per-clip transpose in semitones. */
+  pitch?: number;
+  /** Time multiplier: 2 plays the pattern twice as long (half speed). */
+  stretch?: number;
+  /** Fade lengths in steps. */
+  fadeIn?: number;
+  fadeOut?: number;
 }
 
 export interface Effect {
@@ -239,6 +253,8 @@ export interface Settings {
   snap: number;
   autoScroll: boolean;
   showMeters: boolean;
+  /** Short synthesized sound when the app opens. */
+  startupChime: boolean;
   reduceMotion: boolean;
   /** Stronger borders and text for low-vision use. */
   highContrast: boolean;

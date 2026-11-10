@@ -40,7 +40,7 @@ import {
 } from './audio/sequencer';
 import { downloadBlob, renderSongToWav } from './audio/export';
 import { checkForUpdate } from './lib/updates';
-import { APP_VERSION } from './lib/version';
+import { APP_VERSION, DEFAULT_UPDATE_REPO } from './lib/version';
 import { openTextNative, saveBinaryNative, saveTextNative } from './lib/native';
 import { parseMidi, writeMidi } from './lib/daw/midi';
 import { parseAls } from './lib/daw/als';
@@ -87,9 +87,15 @@ export function normalizeSettings(raw: Partial<Settings> | null): Settings {
     : (raw as Partial<Settings> & { autoSave?: boolean }).autoSave === false
       ? 0
       : base.autosaveMinutes;
+  const storedRepo = typeof raw.updateRepo === 'string' ? raw.updateRepo.trim() : '';
+  const updateRepo =
+    !storedRepo || storedRepo.toLowerCase() === 'openbeats/openbeats'
+      ? DEFAULT_UPDATE_REPO
+      : storedRepo;
   return {
     ...base,
     ...raw,
+    updateRepo,
     autosaveMinutes: minutes,
     keymap: { ...DEFAULT_KEYMAP, ...(raw.keymap ?? {}) },
     customTheme: { ...base.customTheme, ...(raw.customTheme ?? {}) },
@@ -366,22 +372,14 @@ export const useApp = create<AppState>((set, get) => ({
   },
 
   play(fromStep) {
-    void get().initAudio().then((ok) => {
-      const { project } = get();
-      if (!ok || !engine.ctx) {
-        get().toast(engine.error ?? 'Audio could not start — click the studio and try again');
-        return;
-      }
-      if (playTimer) clearInterval(playTimer);
-      const start = fromStep ?? get().transport.step;
-      nextStep = Math.max(0, start);
-      nextTime = engine.now + 0.08;
-      set((s) => ({
-        transport: { ...s.transport, playing: true, anchorStep: nextStep, anchorTime: nextTime, step: nextStep },
-        ui: { ...s.ui, hint: 'Playing — Space to stop, L toggles pattern/song mode.' },
-      }));
-      playTimer = setInterval(() => tick(), 20);
-    });
+    const start = Math.max(0, fromStep ?? get().transport.step);
+    if (nativeShell()) {
+      void startNativeFromSnapshot(start).then((ok) => {
+        if (!ok) startWebAudioPlayback(start);
+      });
+      return;
+    }
+    startWebAudioPlayback(start);
   },
 
   stop() {
@@ -389,12 +387,20 @@ export const useApp = create<AppState>((set, get) => ({
       clearInterval(playTimer);
       playTimer = null;
     }
+    if (nativePoll) {
+      clearInterval(nativePoll);
+      nativePoll = null;
+    }
+    if (nativeActive) {
+      nativeActive = false;
+      void import('./lib/nativeAudio').then((mod) => mod.stopNativePlayback());
+    }
     set((s) => ({ transport: { ...s.transport, playing: false } }));
   },
 
   updatePlayhead() {
     const { transport, project } = get();
-    if (!transport.playing || !engine.ctx) return;
+    if (!transport.playing || nativeActive || !engine.ctx) return;
     const stepSec = stepsToSeconds(1, project.bpm);
     const total = transport.songMode
       ? songLengthSteps(project)
@@ -1203,7 +1209,13 @@ function tick() {
       const channel = project.channels.find((c) => c.id === event.channelId);
       if (!channel) continue;
       const swing = swingOffset(local, project.swing, stepSec);
-      engine.triggerChannel(channel, event.pitch, event.vel, nextTime + swing, event.lenSteps * stepSec * 0.96);
+      engine.triggerChannel(
+        channel,
+        event.pitch,
+        event.vel * (event.gain ?? 1),
+        nextTime + swing,
+        event.lenSteps * stepSec * 0.96,
+      );
     }
     if (project.metronome && local % 4 === 0) {
       engine.click(nextTime, local % 16 === 0);
@@ -1219,6 +1231,87 @@ export function previewChannel(channel: Channel) {
   const state = useApp.getState();
   void state.initAudio().then(() => {
     if (engine.ctx) engine.preview(channel);
+  });
+}
+
+/* ------------------------------------------------------------------ *
+ * Native (Rust/CPAL) transport
+ * ------------------------------------------------------------------ */
+
+let nativeActive = false;
+let nativePoll: number | null = null;
+
+/** True inside the Tauri shell, where the Rust engine can take the transport. */
+function nativeShell(): boolean {
+  if (typeof window === 'undefined') return false;
+  return Boolean((window as unknown as { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__);
+}
+
+async function startNativeFromSnapshot(start: number): Promise<boolean> {
+  const { buildPlaybackSnapshot, startNativePlayback } = await import('./lib/nativeAudio');
+  const { project, transport } = useApp.getState();
+  const snapshot = buildPlaybackSnapshot(project, transport.songMode, start);
+  const status = await startNativePlayback(snapshot);
+  if (!status) return false;
+
+  nativeActive = true;
+  if (playTimer) {
+    clearInterval(playTimer);
+    playTimer = null;
+  }
+  useApp.setState((s) => ({
+    audioReady: true,
+    audioError: null,
+    transport: {
+      ...s.transport,
+      playing: true,
+      anchorStep: start,
+      anchorTime: performance.now() / 1000,
+      step: start,
+    },
+    ui: { ...s.ui, hint: `Playing natively on ${status.device} — Space to stop.` },
+  }));
+  if (nativePoll) clearInterval(nativePoll);
+  nativePoll = window.setInterval(() => {
+    void pollNativeTransport();
+  }, 60);
+  return true;
+}
+
+async function pollNativeTransport() {
+  const { nativePlaybackState } = await import('./lib/nativeAudio');
+  const state = await nativePlaybackState();
+  if (!state) return;
+  const store = useApp.getState();
+  if (!state.playing) {
+    if (store.transport.playing) store.stop();
+    return;
+  }
+  if (state.step !== store.transport.step) {
+    useApp.setState((s) => ({ transport: { ...s.transport, step: state.step } }));
+  }
+}
+
+function startWebAudioPlayback(start: number) {
+  void useApp.getState().initAudio().then((ok) => {
+    if (!ok || !engine.ctx) {
+      useApp.getState().toast(engine.error ?? 'Audio could not start — click the studio and try again');
+      return;
+    }
+    if (playTimer) clearInterval(playTimer);
+    nextStep = Math.max(0, start);
+    nextTime = engine.now + 0.08;
+    useApp.setState((s) => ({
+      transport: {
+        ...s.transport,
+        playing: true,
+        anchorStep: nextStep,
+        anchorTime: nextTime,
+        step: nextStep,
+      },
+      ui: { ...s.ui, hint: 'Playing — Space to stop, L toggles pattern/song mode.' },
+    }));
+    playTimer = setInterval(() => tick(), 20);
   });
 }
 

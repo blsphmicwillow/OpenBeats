@@ -1,4 +1,4 @@
-import type { Note, Project } from '../model/types';
+import type { Clip, Note, Project } from '../model/types';
 
 export const STEPS_PER_BAR = 16;
 
@@ -9,6 +9,10 @@ export interface VoiceEvent {
   /** Absolute position in 16th steps from song start. */
   step: number;
   lenSteps: number;
+  /** Clip gain envelope value for this event; 1 when the clip is at unity. */
+  gain?: number;
+  /** Per-clip pan, -1..1. Used by the native engine. */
+  pan?: number;
 }
 
 export function patternSteps(project: Project, patternId: string): number {
@@ -42,6 +46,22 @@ export function eventsAtPatternStep(project: Project, patternId: string, localSt
   return out;
 }
 
+/** Fade multiplier for a position in steps inside a clip. */
+export function clipFadeGain(clip: Clip, position: number): number {
+  let gain = 1;
+  const fadeIn = clip.fadeIn ?? 0;
+  const fadeOut = clip.fadeOut ?? 0;
+  if (fadeIn > 0 && position < fadeIn) gain *= Math.max(0, position / fadeIn);
+  const fromEnd = clip.len - position;
+  if (fadeOut > 0 && fromEnd < fadeOut) gain *= Math.max(0, fromEnd / fadeOut);
+  return Math.min(1, gain);
+}
+
+/** Total clip gain (gain knob × fades) at a position in steps. */
+export function clipGainAt(clip: Clip, position: number): number {
+  return Math.max(0, clip.gain ?? 1) * clipFadeGain(clip, position);
+}
+
 /** Notes from every clip covering this absolute song step. */
 export function eventsAtSongStep(project: Project, songStep: number): VoiceEvent[] {
   const out: VoiceEvent[] = [];
@@ -49,10 +69,28 @@ export function eventsAtSongStep(project: Project, songStep: number): VoiceEvent
     if (songStep < clip.start || songStep >= clip.start + clip.len) continue;
     const track = project.tracks[clip.track];
     if (track && track.mute) continue;
-    const local = songStep - clip.start;
-    eventsAtPatternStep(project, clip.pattern, local).forEach((e) => {
-      if (e.step < clip.len) out.push(e);
-    });
+    const rel = songStep - clip.start;
+    const stretch = clip.stretch && clip.stretch > 0.05 ? clip.stretch : 1;
+    const patternLen = patternSteps(project, clip.pattern) * stretch;
+    const gain = clipGainAt(clip, rel);
+    const pan = Math.max(-1, Math.min(1, clip.pan ?? 0));
+    const transpose = clip.pitch ?? 0;
+    // Walk each repetition of the pattern inside the clip; stretch maps song
+    // steps onto pattern steps, so a 2× stretch triggers half as often.
+    for (let cycle = 0; cycle * patternLen <= rel; cycle += 1) {
+      const patternPos = (rel - cycle * patternLen) / stretch;
+      if (Math.abs(patternPos - Math.round(patternPos)) > 0.001) continue;
+      const localStep = Math.round(patternPos);
+      if (localStep >= patternSteps(project, clip.pattern)) continue;
+      for (const e of eventsAtPatternStep(project, clip.pattern, localStep)) {
+        out.push({
+          ...e,
+          pitch: Math.max(0, Math.min(127, e.pitch + transpose)),
+          gain,
+          pan,
+        });
+      }
+    }
   }
   return out;
 }

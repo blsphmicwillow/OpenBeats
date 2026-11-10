@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { applyParsedCommand } from '../lib/commandActions';
+import { nativeParseCommand, type ParsedCommand } from '../lib/nativeAudio';
 import { useApp } from '../store';
 import { PRESETS } from '../model/defaults';
 
@@ -15,6 +17,7 @@ export function CommandPalette() {
   const open = useApp((s) => s.ui.paletteOpen);
   const [query, setQuery] = useState('');
   const [active, setActive] = useState(0);
+  const [parsed, setParsed] = useState<ParsedCommand | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -65,11 +68,38 @@ export function CommandPalette() {
     ];
   }, [open]);
 
+  // The Rust parser understands phrases the command list does not contain.
+  useEffect(() => {
+    if (!open || !query.trim()) {
+      setParsed(null);
+      return;
+    }
+    let alive = true;
+    void nativeParseCommand(query).then((result) => {
+      if (alive) setParsed(result);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [open, query]);
+
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
+    const local: Command[] = parsed
+      ? [
+          {
+            id: 'local-command',
+            section: 'Local command',
+            label: `Run “${parsed.raw}”`,
+            hint: parsed.action,
+            run: () => useApp.getState().toast(applyParsedCommand(parsed)),
+          },
+        ]
+      : [];
     if (!q) return commands;
-    return commands.filter((c) => `${c.section} ${c.label}`.toLowerCase().includes(q));
-  }, [commands, query]);
+    const matches = commands.filter((c) => `${c.section} ${c.label}`.toLowerCase().includes(q));
+    return [...local, ...matches];
+  }, [commands, query, parsed]);
 
   useEffect(() => {
     setActive(0);

@@ -24,6 +24,7 @@ export function PluginBrowser() {
   const [selectedId, setSelectedId] = useState('');
   const [query, setQuery] = useState('');
   const [format, setFormat] = useState<'all' | PluginFormat>('all');
+  const [category, setCategory] = useState('all');
   const [busy, setBusy] = useState(false);
 
   const load = async (force = false) => {
@@ -43,20 +44,33 @@ export function PluginBrowser() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, catalog]);
 
+  const categories = useMemo(() => {
+    if (!catalog) return [];
+    return Array.from(
+      new Set(
+        catalog.entries
+          .map((entry) => entry.category?.trim())
+          .filter((value): value is string => Boolean(value)),
+      ),
+    ).sort((a, b) => a.localeCompare(b));
+  }, [catalog]);
+
   const filtered = useMemo(() => {
     if (!catalog) return [];
     const q = query.trim().toLowerCase();
     return catalog.entries.filter((entry) => {
       if (format !== 'all' && !entry.formats.includes(format)) return false;
+      if (category !== 'all' && entry.category !== category) return false;
       if (!q) return true;
-      return `${entry.name} ${entry.author} ${entry.description}`.toLowerCase().includes(q);
+      return `${entry.name} ${entry.author} ${entry.category ?? ''} ${entry.description}`
+        .toLowerCase()
+        .includes(q);
     });
-  }, [catalog, format, query]);
+  }, [catalog, format, category, query]);
 
   if (!open) return null;
 
-  const selected =
-    filtered.find((entry) => entry.id === selectedId) ?? filtered[0] ?? catalog?.entries[0] ?? null;
+  const selected = filtered.find((entry) => entry.id === selectedId) ?? filtered[0] ?? null;
   const close = () => setUI({ pluginsOpen: false });
   const recommended = selected ? recommendedAsset(selected) : null;
 
@@ -106,6 +120,22 @@ export function PluginBrowser() {
               </button>
             ))}
           </div>
+          <label className="plugin-category-filter">
+            <span>Category</span>
+            <select
+              className="mini-select"
+              value={category}
+              onChange={(e) => setCategory(e.target.value)}
+              aria-label="Filter by plugin category"
+            >
+              <option value="all">All categories</option>
+              {categories.map((value) => (
+                <option key={value} value={value}>
+                  {value}
+                </option>
+              ))}
+            </select>
+          </label>
           <div className="plugin-list">
             {busy && !catalog && <div className="plugin-empty">Reading registry…</div>}
             {!busy && !filtered.length && (
@@ -129,6 +159,7 @@ export function PluginBrowser() {
                 </span>
                 <span className="plugin-card-author">{entry.author}</span>
                 <span className="plugin-card-meta">
+                  {entry.category ? `${entry.category} · ` : ''}
                   {entry.formats.map((f) => f.toUpperCase()).join(' · ')}
                   {entry.release ? ` · v${entry.release.version}` : ' · no release'}
                 </span>
@@ -160,6 +191,9 @@ export function PluginBrowser() {
               </div>
               <p className="plugin-description">{selected.description}</p>
               <div className="plugin-facts">
+                <span>
+                  <b>Category</b> {selected.category ?? 'Uncategorised'}
+                </span>
                 <span>
                   <b>Platforms</b> {pluginPlatformLabel(selected.platforms)}
                 </span>

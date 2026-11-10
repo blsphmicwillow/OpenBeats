@@ -90,7 +90,7 @@ export function HelpDialog() {
         <ul>
           <li>Settings ▸ Appearance: six themes, editable custom theme, accent override, UI scale, motion.</li>
           <li>Settings ▸ Keyboard: click any shortcut and press a new combination.</li>
-          <li>Settings ▸ Workflow: hints, pointer values, meters, autosave and default snap.</li>
+          <li>Settings ▸ Workflow: startup chime, hints, pointer values, meters, autosave and default snap.</li>
           <li>Themes export as JSON and can be imported on another machine.</li>
         </ul>
 

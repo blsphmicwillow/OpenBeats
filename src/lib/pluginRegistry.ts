@@ -7,6 +7,8 @@ export interface RegistryPlugin {
   id: string;
   name: string;
   author: string;
+  /** Optional vendor taxonomy, e.g. "Dynamics - Compressor" or "Delay". */
+  category?: string;
   description: string;
   homepage: string;
   repo: string;
@@ -94,6 +96,7 @@ function isRegistryPlugin(value: unknown): value is RegistryPlugin {
     typeof p.description === 'string' &&
     typeof p.homepage === 'string' &&
     typeof p.repo === 'string' &&
+    (p.category === undefined || (typeof p.category === 'string' && p.category.trim().length > 0)) &&
     typeof p.license === 'string' &&
     typeof p.verified === 'boolean' &&
     Array.isArray(p.formats) &&
@@ -131,7 +134,22 @@ export async function loadRegistry(): Promise<{
       signal: signalForTimeout(REQUEST_TIMEOUT_MS),
     });
     if (!response.ok) throw new Error(`Registry HTTP ${response.status}`);
-    return { registry: parseRegistry(await response.json()), source: 'remote' };
+    const registry = parseRegistry(await response.json());
+    // The live document can lag behind a release. Keep remote data, but fill
+    // missing optional metadata such as category from the bundled registry.
+    const bundledById = new Map(
+      bundledRegistryDocument().plugins.map((plugin) => [plugin.id, plugin]),
+    );
+    return {
+      registry: {
+        ...registry,
+        plugins: registry.plugins.map((plugin) => ({
+          ...plugin,
+          category: plugin.category ?? bundledById.get(plugin.id)?.category,
+        })),
+      },
+      source: 'remote',
+    };
   } catch (error) {
     return {
       registry: bundledRegistryDocument(),

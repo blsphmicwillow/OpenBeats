@@ -3,6 +3,7 @@
 Ordered by impact, not by promise. Nothing here has a date.
 
 ## Next
+- **Native Rust audio engine** — port the transport, instruments, mixer, effects and offline renderer to CPAL/Rust; keep the Web Audio implementation as the reference until null tests pass. See [docs/RUST_AUDIO.md](docs/RUST_AUDIO.md).
 - **Signed updater keys** so the banner can download and install a release in place.
 - **Stem separation** — bundle a small source-separation model, split a clip into drums/bass/vocals/other on import, keep everything on-device.
 - **WASM wavetable synth** — replace the oscillator engine with a wavetable oscillator behind the same `Instrument` interface, with user wavetable import.

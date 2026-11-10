@@ -15,3 +15,7 @@ src-tauri/gen/
 coverage/
 artifacts/*.tmp
 artifacts/release/
+
+# Rust build output (workspace members build into their own target dirs)
+target/
+**/target/

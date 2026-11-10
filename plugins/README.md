@@ -16,6 +16,7 @@ bundled into the app as an offline fallback. Each entry is:
   "id": "unique-slug",
   "name": "Display name",
   "author": "Author or team",
+  "category": "Dynamics - Compressor",
   "description": "One short paragraph, plain text.",
   "homepage": "https://github.com/owner/repo",
   "repo": "owner/repo",
@@ -38,6 +39,9 @@ Rules:
   and ignores drafts and prereleases.
 - `assetPattern` is optional; it narrows the downloadable assets. Prefer a
   `.zip`, `.tar.gz`, `.clap` or `.vst3` bundle.
+- `category` is optional but recommended, using a vendor-style path such as
+  `Dynamics - Compressor`, `Delay` or `Instrument - Synth` so the plugin library
+  can filter a large collection.
 - `verified` means an OpenBeats maintainer checked the publisher, licence and
   release provenance. It is not a security audit. Leave it `false` for new
   submissions.

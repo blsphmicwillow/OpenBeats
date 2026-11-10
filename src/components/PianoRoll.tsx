@@ -9,6 +9,7 @@ const HIGH = 108;
 
 const BLACK = new Set([1, 3, 6, 8, 10]);
 import { detectKey } from '../lib/theory';
+import { chordAtStep } from '../lib/chords';
 
 const NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 const SCALES: Record<string, number[]> = {
@@ -62,6 +63,7 @@ export function PianoRoll() {
   const snapStep = (v: number) => (snap ? Math.round(v / snap) * snap : Math.round(v));
   const color = channel?.color ?? 'var(--accent)';
   const detectedKey = detectKey(project.patterns.flatMap((p) => Object.values(p.notes).flat()));
+  const playheadChord = chordAtStep(notes, transport.step)?.name ?? null;
 
   const inScale = (pitch: number) => {
     if (!scale || scale === 'Off') return false;
@@ -180,6 +182,9 @@ export function PianoRoll() {
         </select>
         <span className="chip" title="Estimated key across every pattern and channel">
           {detectedKey ?? 'no notes'}
+        </span>
+        <span className="chip" title="Chord sounding at the playhead">
+          {playheadChord ?? '—'}
         </span>
         <div className="sep" />
         <button

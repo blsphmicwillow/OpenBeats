@@ -497,6 +497,7 @@ export function defaultSettings(): Settings {
     snap: 1,
     autoScroll: true,
     showMeters: true,
+    startupChime: true,
     reduceMotion: false,
     highContrast: false,
     focusRings: true,

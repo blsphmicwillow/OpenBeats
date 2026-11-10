@@ -9,6 +9,8 @@ import { PianoRoll } from './components/PianoRoll';
 import { Mixer } from './components/Mixer';
 import { HintBar } from './components/HintBar';
 import { UpdateBanner } from './components/UpdateBanner';
+import { SplashScreen } from './components/SplashScreen';
+import { playStartupChime } from './lib/startupChime';
 import { KEY_TO_SEMITONE, comboFromEvent } from './ui/keymapLabels';
 import { nativeInvoke } from './lib/native';
 import { IconGrid, IconMixer, IconPiano, IconWave } from './ui/icons';
@@ -50,12 +52,25 @@ export default function App() {
   const theme = themeById(settings.themeId, settings.customTheme);
   const booted = useRef(false);
   const [dragging, setDragging] = useState(false);
+  const [splash, setSplash] = useState<'visible' | 'leaving' | 'hidden'>('visible');
 
   const boot = () => {
     if (booted.current) return;
     booted.current = true;
     void useApp.getState().initAudio();
   };
+
+  useEffect(() => {
+    const startup = useApp.getState().settings;
+    if (startup.startupChime) playStartupChime();
+    const hold = startup.reduceMotion ? 650 : 1600;
+    const leave = window.setTimeout(() => setSplash('leaving'), hold);
+    const hide = window.setTimeout(() => setSplash('hidden'), hold + 380);
+    return () => {
+      window.clearTimeout(leave);
+      window.clearTimeout(hide);
+    };
+  }, []);
 
   useEffect(() => {
     // WebKitGTK needs a user gesture to unlock Web Audio. Pointer and keyboard
@@ -385,6 +400,7 @@ export default function App() {
           {toast}
         </div>
       )}
+      {splash !== 'hidden' && <SplashScreen leaving={splash === 'leaving'} />}
     </div>
   );
 }

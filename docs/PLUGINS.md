@@ -7,7 +7,8 @@ OpenBeats 1.0.0 has a **plugin library**, not a plugin host.
 - **Browse and download:** **View → Plugin library…** reads the GitHub-backed
   registry in [`plugins/registry.json`](../plugins/registry.json), resolves each
   project's GitHub Release, and opens the publisher's download URL.
-- **Search and filter:** filter by VST3/CLAP, inspect release notes, formats,
+- **Search and filter:** filter by VST3/CLAP and by vendor-style category
+  (for example `Dynamics - Compressor`), inspect release notes, formats,
   platform, licence and asset size.
 - **Offline fallback:** the same registry is bundled into the app, so the page
   still opens when GitHub is unavailable.
@@ -87,3 +88,31 @@ The first release asset is
 `OpenBeatsGain-0.1.0-linux-x86_64.tar.gz` under the
 `openbeats-gain-v0.1.0` tag. Install the `.clap` file in `~/.clap/` or the `.vst3`
 bundle in `~/.vst3/`, then rescan in a native host.
+
+## Platform support (verified against plughost 0.2.1)
+
+| Platform | VST3 | CLAP | Audio Units | State |
+| --- | --- | --- | --- | --- |
+| Windows 10/11 | yes | yes | — | supported |
+| macOS | yes | yes | yes | supported |
+| Linux | — | — | — | **not supported** |
+
+Linux is disabled rather than faked: `plughost-core` 0.2.1 does not implement its
+`platform` module for Linux, so the crate does not compile there. The
+`openbeats-plugins` crate therefore compiles to a stub on Linux whose hosting
+calls return:
+
+> VST3/CLAP hosting is unavailable on Linux in this build: plughost 0.2.1 does
+> not implement its Linux platform layer. The plugin browser still works.
+
+What still works on Linux: the plugin browser, categories, the bundled Gain
+utility and everything else in the app. What does not: scanning for and inserting
+native plugins. The Windows and macOS installers ship the `plughost-helper`
+sidecar; on Linux no helper is bundled.
+
+### Crash handling
+
+Plugins load in a helper process, never in the app process. If a plugin crashes
+or hangs, `Chain` returns `Error::Crashed` / `Error::TimedOut`, the UI is told,
+and `recover_plugin_chain` rebuilds the chain in a fresh helper from the same
+plugins.
