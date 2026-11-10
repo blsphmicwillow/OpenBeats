@@ -5,7 +5,8 @@
 //! audio engine module stays focused on playback.
 
 use std::io::Write;
-use std::path::PathBuf;
+use std::panic::AssertUnwindSafe;
+use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use std::time::Duration;
 
@@ -13,7 +14,7 @@ use base64::{engine::general_purpose::STANDARD, Engine as _};
 use openbeats_audio::decode;
 use openbeats_audio::export;
 use openbeats_audio::io::{InputCapture, PreviewEngine};
-use openbeats_audio::packs::{self, Pack};
+use openbeats_audio::packs::{self, Pack, PackImport};
 use openbeats_audio::suggestion;
 use openbeats_audio::update;
 use serde::Serialize;
@@ -25,12 +26,11 @@ const RELEASES_PAGE: &str = "https://github.com/blsphmicwillow/OpenBeats/release
 const LATEST_RELEASE_API: &str =
     "https://api.github.com/repos/blsphmicwillow/OpenBeats/releases/latest";
 
-/// Holds the preview stream, the input stream and the imported pack index.
+/// Holds the preview stream and the input stream.
 #[derive(Default)]
 pub struct SystemState {
     preview: Mutex<Option<PreviewEngine>>,
     input: Mutex<Option<InputCapture>>,
-    packs: Mutex<Vec<Pack>>,
 }
 
 #[derive(Serialize)]
@@ -255,7 +255,16 @@ pub async fn perform_update(app: AppHandle, url: String) -> Result<String, Strin
 /// already playing. The project engine is untouched.
 #[tauri::command]
 pub fn preview_sample(state: State<'_, SystemState>, path: String) -> Result<String, String> {
-    let decoded = decode::decode_file(&PathBuf::from(&path))?;
+    let file = PathBuf::from(&path);
+    let metadata =
+        std::fs::metadata(&file).map_err(|e| format!("could not inspect the sample: {e}"))?;
+    if metadata.len() > packs::MAX_SAMPLE_BYTES {
+        return Err(format!(
+            "that sample is larger than the {} MB limit",
+            packs::MAX_SAMPLE_BYTES / 1024 / 1024
+        ));
+    }
+    let decoded = decode::decode_file(&file)?;
     let mut guard = state
         .preview
         .lock()
@@ -316,90 +325,295 @@ fn write_index(index: &PathBuf, packs: &[Pack]) -> Result<(), String> {
     std::fs::write(index, text).map_err(|e| format!("could not write the pack index: {e}"))
 }
 
-/// Imports a folder, or extracts a .zip into the Packs folder and indexes it.
-#[tauri::command]
-pub fn import_pack(
-    app: AppHandle,
-    state: State<'_, SystemState>,
+fn safe_pack_name(raw: &str) -> String {
+    let cleaned: String = raw
+        .chars()
+        .map(|ch| {
+            if ch.is_alphanumeric() || matches!(ch, ' ' | '-' | '_' | '(' | ')') {
+                ch
+            } else {
+                ' '
+            }
+        })
+        .collect();
+    let joined = cleaned.split_whitespace().collect::<Vec<_>>().join(" ");
+    let trimmed = joined.trim_matches(['.', ' ']);
+    let mut name: String = if trimmed.is_empty() {
+        "Imported pack".into()
+    } else {
+        trimmed.chars().take(64).collect()
+    };
+    if name.starts_with('.') {
+        name.insert_str(0, "Pack ");
+    }
+    name
+}
+
+fn unique_pack_target(packs_dir: &Path, name: &str) -> PathBuf {
+    let mut candidate = packs_dir.join(name);
+    let mut suffix = 2;
+    while candidate.exists() && suffix < 10_000 {
+        candidate = packs_dir.join(format!("{name} ({suffix})"));
+        suffix += 1;
+    }
+    candidate
+}
+
+fn single_child_dir(path: &Path) -> Option<PathBuf> {
+    let children = std::fs::read_dir(path)
+        .ok()?
+        .flatten()
+        .map(|entry| entry.path())
+        .collect::<Vec<_>>();
+    if children.len() == 1 && children[0].is_dir() {
+        Some(children[0].clone())
+    } else {
+        None
+    }
+}
+
+struct RemoveDirOnDrop(Option<PathBuf>);
+
+impl RemoveDirOnDrop {
+    fn new(path: PathBuf) -> Self {
+        Self(Some(path))
+    }
+
+    fn disarm(&mut self) {
+        self.0 = None;
+    }
+}
+
+impl Drop for RemoveDirOnDrop {
+    fn drop(&mut self) {
+        if let Some(path) = &self.0 {
+            let _ = std::fs::remove_dir_all(path);
+        }
+    }
+}
+
+#[derive(Serialize, serde::Deserialize)]
+struct ImportManifest {
+    format: String,
+    version: u32,
+    #[serde(default)]
+    files: Vec<String>,
+}
+
+fn collect_relative_files(
+    root: &Path,
+    dir: &Path,
+    out: &mut Vec<String>,
+    depth: usize,
+) -> Result<(), String> {
+    if depth > 16 {
+        return Ok(());
+    }
+    let entries = std::fs::read_dir(dir)
+        .map_err(|e| format!("could not inventory {}: {e}", dir.display()))?;
+    for entry in entries.flatten() {
+        let Ok(file_type) = entry.file_type() else {
+            continue;
+        };
+        if file_type.is_symlink() {
+            continue;
+        }
+        let path = entry.path();
+        if file_type.is_dir() {
+            collect_relative_files(root, &path, out, depth + 1)?;
+        } else if file_type.is_file()
+            && path.file_name().and_then(|name| name.to_str()) != Some(".openbeats-import.json")
+        {
+            out.push(
+                path.strip_prefix(root)
+                    .unwrap_or(&path)
+                    .to_string_lossy()
+                    .replace('\\', "/"),
+            );
+        }
+    }
+    Ok(())
+}
+
+fn write_import_manifest(root: &Path) -> Result<usize, String> {
+    let mut files = Vec::new();
+    collect_relative_files(root, root, &mut files, 0)?;
+    files.sort();
+    let manifest = ImportManifest {
+        format: "openbeats-import".into(),
+        version: 1,
+        files: files.clone(),
+    };
+    let text = serde_json::to_string_pretty(&manifest).map_err(|e| e.to_string())?;
+    std::fs::write(root.join(".openbeats-import.json"), text)
+        .map_err(|e| format!("could not record the imported files: {e}"))?;
+    Ok(files.len())
+}
+
+fn add_pack_warning(scan: &mut packs::PackScan, message: String) {
+    if !scan.report.warnings.contains(&message) {
+        scan.report.warnings.push(message.clone());
+    }
+    if !scan.pack.warnings.contains(&message) {
+        scan.pack.warnings.push(message.clone());
+    }
+    scan.report.log.push(message);
+}
+
+fn import_pack_blocking(
+    app: &AppHandle,
     path: Option<String>,
-) -> Result<Pack, String> {
+    kind: Option<String>,
+    max_bytes: Option<u64>,
+) -> Result<Option<PackImport>, String> {
     let source = match path.filter(|value| !value.trim().is_empty()) {
         Some(value) => PathBuf::from(value),
-        None => app
-            .dialog()
-            .file()
-            .set_title("Choose a sample pack folder")
-            .blocking_pick_folder()
-            .ok_or_else(|| "the pack picker was cancelled".to_string())?
-            .into_path()
-            .map_err(|e| format!("that path is not usable: {e}"))?,
+        None => {
+            let want_zip = kind.as_deref() == Some("zip");
+            let picked = if want_zip {
+                app.dialog()
+                    .file()
+                    .set_title("Choose a sample pack (.zip)")
+                    .add_filter("Zip archives", &["zip"])
+                    .blocking_pick_file()
+            } else {
+                app.dialog()
+                    .file()
+                    .set_title("Choose a sample pack folder")
+                    .blocking_pick_folder()
+            };
+            match picked {
+                Some(file) => file
+                    .into_path()
+                    .map_err(|e| format!("that path is not usable: {e}"))?,
+                None => return Ok(None),
+            }
+        }
     };
     if !source.exists() {
         return Err(format!("{} does not exist", source.display()));
     }
-    let (packs_dir, index_path) = packs_index(&app)?;
+    let source = std::fs::canonicalize(&source)
+        .map_err(|e| format!("could not resolve {}: {e}", source.display()))?;
+    let (packs_dir, index_path) = packs_index(app)?;
+    let budget = max_bytes
+        .unwrap_or(packs::DEFAULT_TOTAL_BYTES)
+        .clamp(1024 * 1024, packs::HARD_TOTAL_BYTES);
 
-    let root = if source.is_file() {
-        if source
+    let mut final_guard: Option<RemoveDirOnDrop> = None;
+    let (root, managed, archive_bytes, extraction) = if source.is_file() {
+        let is_zip = source
             .extension()
-            .and_then(|e| e.to_str())
-            .map(|e| e.eq_ignore_ascii_case("zip"))
-            .unwrap_or(false)
-        {
-            let name = source
-                .file_stem()
-                .and_then(|n| n.to_str())
-                .unwrap_or("pack")
-                .to_string();
-            let target = packs_dir.join(&name);
-            std::fs::create_dir_all(&target)
-                .map_err(|e| format!("could not create {}: {e}", target.display()))?;
-            let file =
-                std::fs::File::open(&source).map_err(|e| format!("could not open the zip: {e}"))?;
-            let mut archive =
-                zip::ZipArchive::new(file).map_err(|e| format!("not a readable zip: {e}"))?;
-            archive
-                .extract(&target)
-                .map_err(|e| format!("could not extract the pack: {e}"))?;
-            // Packs often wrap everything in one top folder; use it as the root.
-            let mut children = std::fs::read_dir(&target)
-                .map_err(|e| format!("could not read {}: {e}", target.display()))?
-                .flatten()
-                .map(|entry| entry.path())
-                .collect::<Vec<_>>();
-            let nested = children.len() == 1 && children[0].is_dir();
-            children.clear();
-            if nested {
-                target.join(
-                    std::fs::read_dir(&target)
-                        .map_err(|e| e.to_string())?
-                        .flatten()
-                        .next()
-                        .map(|e| e.file_name())
-                        .unwrap_or_default(),
-                )
-            } else {
-                target
-            }
-        } else {
-            return Err("pick a folder or a .zip sample pack".into());
+            .and_then(|ext| ext.to_str())
+            .is_some_and(|ext| ext.eq_ignore_ascii_case("zip"));
+        if !is_zip {
+            return Err("choose a folder or a .zip sample pack".into());
         }
+        let archive_bytes = std::fs::metadata(&source)
+            .map(|metadata| metadata.len())
+            .unwrap_or(0);
+        let stem = source
+            .file_stem()
+            .map(|name| name.to_string_lossy().to_string())
+            .unwrap_or_else(|| "Pack".into());
+        let stamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|duration| duration.as_millis())
+            .unwrap_or(0);
+        let staging = packs_dir.join(format!(".import-{}-{stamp}", std::process::id()));
+        std::fs::create_dir_all(&staging)
+            .map_err(|e| format!("could not create the import staging folder: {e}"))?;
+        let mut staging_guard = RemoveDirOnDrop::new(staging.clone());
+        let extraction = packs::extract_zip_to(&source, &staging, budget)?;
+        let extracted_root = single_child_dir(&staging).unwrap_or_else(|| staging.clone());
+        let target = unique_pack_target(&packs_dir, &safe_pack_name(&stem));
+        std::fs::rename(&extracted_root, &target).map_err(|e| {
+            format!(
+                "could not move the packed files into {}: {e}",
+                target.display()
+            )
+        })?;
+        let _ = std::fs::remove_dir_all(&staging);
+        staging_guard.disarm();
+        final_guard = Some(RemoveDirOnDrop::new(target.clone()));
+        (target, true, archive_bytes, Some(extraction))
     } else {
-        source.clone()
+        (source, false, 0, None)
     };
 
-    let pack = packs::scan(&root)?;
-    if pack.samples.is_empty() {
-        return Err("that pack contains no wav, mp3, ogg or flac files".into());
+    let format = packs::detect_format(&root, managed);
+    let mut scan = packs::scan_pack(&root, format, managed)?;
+    if scan.pack.samples.is_empty() && scan.pack.presets.is_empty() {
+        return Err("that pack contains no readable samples or presets".into());
     }
+    if !managed {
+        let total = scan
+            .pack
+            .samples
+            .iter()
+            .map(|sample| sample.bytes)
+            .sum::<u64>();
+        if total > budget {
+            return Err(format!(
+                "that folder is larger than the {} GB import limit",
+                budget / 1024 / 1024 / 1024
+            ));
+        }
+    }
+    if let Some(extraction) = extraction {
+        scan.report.archive_bytes = archive_bytes;
+        scan.report.extracted_bytes = extraction.extracted_bytes;
+        scan.report.skipped_count += extraction.skipped_count;
+        scan.report.skipped.extend(extraction.skipped);
+    }
+    if managed {
+        match write_import_manifest(&root) {
+            Ok(count) => scan
+                .report
+                .log
+                .push(format!("recorded {count} pack-owned files for uninstall")),
+            Err(err) => add_pack_warning(
+                &mut scan,
+                format!("The pack was imported, but uninstall could not record it: {err}"),
+            ),
+        }
+    }
+
     let mut stored = read_index(&index_path);
-    stored.retain(|existing| existing.root != pack.root);
-    stored.push(pack.clone());
+    stored.retain(|existing| existing.root != scan.pack.root);
+    stored.push(scan.pack.clone());
     write_index(&index_path, &stored)?;
-    if let Ok(mut cache) = state.packs.lock() {
-        *cache = stored;
+    if let Some(guard) = final_guard.as_mut() {
+        guard.disarm();
     }
-    Ok(pack)
+    Ok(Some(PackImport {
+        pack: scan.pack,
+        report: scan.report,
+    }))
+}
+
+/// Imports a folder or zip on a worker thread, never on the UI thread. The
+/// blocking file dialog is only shown from that worker.
+#[tauri::command]
+pub async fn import_pack(
+    app: AppHandle,
+    path: Option<String>,
+    kind: Option<String>,
+    max_bytes: Option<u64>,
+) -> Result<Option<PackImport>, String> {
+    let handle = app.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        match std::panic::catch_unwind(AssertUnwindSafe(|| {
+            import_pack_blocking(&handle, path, kind, max_bytes)
+        })) {
+            Ok(result) => result,
+            Err(_) => {
+                Err("the pack importer hit an internal error; nothing was changed".to_string())
+            }
+        }
+    })
+    .await
+    .map_err(|e| format!("the pack import task failed: {e}"))?
 }
 
 /// Packs imported on this machine.
@@ -409,6 +623,112 @@ pub fn get_packs(app: AppHandle) -> Vec<Pack> {
         return Vec::new();
     };
     read_index(&index)
+}
+
+#[derive(Serialize)]
+pub struct RemovePackResult {
+    pub deleted_files: usize,
+    /// True when the source folder was outside OpenBeats' data directory and
+    /// was deliberately left alone.
+    pub left_source: bool,
+}
+
+fn safe_relative_path(path: &Path) -> bool {
+    !path.as_os_str().is_empty()
+        && path
+            .components()
+            .all(|component| matches!(component, std::path::Component::Normal(_)))
+}
+
+fn remove_empty_dirs(dir: &Path) {
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return;
+    };
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.is_dir() && !path.is_symlink() {
+            remove_empty_dirs(&path);
+            if std::fs::read_dir(&path)
+                .map(|mut entries| entries.next().is_none())
+                .unwrap_or(false)
+            {
+                let _ = std::fs::remove_dir(&path);
+            }
+        }
+    }
+}
+
+fn remove_pack_blocking(app: &AppHandle, root: String) -> Result<RemovePackResult, String> {
+    let (packs_dir, index_path) = packs_index(app)?;
+    let requested = PathBuf::from(&root);
+    let canonical_root = std::fs::canonicalize(&requested).unwrap_or_else(|_| requested.clone());
+    let canonical_packs = std::fs::canonicalize(&packs_dir).unwrap_or_else(|_| packs_dir.clone());
+    let inside = canonical_root.starts_with(&canonical_packs);
+
+    let mut stored = read_index(&index_path);
+    stored.retain(|pack| {
+        let path = Path::new(&pack.root);
+        let canonical = std::fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf());
+        pack.root != root && canonical != canonical_root
+    });
+
+    let mut deleted_files = 0usize;
+    if inside && canonical_root.is_dir() {
+        let manifest_path = canonical_root.join(".openbeats-import.json");
+        let manifest = std::fs::read_to_string(&manifest_path)
+            .ok()
+            .and_then(|text| serde_json::from_str::<ImportManifest>(&text).ok())
+            .filter(|manifest| manifest.format == "openbeats-import");
+        if let Some(manifest) = manifest {
+            for relative in manifest.files {
+                let relative = Path::new(&relative);
+                if !safe_relative_path(relative) {
+                    continue;
+                }
+                let path = canonical_root.join(relative);
+                if !path.starts_with(&canonical_root) {
+                    continue;
+                }
+                let Ok(metadata) = std::fs::symlink_metadata(&path) else {
+                    continue;
+                };
+                if metadata.file_type().is_file() && !metadata.file_type().is_symlink() {
+                    if std::fs::remove_file(&path).is_ok() {
+                        deleted_files += 1;
+                    }
+                }
+            }
+            let _ = std::fs::remove_file(&manifest_path);
+            remove_empty_dirs(&canonical_root);
+            if std::fs::read_dir(&canonical_root)
+                .map(|mut entries| entries.next().is_none())
+                .unwrap_or(false)
+            {
+                let _ = std::fs::remove_dir(&canonical_root);
+            }
+        }
+    }
+
+    write_index(&index_path, &stored)?;
+    Ok(RemovePackResult {
+        deleted_files,
+        left_source: !inside || deleted_files == 0,
+    })
+}
+
+/// Removes a pack from the library. Files are deleted only when the pack was
+/// extracted by OpenBeats and is recorded in its own import manifest.
+#[tauri::command]
+pub async fn remove_pack(app: AppHandle, root: String) -> Result<RemovePackResult, String> {
+    let handle = app.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        match std::panic::catch_unwind(AssertUnwindSafe(|| remove_pack_blocking(&handle, root))) {
+            Ok(result) => result,
+            Err(_) => Err("the pack uninstaller hit an internal error".to_string()),
+        }
+    })
+    .await
+    .map_err(|e| format!("the pack uninstall task failed: {e}"))?
 }
 
 /* ------------------------------------------------------------------ *
@@ -554,6 +874,14 @@ pub struct SamplePayload {
 #[tauri::command]
 pub fn read_sample(path: String) -> Result<SamplePayload, String> {
     let file = PathBuf::from(&path);
+    let metadata =
+        std::fs::metadata(&file).map_err(|e| format!("could not inspect the sample: {e}"))?;
+    if metadata.len() > packs::MAX_SAMPLE_BYTES {
+        return Err(format!(
+            "that sample is larger than the {} MB limit",
+            packs::MAX_SAMPLE_BYTES / 1024 / 1024
+        ));
+    }
     let bytes = std::fs::read(&file).map_err(|e| format!("could not read the sample: {e}"))?;
     Ok(SamplePayload {
         name: file

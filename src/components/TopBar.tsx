@@ -69,6 +69,11 @@ export function TopBar() {
   const activePattern = project.patterns.find((p) => p.id === project.currentPattern);
   const selectedChannel = project.channels.find((c) => c.id === project.selectedChannel);
 
+  const importPack = (kind: 'folder' | 'zip') => {
+    setUI({ browserOpen: true });
+    window.dispatchEvent(new CustomEvent('openbeats:import-pack', { detail: { kind } }));
+  };
+
   const fileMenu: MenuItem[] = [
     { label: 'Projects…', shortcut: 'Ctrl+Shift+O', onClick: () => setUI({ projectHubOpen: true }) },
     { label: 'New project', shortcut: '', onClick: () => newProject('blank') },
@@ -77,6 +82,8 @@ export function TopBar() {
     { label: 'Open project…', shortcut: 'Ctrl+O', onClick: () => fileRef.current?.click() },
     { label: 'Save project as…', shortcut: 'Ctrl+S', onClick: saveProjectFile },
     { label: 'Import / export song…', onClick: () => setUI({ exchangeOpen: true }) },
+    { label: 'Import pack folder…', onClick: () => importPack('folder') },
+    { label: 'Import pack .zip…', onClick: () => importPack('zip') },
     { label: 'Export audio…', onClick: () => setUI({ exportOpen: true }) },
     { separator: true },
     { label: 'Reset all settings & project', danger: true, onClick: resetAll },
@@ -104,6 +111,13 @@ export function TopBar() {
     { label: 'Mixer', shortcut: 'F9', checked: ui.tab === 'mixer', onClick: () => setUI({ tab: 'mixer' }) },
     { separator: true },
     { label: 'Browser panel', checked: ui.browserOpen, onClick: () => setUI({ browserOpen: !ui.browserOpen }) },
+    {
+      label: 'Packs…',
+      onClick: () => {
+        setUI({ browserOpen: true });
+        window.dispatchEvent(new Event('openbeats:show-packs'));
+      },
+    },
     { label: 'Plugin library…', checked: ui.pluginsOpen, onClick: () => setUI({ pluginsOpen: true }) },
     { label: 'Settings…', shortcut: 'F11', onClick: () => setUI({ settingsOpen: true }) },
   ];
@@ -172,6 +186,8 @@ export function TopBar() {
     { label: 'Open project…', onClick: () => fileRef.current?.click() },
     { label: 'Save project as…', onClick: saveProjectFile },
     { label: 'Import / export song…', onClick: () => setUI({ exchangeOpen: true }) },
+    { label: 'Import pack folder…', onClick: () => importPack('folder') },
+    { label: 'Import pack .zip…', onClick: () => importPack('zip') },
     { label: 'Export audio…', onClick: () => setUI({ exportOpen: true }) },
     { separator: true },
     { label: 'Undo', disabled: !history.past.length, onClick: undo },
@@ -181,6 +197,13 @@ export function TopBar() {
     { label: 'Piano roll', checked: ui.tab === 'pianoroll', onClick: () => setUI({ tab: 'pianoroll' }) },
     { label: 'Mixer', checked: ui.tab === 'mixer', onClick: () => setUI({ tab: 'mixer' }) },
     { label: 'Browser', checked: ui.browserOpen, onClick: () => setUI({ browserOpen: !ui.browserOpen }) },
+    {
+      label: 'Packs…',
+      onClick: () => {
+        setUI({ browserOpen: true });
+        window.dispatchEvent(new Event('openbeats:show-packs'));
+      },
+    },
     { label: 'Plugin library…', onClick: () => setUI({ pluginsOpen: true }) },
     { separator: true },
     { label: 'Tutorial', onClick: () => setUI({ tutorialStep: 0 }) },

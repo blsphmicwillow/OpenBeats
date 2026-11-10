@@ -28,6 +28,13 @@ export async function nativeInvoke<T>(cmd: string, args?: Record<string, unknown
   }
 }
 
+/** Like nativeInvoke, but rejects so a dialog can show the real error. */
+export async function invokeNative<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
+  const api = internals();
+  if (!api) throw new Error('This feature is only available in the desktop app');
+  return api.invoke<T>(cmd, args);
+}
+
 /** Opens a URL in the system browser (native) or a new tab (web). */
 export async function openExternal(url: string): Promise<void> {
   if (isNative()) {

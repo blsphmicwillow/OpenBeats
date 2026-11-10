@@ -15,7 +15,7 @@ import {
   patternSteps,
   songLengthSteps,
 } from '../audio/sequencer';
-import { isNative, nativeInvoke } from './native';
+import { invokeNative, isNative, nativeInvoke } from './native';
 
 export interface PlaybackChannelSnapshot {
   id: string;
@@ -680,12 +680,57 @@ export interface NativePackSample {
   path: string;
   tags: string[];
   bytes: number;
+  category: string;
+}
+
+export type NativePackFormat = 'open_beats' | 'fl_studio' | 'generic' | 'flat';
+
+export interface NativePackPreset {
+  name: string;
+  plugin: string;
+  source: string;
+  kind: 'openbeats' | 'vst2-fxp' | 'fl-native-fst' | 'flp-reference';
+  playable: boolean;
+  notes: string;
+  params?: unknown;
+}
+
+export interface NativePackSkip {
+  file: string;
+  reason: string;
+}
+
+export interface NativePackReport {
+  format: NativePackFormat;
+  samples: number;
+  categories: Record<string, number>;
+  presets: number;
+  skipped: NativePackSkip[];
+  skipped_count: number;
+  warnings: string[];
+  log: string[];
+  archive_bytes: number;
+  extracted_bytes: number;
 }
 
 export interface NativePack {
   name: string;
   root: string;
   samples: NativePackSample[];
+  format?: NativePackFormat;
+  presets?: NativePackPreset[];
+  managed?: boolean;
+  warnings?: string[];
+}
+
+export interface NativePackImport {
+  pack: NativePack;
+  report: NativePackReport;
+}
+
+export interface NativeRemovePackResult {
+  deleted_files: number;
+  left_source: boolean;
 }
 
 export interface NativeInputReading {
@@ -723,14 +768,27 @@ export async function nativeStopPreview(): Promise<boolean> {
   return Boolean(await nativeInvoke<boolean>('stop_preview'));
 }
 
-/** Imports a folder or .zip; the native dialog opens when `path` is omitted. */
-export async function nativeImportPack(path?: string): Promise<NativePack | null> {
+/**
+ * Imports a folder or .zip; the native dialog opens when `path` is omitted.
+ * Cancellation returns null. Real failures reject so the UI can explain them.
+ */
+export async function nativeImportPack(
+  path?: string,
+  kind: 'folder' | 'zip' = 'folder',
+  maxBytes?: number,
+): Promise<NativePackImport | null> {
   if (!isNative()) return null;
-  try {
-    return await nativeInvoke<NativePack>('import_pack', { path: path ?? null });
-  } catch {
-    return null;
-  }
+  return invokeNative<NativePackImport | null>('import_pack', {
+    path: path ?? null,
+    kind,
+    maxBytes: maxBytes ?? null,
+  });
+}
+
+/** Removes an imported pack from the library. External source folders are kept. */
+export async function nativeRemovePack(root: string): Promise<NativeRemovePackResult> {
+  if (!isNative()) throw new Error('Pack removal is only available in the desktop app');
+  return invokeNative<NativeRemovePackResult>('remove_pack', { root });
 }
 
 export async function nativeGetPacks(): Promise<NativePack[]> {

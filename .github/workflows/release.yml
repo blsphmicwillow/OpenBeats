@@ -67,6 +67,12 @@ jobs:
         working-directory: src-tauri
         run: cargo test -p openbeats-audio --features fundsp-graph,decode,mp3
 
+      # Compile and test the desktop crate itself, including the pack commands.
+      - name: Desktop crate tests
+        if: matrix.platform == 'ubuntu-22.04'
+        working-directory: src-tauri
+        run: cargo test -p openbeats --lib
+
       # plughost does not build on Linux, so its helper only ships on Windows and macOS.
       - name: Stage plugin host helper
         if: matrix.platform != 'ubuntu-22.04'

@@ -1627,6 +1627,49 @@ textarea {
   box-shadow: 0 0 6px #ef4444;
 }
 
+/* --- Pack import report ------------------------------------------------- */
+.pack-remove {
+  flex: 0 0 auto;
+  margin-left: 2px;
+  opacity: 0.55;
+  font-size: 13px;
+  line-height: 1;
+  padding: 1px 4px;
+}
+.browser-item:hover .pack-remove { opacity: 1; }
+.pack-report { display: flex; flex-direction: column; gap: 7px; font-size: 11.5px; }
+.pack-report-row { padding: 7px 9px; border: 1px solid var(--border); border-radius: 5px; background: var(--panel2); }
+.pack-report-row.ok { border-left: 3px solid #6fd08c; }
+.pack-report-row.warn { border-left: 3px solid #ffc93c; color: var(--text); }
+.pack-report-row.muted { color: var(--dim); }
+.pack-note { color: var(--dim); }
+.pack-categories { display: flex; flex-wrap: wrap; gap: 5px; margin: -1px 0 3px; }
+.pack-badge {
+  font-size: 10px;
+  padding: 2px 7px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--panel2);
+  color: var(--dim);
+  text-transform: capitalize;
+}
+.pack-preset { padding: 6px 9px; border-bottom: 1px solid var(--border); }
+.pack-preset:last-child { border-bottom: 0; }
+.pack-skip { display: flex; gap: 8px; justify-content: space-between; padding: 3px 9px; font-size: 10.5px; }
+.pack-skip .tiny-note { text-align: right; }
+.pack-log {
+  margin: 4px 0 0;
+  max-height: 240px;
+  overflow: auto;
+  padding: 9px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font: 10px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+  white-space: pre-wrap;
+  color: var(--dim);
+}
+
 /* ----------------------------------------------------------------- dialog */
 
 .modal-backdrop {

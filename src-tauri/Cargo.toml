@@ -1,6 +1,6 @@
 [package]
 name = "openbeats"
-version = "1.0.2"
+version = "1.0.3"
 description = "OpenBeats — open-source beatmaking studio"
 authors = ["OpenBeats"]
 edition = "2021"
@@ -34,9 +34,11 @@ openbeats-audio = { path = "crates/openbeats-audio", features = ["device", "fund
 # VST3 / CLAP hosting, isolated in the plughost helper process.
 openbeats-plugins = { path = "crates/openbeats-plugins" }
 
+# Keep unwinding in release so the pack command can turn an internal panic into
+# an error instead of terminating the whole app with panic = "abort".
 [profile.release]
 codegen-units = 1
 lto = true
 opt-level = "s"
-panic = "abort"
+panic = "unwind"
 strip = true

@@ -11,6 +11,37 @@ export interface ChangelogEntry {
  */
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '1.0.3',
+    date: '2026-11-10',
+    headline: 'Crash-free pack importing, FL-style pack layouts and a transparent import report.',
+    groups: [
+      {
+        title: 'Pack importing',
+        items: [
+          'Import Pack no longer crashes: the blocking picker and extraction run off the UI thread, cancellation is quiet, errors reach the UI, and an importer panic becomes an error instead of ending the app.',
+          'OpenBeats detects its own manifest packs, FL-style category folders, generic one-shot zips and flat sample dumps, then categorises or auto-tags every sample.',
+          'The import report lists samples by category, preset metadata, skipped files and reasons, warnings, archive sizes and a per-file log.',
+          'Zips are validated before extraction: size, entry, 100× compression-ratio, traversal, absolute/backslash path, duplicate and symlink guards, plus an extension allow-list.',
+          'Corrupt audio headers, oversized samples and non-UTF-8 filenames are reported without panicking; zip packs can be uninstalled from their recorded file manifest while source folders are left untouched.',
+        ],
+      },
+      {
+        title: 'FL Studio compatibility',
+        items: [
+          '.fxp presets expose plugin 4CC, name and parameter count as metadata; .fst presets are preview-only with readable strings; .flp projects are read-only pattern references.',
+          'FL native and VST2 content is clearly labelled as not executable here, and the limitations are documented in docs/IMPORT_PACKS.md.',
+        ],
+      },
+      {
+        title: 'Tests',
+        items: [
+          'Adversarial tests cover empty and truncated zips, traversal, symlinks, compression bombs, the 10,000-entry limit, corrupt WAVs, oversized samples, non-UTF-8 names and FXP parsing.',
+          'A Node test mocks a rejected import and asserts that the UI shows the error instead of failing silently.',
+        ],
+      },
+    ],
+  },
+  {
     version: '1.0.2',
     date: '2026-11-10',
     headline: 'Auditioning through the engine, a draggable playhead, bundled MP3 export and a working updater.',

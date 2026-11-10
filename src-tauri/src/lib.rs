@@ -254,6 +254,7 @@ pub fn run() {
             system_commands::stop_preview,
             system_commands::import_pack,
             system_commands::get_packs,
+            system_commands::remove_pack,
             system_commands::read_sample,
             // Input monitoring, recording and the tuner
             system_commands::start_input,

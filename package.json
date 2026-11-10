@@ -1,7 +1,7 @@
 {
   "name": "openbeats",
   "private": true,
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "OpenBeats — an open-source beatmaking studio with an FL-style workflow",
   "license": "GPL-3.0-or-later",
   "type": "module",
@@ -10,6 +10,7 @@
     "build": "tsc -b && vite build",
     "preview": "vite preview",
     "typecheck": "tsc -b --pretty false",
+    "test": "node --test src/lib/packImport.test.ts",
     "icons": "node scripts/make-icons.mjs",
     "plugins:check": "node scripts/validate-plugins.mjs",
     "plugins:fetch": "node scripts/fetch-plugins.mjs",

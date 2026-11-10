@@ -1,6 +1,6 @@
 [package]
 name = "openbeats-audio"
-version = "1.0.2"
+version = "1.0.3"
 edition = "2021"
 rust-version = "1.92"
 description = "OpenBeats native audio engine: DSP, sequencer, synth voices and the CPAL device layer"
@@ -25,6 +25,8 @@ symphonia = { version = "0.5", optional = true, default-features = false, featur
 rustfft = "6"
 # Pure-Rust FLAC encoder used by the export dialog.
 flacenc = "0.5"
+# Safe, bounded pack archive extraction (shared with the desktop app).
+zip = { version = "2", default-features = false, features = ["deflate"] }
 # Bundled LAME encoder, so MP3 export does not depend on ffmpeg.
 mp3lame-encoder = { version = "0.3", optional = true }
 

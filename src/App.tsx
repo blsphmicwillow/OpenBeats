@@ -260,6 +260,21 @@ export default function App() {
     const files = Array.from(e.dataTransfer.files ?? []);
     if (!files.length) return;
     const state = useApp.getState();
+    const packArchives = files.filter((f) => /\.zip$/i.test(f.name));
+    if (packArchives[0]) {
+      // Tauri exposes the native path on dropped files. The browser build cannot
+      // read an archive path, so it points the user at the native menu instead.
+      const path = (packArchives[0] as File & { path?: string }).path;
+      state.setUI({ browserOpen: true });
+      if (path) {
+        window.dispatchEvent(
+          new CustomEvent('openbeats:import-pack', { detail: { kind: 'zip', path } }),
+        );
+      } else {
+        state.toast('Use File → Import pack .zip… so OpenBeats can read the archive path');
+      }
+      return;
+    }
     const songs = files.filter((f) => /\.(mid|midi|smf|als|rpp|obeats)$/i.test(f.name));
     const audio = files.filter(
       (f) => f.type.startsWith('audio/') || /\.(wav|mp3|ogg|oga|flac|m4a|aiff?|webm)$/i.test(f.name),

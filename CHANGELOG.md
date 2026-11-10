@@ -3,6 +3,44 @@
 The same entries are bundled into the app and shown in the **Changelog** tab, so the notes ship with the build.
 Keep this file and `src/lib/changelog.ts` in sync, and bump `APP_VERSION` in `src/lib/version.ts`.
 
+## 1.0.3 — 2026-11-10
+
+**Crash-free pack importing, FL-style pack layouts and a transparent import report.**
+
+Linux, Windows and macOS installers are built by CI from the `v1.0.3` tag and attached to that GitHub release.
+1.0.2 stays available from its own tag.
+
+### Pack importing
+
+- **Import Pack no longer crashes.** The blocking folder/zip picker and the whole import now run on a worker thread
+  instead of the UI thread; cancellation returns quietly, real errors reach the UI, and the release profile unwinds so
+  an unexpected importer panic becomes an error instead of terminating the app.
+- OpenBeats recognises its own `manifest.json` packs, FL-style category folders (`Kicks/`, `Snares/`, `Hats/`, …),
+  generic one-shot zips and flat sample dumps. Samples are categorised from folders or auto-tagged from their names.
+- The import report lists imported samples by category, preset metadata, skipped files and reasons, warnings, archive
+  sizes and a per-file log.
+- ZIP imports are validated before extraction: 500 MB archive and 50 MB sample caps, a configurable 2 GB total budget,
+  a 10,000-entry limit, 100× compression-ratio guards, traversal/absolute/backslash rejection, duplicate and symlink
+  rejection, and an extension allow-list. Extraction happens in a private staging folder before the pack is indexed.
+- Corrupt WAV/AIFF/FLAC/OGG/MP3 headers, oversized files and non-UTF-8 filenames are handled without panicking.
+- Pack samples appear in the Browser's Samples tab and can be previewed or loaded; imported zips can be uninstalled
+  using a recorded file manifest, while source folders chosen in place are never deleted.
+- Packs can be imported from **File → Import pack folder… / Import pack .zip…**, the Browser, or by dropping a zip.
+
+### FL Studio metadata
+
+- `.fxp` files expose their plugin 4CC, preset name and parameter count as metadata. FXP does not store parameter
+  names and OpenBeats does not host VST2.
+- `.fst` files are labelled **FL native — preview only, not executable here** with their readable strings in the notes.
+- `.flp` files are offered as a read-only pattern reference with inferred channel/pattern names; they are not played
+  or converted. Use FL's MIDI export for a musical transfer.
+
+### Verification
+
+- Adversarial Rust tests cover empty/truncated zips, traversal, symlinks, compression bombs, entry limits, corrupt
+  WAVs, oversized samples, non-UTF-8 names and FL preset parsing. A Node test covers the rejected-import UI path.
+- See [docs/IMPORT_PACKS.md](docs/IMPORT_PACKS.md) for the supported layouts, manifest schema and limits.
+
 ## 1.0.2 — 2026-11-10
 
 **Auditioning through the engine, a draggable playhead, bundled MP3 export and a working updater.**

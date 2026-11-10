@@ -91,6 +91,15 @@ export function PluginBrowser() {
           <button className="btn ghost" onClick={() => void openExternal(ISSUE_URL)}>
             Submit a plugin
           </button>
+          <button
+            className="btn ghost"
+            onClick={() => {
+              setUI({ pluginsOpen: false, browserOpen: true });
+              window.dispatchEvent(new Event('openbeats:show-packs'));
+            }}
+          >
+            Packs
+          </button>
           <button className="btn primary" onClick={close}>
             Done
           </button>

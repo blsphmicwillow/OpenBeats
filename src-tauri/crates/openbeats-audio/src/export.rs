@@ -171,9 +171,7 @@ fn mp3_bytes(
     channels: u16,
     quality: u8,
 ) -> Result<Vec<u8>, String> {
-    use mp3lame_encoder::{
-        Bitrate, Builder, EncoderFlush, FlushNoGap, InterleavedPcm, MonoPcm, Quality,
-    };
+    use mp3lame_encoder::{Bitrate, Builder, FlushNoGap, InterleavedPcm, MonoPcm, Quality};
 
     let channels = channels.clamp(1, 2);
     let bitrate = match quality {

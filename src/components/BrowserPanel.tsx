@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type MouseEvent } from 'react';
 import { previewChannel, useApp } from '../store';
 import { PRESETS, createChannel } from '../model/defaults';
 import { SAMPLE_BANK } from '../audio/instruments';
@@ -7,13 +7,26 @@ import {
   nativeImportPack,
   nativePreviewSample,
   nativeReadSample,
+  nativeRemovePack,
   nativeStopPreview,
   type NativePack,
+  type NativePackFormat,
+  type NativePackImport,
 } from '../lib/nativeAudio';
+import { importPackSafely } from '../lib/packImport';
+import { isNative } from '../lib/native';
+import { PackImportReport } from './PackImportReport';
 import { IconDownload, IconFolder, IconPlus, IconSearch, IconWave } from '../ui/icons';
 import type { PresetId } from '../model/types';
 
 type Tab = 'packs' | 'projects' | 'samples';
+
+const PACK_FORMAT: Record<NativePackFormat, string> = {
+  open_beats: 'OpenBeats',
+  fl_studio: 'FL layout',
+  generic: 'One-shots',
+  flat: 'Flat',
+};
 
 export function BrowserPanel() {
   const ui = useApp((s) => s.ui);
@@ -22,14 +35,49 @@ export function BrowserPanel() {
   const [query, setQuery] = useState('');
   const [packs, setPacks] = useState<NativePack[]>([]);
   const [openPacks, setOpenPacks] = useState<string[]>([]);
+  const [report, setReport] = useState<NativePackImport | null>(null);
   const sampleInput = useRef<HTMLInputElement>(null);
   const projectInput = useRef<HTMLInputElement>(null);
+  const importRef = useRef<(kind: 'folder' | 'zip', path?: string) => Promise<void>>(async () => {});
   const { addChannel, saveProjectFile, openProjectFile, newProject, importSampleFiles, setUI, hint, toast } = useApp.getState();
 
   useEffect(() => {
     if (!ui.browserOpen) return;
     void nativeGetPacks().then((loaded) => setPacks(loaded));
   }, [ui.browserOpen]);
+
+  importRef.current = async (kind, path) => {
+    const result = await importPackSafely(
+      () => nativeImportPack(path, kind),
+      (message) => toast(message),
+    );
+    if (!result) {
+      // Cancelling the native dialog is silent; the web build explains itself.
+      if (!isNative()) toast('Pack import is only available in the desktop app');
+      return;
+    }
+    setPacks((previous) => [
+      ...previous.filter((pack) => pack.root !== result.pack.root),
+      result.pack,
+    ]);
+    setOpenPacks((previous) => Array.from(new Set([...previous, result.pack.root])));
+    setReport(result);
+    hint(`Imported ${result.pack.name} — ${result.pack.samples.length} samples`);
+  };
+
+  useEffect(() => {
+    const handler = (event: Event) => {
+      const detail = (event as CustomEvent<{ kind?: 'folder' | 'zip'; path?: string }>).detail;
+      void importRef.current(detail?.kind ?? 'folder', detail?.path);
+    };
+    const showPacks = () => setTab('packs');
+    window.addEventListener('openbeats:import-pack', handler);
+    window.addEventListener('openbeats:show-packs', showPacks);
+    return () => {
+      window.removeEventListener('openbeats:import-pack', handler);
+      window.removeEventListener('openbeats:show-packs', showPacks);
+    };
+  }, []);
 
   if (!ui.browserOpen) return null;
 
@@ -42,16 +90,37 @@ export function BrowserPanel() {
     await importSampleFiles([file], true);
   };
 
-  const importPack = async () => {
-    const pack = await nativeImportPack();
-    if (!pack) {
-      toast('Pack import is only available in the desktop app');
-      return;
+  const removePack = async (event: MouseEvent, pack: NativePack) => {
+    event.stopPropagation();
+    if (!window.confirm(`Remove “${pack.name}” from the library?`)) return;
+    try {
+      const result = await nativeRemovePack(pack.root);
+      setPacks((previous) => previous.filter((item) => item.root !== pack.root));
+      setOpenPacks((previous) => previous.filter((root) => root !== pack.root));
+      setReport((current) => (current?.pack.root === pack.root ? null : current));
+      toast(
+        result.left_source
+          ? `Removed ${pack.name} from the library — its source folder was left untouched`
+          : `Removed ${pack.name} and ${result.deleted_files} imported files`,
+      );
+    } catch (error) {
+      console.error('Pack removal failed', error);
+      toast(error instanceof Error ? error.message : 'That pack could not be removed');
     }
-    setPacks((previous) => [...previous.filter((p) => p.root !== pack.root), pack]);
-    setOpenPacks((previous) => [...previous, pack.root]);
-    hint(`Imported ${pack.name} — ${pack.samples.length} samples`);
   };
+
+  const allPackSamples = packs.flatMap((pack) =>
+    pack.samples.map((sample) => ({ ...sample, packName: pack.name })),
+  );
+  const visiblePackSamples = allPackSamples
+    .filter(
+      (sample) =>
+        !query ||
+        sample.name.toLowerCase().includes(query.toLowerCase()) ||
+        sample.category.toLowerCase().includes(query.toLowerCase()) ||
+        sample.packName.toLowerCase().includes(query.toLowerCase()),
+    )
+    .slice(0, 200);
 
   const audition = async (path: string) => {
     const result = await nativePreviewSample(path);
@@ -122,7 +191,17 @@ export function BrowserPanel() {
                   >
                     <span className="dot" style={{ background: 'var(--accent)' }} />
                     <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{pack.name}</span>
-                    <span className="bi-meta">{expanded ? '▾' : '▸'} {pack.samples.length}</span>
+                    <span className="bi-meta">
+                      {PACK_FORMAT[pack.format ?? 'flat']} · {pack.samples.length}
+                    </span>
+                    <button
+                      className="tbtn small flat pack-remove"
+                      title="Remove this pack from the library"
+                      aria-label={`Remove ${pack.name}`}
+                      onClick={(event) => void removePack(event, pack)}
+                    >
+                      ×
+                    </button>
                   </div>
                   {expanded &&
                     visible.map((sample) => (
@@ -234,6 +313,32 @@ export function BrowserPanel() {
 
         {tab === 'samples' && (
           <>
+            {allPackSamples.length > 0 && (
+              <>
+                <div className="browser-group">Pack samples ({allPackSamples.length})</div>
+                {visiblePackSamples.map((sample) => (
+                  <div
+                    key={sample.path}
+                    className="browser-item"
+                    title={`${sample.packName} · ${sample.category} · click to preview, double-click to load`}
+                    onClick={() => void audition(sample.path)}
+                    onDoubleClick={() => void addPackSample(sample.path)}
+                  >
+                    <IconWave size={10} />
+                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {sample.name}
+                    </span>
+                    <span className="bi-meta">{sample.category}</span>
+                  </div>
+                ))}
+                {allPackSamples.length > visiblePackSamples.length && (
+                  <div className="browser-empty" style={{ fontSize: 10 }}>
+                    Showing {visiblePackSamples.length} of {allPackSamples.length}. Search to narrow
+                    the list.
+                  </div>
+                )}
+              </>
+            )}
             <div className="browser-group">Your samples</div>
             {Array.from(SAMPLE_BANK.keys()).length === 0 && <div className="browser-empty">No samples loaded yet.<br />Drop in a one-shot below.</div>}
             {Array.from(SAMPLE_BANK.entries()).map(([id, buffer]) => {
@@ -274,9 +379,24 @@ export function BrowserPanel() {
 
       <div className="browser-foot">
         {tab === 'packs' ? (
-          <button className="btn ghost" style={{ flex: 1 }} onClick={() => void importPack()} data-tour="pack-import" title="Import a sample pack folder or .zip">
-            Import pack
-          </button>
+          <>
+            <button
+              className="btn ghost"
+              style={{ flex: 1 }}
+              onClick={() => void importRef.current('folder')}
+              data-tour="pack-import"
+              title="Import a sample pack folder"
+            >
+              Import pack
+            </button>
+            <button
+              className="btn ghost"
+              onClick={() => void importRef.current('zip')}
+              title="Import a .zip sample pack"
+            >
+              ZIP
+            </button>
+          </>
         ) : (
           <button className="btn ghost" style={{ flex: 1 }} onClick={() => sampleInput.current?.click()}>
             Import sample
@@ -318,6 +438,13 @@ export function BrowserPanel() {
           }}
         />
       </div>
+      {report && (
+        <PackImportReport
+          pack={report.pack}
+          report={report.report}
+          onClose={() => setReport(null)}
+        />
+      )}
     </aside>
   );
 }
