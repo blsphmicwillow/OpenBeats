@@ -62,6 +62,27 @@ export function Fader({
         onGestureStart?.();
         commit(value + (e.deltaY < 0 ? 0.02 : -0.02) * (e.shiftKey ? 0.25 : 1));
       }}
+      role="slider"
+      tabIndex={0}
+      aria-label={label ?? 'Level fader'}
+      aria-valuemin={min}
+      aria-valuemax={max}
+      aria-valuenow={Number(value.toFixed(2))}
+      aria-valuetext={`${db} dB`}
+      onKeyDown={(e) => {
+        const delta = e.shiftKey ? 0.01 : 0.04;
+        let next = value;
+        if (e.key === 'ArrowUp' || e.key === 'ArrowRight') next = value + delta;
+        else if (e.key === 'ArrowDown' || e.key === 'ArrowLeft') next = value - delta;
+        else if (e.key === 'PageUp') next = value + 0.1;
+        else if (e.key === 'PageDown') next = value - 0.1;
+        else if (e.key === 'Home') next = min;
+        else if (e.key === 'End') next = max;
+        else return;
+        e.preventDefault();
+        onGestureStart?.();
+        commit(next);
+      }}
     >
       <div className="fader-track">
         <div className="fader-fill" style={{ height: `calc(${norm * 100}% - 2px)`, background: color ?? 'var(--accent)' }} />

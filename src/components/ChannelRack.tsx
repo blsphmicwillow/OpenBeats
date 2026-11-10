@@ -95,7 +95,7 @@ export function ChannelRack() {
   };
 
   return (
-    <div className="rack" data-tour="rack" style={{ width: `min(${ui.rackWidth}px, 48vw)` }}>
+    <div className="rack" data-tour="rack" style={{ width: `min(${ui.rackWidth}px, 48vw)` }} role="region" aria-label="Channel rack">
       <div className="rack-head">
         <span className="rack-title">
           <IconGear size={12} /> Rack
@@ -105,6 +105,7 @@ export function ChannelRack() {
           value={project.currentPattern}
           onChange={(e) => selectPattern(e.target.value)}
           title="Pattern being edited"
+          aria-label="Pattern being edited"
         >
           {project.patterns.map((p, i) => (
             <option key={p.id} value={p.id}>
@@ -117,6 +118,7 @@ export function ChannelRack() {
           value={pattern?.bars ?? 2}
           onChange={(e) => pattern && setPatternBars(pattern.id, Number(e.target.value))}
           title="Pattern length in bars"
+          aria-label="Pattern length in bars"
         >
           {[1, 2, 4, 8].map((b) => (
             <option key={b} value={b}>
@@ -162,6 +164,8 @@ export function ChannelRack() {
             <div
               key={channel.id}
               className={`chan-row ${project.selectedChannel === channel.id ? 'selected' : ''}`}
+              role="group"
+              aria-label={`${channel.name} channel`}
               onContextMenu={(e) => rowMenu(e, channel)}
               onPointerDown={() => selectChannel(channel.id)}
               style={{ ['--chan-color' as string]: channel.color }}
@@ -209,6 +213,8 @@ export function ChannelRack() {
                         updateChannel(channel.id, { mute: !channel.mute });
                       }}
                       title="Mute channel"
+                      aria-label={`Mute ${channel.name}`}
+                      aria-pressed={channel.mute}
                     >
                       M
                     </button>
@@ -219,6 +225,8 @@ export function ChannelRack() {
                         updateChannel(channel.id, { solo: !channel.solo });
                       }}
                       title="Solo channel"
+                      aria-label={`Solo ${channel.name}`}
+                      aria-pressed={channel.solo}
                     >
                       S
                     </button>
@@ -226,7 +234,7 @@ export function ChannelRack() {
                   <Meter stripId={channel.mixer} className="chan-meter" />
                 </div>
 
-                <div className="chan-steps" data-tour="steps">
+                <div className="chan-steps" data-tour="steps" role="group" aria-label={`${channel.name} steps`}>
                   {Array.from({ length: totalSteps }, (_, step) => {
                     const on = notes.some((n) => Math.abs(n.start - step) < 0.01);
                     return (
@@ -245,6 +253,8 @@ export function ChannelRack() {
                           clearChannelSteps(channel.id);
                         }}
                         title={`Step ${step + 1} — click to toggle, right-click clears the channel`}
+                        aria-label={`${channel.name} step ${step + 1}${on ? ', active' : ''}`}
+                        aria-pressed={on}
                       />
                     );
                   })}
@@ -284,7 +294,7 @@ export function ChannelRack() {
             <button className="tbtn small" onClick={() => audition(selected)} title="Audition this instrument">
               ♪
             </button>
-            <button className="tbtn small flat" onClick={() => setSettingsOpen(false)} title="Collapse settings">
+            <button className="tbtn small flat" onClick={() => setSettingsOpen(false)} title="Collapse settings" aria-label="Collapse channel settings">
               ▾
             </button>
           </div>

@@ -10,8 +10,15 @@ export function HintBar() {
 
   return (
     <div className="hintbar">
-      <span className={`led-dot ${audioReady ? '' : 'off'}`} title={audioReady ? 'Audio engine running' : 'Audio engine idle — click or press Space'} />
-      <span className="hint-main">{ui.hint}</span>
+      <span
+        className={`led-dot ${audioReady ? '' : 'off'}`}
+        title={audioReady ? 'Audio engine running' : 'Audio engine idle — click or press Space'}
+        aria-hidden="true"
+      />
+      <span className="hint-main" role="status" aria-live="polite" aria-atomic="true">
+        {ui.hint}
+      </span>
+      <span className="sr-only">{lastSaved ? `Last autosave ${new Date(lastSaved).toLocaleTimeString()}` : 'Not autosaved yet'}</span>
       <div className="hint-right">
         <span>
           {project.channels.length} ch · {project.patterns.length} pat · {project.clips.length} clips

@@ -25,10 +25,11 @@ export function SettingsDialog() {
   const open = useApp((s) => s.ui.settingsOpen);
   const settings = useApp((s) => s.settings);
   const updateChecking = useApp((s) => s.ui.updateChecking);
+  const lastSaved = useApp((s) => s.lastSaved);
   const [tab, setTab] = useState<Tab>('appearance');
   const [capturing, setCapturing] = useState<KeyAction | null>(null);
   const importRef = useRef<HTMLInputElement>(null);
-  const { setUI, patchSettings, setKey, toast } = useApp.getState();
+  const { setUI, patchSettings, setKey, autosaveNow, toast } = useApp.getState();
 
   useEffect(() => {
     if (!capturing) return;
@@ -88,9 +89,15 @@ export function SettingsDialog() {
       }
     >
       <div className="settings-layout">
-        <div className="settings-tabs">
+        <div className="settings-tabs" role="tablist" aria-label="Settings sections">
           {TABS.map((t) => (
-            <button key={t.id} className={`settings-tab ${tab === t.id ? 'active' : ''}`} onClick={() => setTab(t.id)}>
+            <button
+              key={t.id}
+              role="tab"
+              aria-selected={tab === t.id}
+              className={`settings-tab ${tab === t.id ? 'active' : ''}`}
+              onClick={() => setTab(t.id)}
+            >
               {t.label}
             </button>
           ))}
@@ -285,7 +292,6 @@ export function SettingsDialog() {
                 [
                   ['showMeters', 'Channel rack meters', 'Display a live level meter on every channel.'],
                   ['autoScroll', 'Follow the playhead', 'Keep the playlist and piano roll near the playhead.'],
-                  ['autoSave', 'Autosave', 'Store the project in this browser as you work.'],
                 ] as const
               ).map(([key, label, desc]) => (
                 <div className="field" key={key}>
@@ -302,6 +308,42 @@ export function SettingsDialog() {
                   </div>
                 </div>
               ))}
+              <div className="field">
+                <div className="field-label">
+                  Autosave
+                  <small>Write a crash-safe snapshot to this device on a timer. A crash restores the last snapshot.</small>
+                </div>
+                <div className="field-control" style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                  <select
+                    className="select"
+                    aria-label="Autosave interval"
+                    value={String(settings.autosaveMinutes)}
+                    onChange={(e) =>
+                      patchSettings({ autosaveMinutes: Number(e.target.value) as Settings['autosaveMinutes'] })
+                    }
+                  >
+                    <option value="0">Never</option>
+                    <option value="2">Every 2 minutes</option>
+                    <option value="5">Every 5 minutes</option>
+                    <option value="10">Every 10 minutes</option>
+                    <option value="15">Every 15 minutes</option>
+                    <option value="30">Every 30 minutes</option>
+                    <option value="60">Every hour</option>
+                  </select>
+                  <button className="btn ghost" onClick={autosaveNow}>
+                    Save now
+                  </button>
+                </div>
+              </div>
+              <div className="field">
+                <div className="field-label">
+                  Last autosave
+                  <small>{lastSaved ? new Date(lastSaved).toLocaleString() : 'No snapshot yet'}</small>
+                </div>
+                <div className="field-control">
+                  <span className="tiny-note">{settings.autosaveMinutes ? `Autosaves every ${settings.autosaveMinutes} min while you work` : 'Timed autosave is off — use Save now or save a file'}</span>
+                </div>
+              </div>
               <div className="field">
                 <div className="field-label">
                   Default snap

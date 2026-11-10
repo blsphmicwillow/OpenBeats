@@ -102,6 +102,22 @@ export function Knob({
         if (!drag.current) setBubble(null);
       }}
       onDoubleClick={reset}
+      tabIndex={0}
+      aria-valuetext={text}
+      onKeyDown={(e) => {
+        const big = e.shiftKey ? 1 : 4;
+        let next = value;
+        if (e.key === 'ArrowUp' || e.key === 'ArrowRight') next = value + step * big;
+        else if (e.key === 'ArrowDown' || e.key === 'ArrowLeft') next = value - step * big;
+        else if (e.key === 'PageUp') next = value + (max - min) / 10;
+        else if (e.key === 'PageDown') next = value - (max - min) / 10;
+        else if (e.key === 'Home') next = min;
+        else if (e.key === 'End') next = max;
+        else return;
+        e.preventDefault();
+        onGestureStart?.();
+        commit(next);
+      }}
       onWheel={(e) => {
         if (!e.deltaY) return;
         onGestureStart?.();

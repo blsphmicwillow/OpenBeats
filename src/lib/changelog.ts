@@ -11,74 +11,90 @@ export interface ChangelogEntry {
  */
 export const CHANGELOG: ChangelogEntry[] = [
   {
-    version: '1.1.0',
+    version: '1.0.0',
     date: '2026-11-10',
-    headline: 'Native desktop builds, an update checker, and a local mix assistant',
+    headline: 'The first public OpenBeats release: a native studio, DAW interchange, autosave and accessibility.',
     groups: [
+      {
+        title: 'Studio',
+        items: [
+          'Channel rack with step sequencer, per-channel knobs, audition previews and live meters.',
+          'Playlist with pattern clips, a piano roll with velocity lane, and a routing mixer with buses, sends and eight effects.',
+          'Offline WAV bounce, mastering targets, Fix My Mix analysis with A/B, Hum to Melody and Inspire Me.',
+          'Guided first-run tour and an in-app manual.',
+        ],
+      },
       {
         title: 'Desktop',
         items: [
-          'Tauri 2 shell with Linux (deb/AppImage), Windows (msi/nsis) and macOS (dmg) installers built by CI.',
-          'Native window chrome, file dialogs and “reveal in folder”, with a web fallback for the demo build.',
-          'Automatic update checks against GitHub Releases on launch, with a dismissible banner and release notes.',
-        ],
-      },
-      {
-        title: 'Mixing',
-        items: [
-          'Fix My Mix analyses the rendered master and proposes corrective EQ, compression and low-end control.',
-          'Before/after A/B compares the original master chain with the suggested one.',
-          'AI mastering targets for Spotify, Club, SoundCloud and YouTube with loudness normalisation.',
-        ],
-      },
-      {
-        title: 'Writing',
-        items: [
-          'Hum to Melody records a microphone take and turns it into quantised piano-roll notes.',
-          'Inspire Me generates four-chord progressions in the selected key and mood.',
-          'Sample import now tags BPM, brightness and instrument type automatically.',
+          'Tauri 2 shell with Linux (.deb and AppImage), Windows (msi and nsis) and macOS (dmg) installers built by CI.',
+          'Native window chrome, project/song/sample file dialogs and reveal-in-folder, with browser fallbacks.',
+          'Update checks against GitHub Releases with a dismissible banner; automatic launch checks can be switched off completely.',
         ],
       },
       {
         title: 'Interchange',
         items: [
           'Multi-track MIDI import/export (SMF type 1) for FL Studio, Ableton, Logic, Cubase, Studio One, Bitwig and REAPER.',
-          'Ableton Live Set (.als) import: tracks, clips and notes are read from the gzipped XML.',
+          'Ableton Live Set (.als) import from the gzipped XML, including tracks, clips, notes and tempo.',
           'REAPER (.rpp) import and export with tempo, tracks and MIDI items.',
-          'A dedicated Import / export song dialog, plus native save dialogs for MIDI files.',
+          'Import / export song dialog with per-format fidelity notes and native binary save dialogs.',
         ],
       },
       {
-        title: 'Design',
+        title: 'Sounds',
         items: [
-          'Glass revised against Liquid Glass guidance: opaque content panels, frosted chrome, specular edges and a no-blur fallback.',
-          'New Reduce transparency accessibility option disables every backdrop blur.',
+          'Drag audio files anywhere into the studio to create sampler channels; multiple files import in one drop.',
+          'Drop .mid, .als, .rpp or .obeats files to open them, with a visible drop target and clear feedback.',
+          'One-shot import auto-tags tempo, brightness and instrument family, with a session sample bank.',
+        ],
+      },
+      {
+        title: 'Autosave',
+        items: [
+          'Crash-safe local snapshots with a selectable interval: 2, 5, 10, 15, 30 or 60 minutes, or Never.',
+          'A final snapshot is written when the window closes, and the last snapshot restores automatically after a crash.',
+          '“Save now” in Settings and the exact last-autosave time are always visible.',
+        ],
+      },
+      {
+        title: 'Accessibility',
+        items: [
+          'Screen-reader names and states for transport, workspace tabs, channel rows, steps, mixers and dialogs.',
+          'Keyboard-operable knobs and faders with arrow, Page and Home/End control and spoken values.',
+          'Reduce motion, reduce transparency, high contrast, visible focus rings, interface scale and density settings.',
+          'ARIA live regions announce hints, saves and errors without trapping focus.',
+        ],
+      },
+      {
+        title: 'Performance',
+        items: [
+          'Dialogs, the command palette and the changelog are code-split, so the studio loads without their JavaScript.',
+          'Workspace panels are memoised so theme and dialog changes do not rerender the rack, playlist or mixer.',
+          'Playhead painting stays on requestAnimationFrame and is limited to step changes.',
         ],
       },
       {
         title: 'Interface',
         items: [
-          'Classic and Modern interface modes share the same themes, so every palette restyles both ways.',
-          'Glass and Liquid Glass themes in both light and dark variants: translucent panels and 22 px backdrop blur.',
-          'Colour editor with a wheel, HEX field and RGB sliders for every theme token, a glass toggle, and JSON import/export.',
-          'Dedicated Updates tab with a real opt-out of launch checks, plus an Accessibility tab for reduced motion, high contrast, focus rings, scaling and hints.',
-          'Command palette (Ctrl/Cmd+K) with searchable actions.',
-          'New “Studio 2006” theme for the classic rig look.',
+          'Classic and Modern interface modes over the same theme tokens.',
+          'Eleven themes, including glass and liquid-glass variants in light and dark, plus Studio 2006.',
+          'Colour editor with a wheel, HEX field and RGB inputs for every theme token, a glass toggle and JSON import/export.',
+          'Command palette (Ctrl/Cmd+K) for transport, views, channels and project actions.',
         ],
       },
-    ],
-  },
-  {
-    version: '1.0.0',
-    date: '2026-10-28',
-    headline: 'First public OpenBeats build',
-    groups: [
       {
-        title: 'Studio',
+        title: 'Design',
         items: [
-          'Channel rack with step sequencer, per-channel knobs and live meters.',
-          'Playlist, piano roll with velocity lane, and a routing mixer with buses and sends.',
-          'Eight native effects, offline WAV bounce, six themes and a guided first-run tour.',
+          'Glass reworked against Apple Liquid Glass guidance: opaque content, frosted chrome, specular rims and a solid fallback.',
+          'Docs compare glassmorphism with Liquid Glass and list the remaining fidelity gaps honestly.',
+        ],
+      },
+      {
+        title: 'Compatibility',
+        items: [
+          'Third-party VST3/AU hosting is not included in 1.0.0; MIDI, .als import and .rpp provide the DAW bridge.',
+          'FL Studio .flp is a proprietary binary format, so FL Studio projects travel through MIDI rather than .flp.',
         ],
       },
     ],

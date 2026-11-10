@@ -54,8 +54,15 @@ Until a release is published you can build from source — see [docs/BUILDING.md
 - **REAPER project import and export** (`.rpp`) — text project with tracks and MIDI items.
 - `.obeats` remains the lossless round-trip; WAV is the audio path. Details and fidelity limits: [docs/EXCHANGE.md](docs/EXCHANGE.md).
 
+### Sounds, drag-and-drop and plugins
+- **Drop audio files anywhere** on the studio to add sampler channels; dropping several files imports them at once.
+- Drop `.mid`, `.als`, `.rpp` or `.obeats` files to open a song, with a visible drop target and a clear import report.
+- Imported one-shots are auto-tagged (BPM, brightness, family) and kept in the session sample bank.
+- **VST3/AU hosting is not in 1.0.0.** Loading third-party plugin binaries needs a native per-platform host and audio bridge, not a Web Audio feature. The current DAW bridge is MIDI / `.als` import / `.rpp`; the intended architecture and acceptance tests are in [docs/PLUGINS.md](docs/PLUGINS.md).
+
 ### Desktop integration
 - Native save/open dialogs and “reveal in folder”.
+- **Autosave** on a 2/5/10/15/30/60-minute timer (or Never), a final snapshot on window close, automatic restore after a crash, and **Save now** in Settings → Workflow.
 - **Update checker** against this repository's GitHub Releases, with an in-app banner and a **Changelog** tab.
 - Native window chrome, resize handling and platform-aware shortcuts.
 
@@ -64,7 +71,7 @@ Until a release is published you can build from source — see [docs/BUILDING.md
 - Built-in themes, including **Glass (dark)** and **Liquid Glass (light)** glassmorphism styles.
 - **My theme** editor: colour wheel, HEX field and RGB sliders for every token; import/export theme JSON.
 - Command palette, density switch, interface scale, accent override.
-- **Accessibility**: reduced motion, high contrast, visible keyboard focus rings, scaling and hint toggles in their own tab.
+- **Accessibility**: screen-reader labels and states, keyboard-operable knobs and faders, ARIA live hints, a skip link, reduced motion, reduce transparency, high contrast, visible focus rings, scaling and hint toggles.
 - **Updates** tab: opt out of automatic launch checks entirely, or check manually at any time.
 - Optional *Studio 2006* throwback theme.
 
@@ -107,6 +114,7 @@ Repository layout and data flow: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 Theming and the colour editor: [docs/THEMING.md](docs/THEMING.md).
 The glass design review (glassmorphism vs Liquid Glass): [docs/GLASS.md](docs/GLASS.md).
 DAW interchange matrix: [docs/EXCHANGE.md](docs/EXCHANGE.md).
+Plugin support status and roadmap: [docs/PLUGINS.md](docs/PLUGINS.md).
 Release/signing process: [docs/BUILDING.md](docs/BUILDING.md#releases).
 
 ### Project layout

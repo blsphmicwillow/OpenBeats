@@ -26,6 +26,8 @@ import {
   uid,
 } from './model/defaults';
 import { engine, routeIsSafe } from './audio/engine';
+import { SAMPLE_BANK } from './audio/instruments';
+import { analyzeSample } from './lib/tagging';
 import {
   eventsAtPatternStep,
   eventsAtSongStep,
@@ -46,6 +48,8 @@ import { exchangeFromProject, projectFromExchange } from './lib/daw/project';
 
 const PROJECT_KEY = 'openbeats.project.v1';
 const SETTINGS_KEY = 'openbeats.settings.v1';
+const AUTOSAVE_KEY = 'openbeats.autosave.v1';
+export const AUTOSAVE_INTERVALS = [0, 2, 5, 10, 15, 30, 60] as const;
 
 export function currentPattern(project: Project): Pattern | undefined {
   return project.patterns.find((p) => p.id === project.currentPattern) ?? project.patterns[0];
@@ -76,9 +80,15 @@ function loadStored<T>(key: string): T | null {
 export function normalizeSettings(raw: Partial<Settings> | null): Settings {
   const base = defaultSettings();
   if (!raw) return base;
+  const minutes = AUTOSAVE_INTERVALS.includes(raw.autosaveMinutes as (typeof AUTOSAVE_INTERVALS)[number])
+    ? (raw.autosaveMinutes as Settings['autosaveMinutes'])
+    : (raw as Partial<Settings> & { autoSave?: boolean }).autoSave === false
+      ? 0
+      : base.autosaveMinutes;
   return {
     ...base,
     ...raw,
+    autosaveMinutes: minutes,
     keymap: { ...DEFAULT_KEYMAP, ...(raw.keymap ?? {}) },
     customTheme: { ...base.customTheme, ...(raw.customTheme ?? {}) },
   };
@@ -193,6 +203,8 @@ export interface AppState {
   openProjectNative(): Promise<void>;
   exportWav(): Promise<void>;
   importSongFile(file: File): Promise<void>;
+  importSampleFiles(files: File[], replaceSelected?: boolean): Promise<void>;
+  autosaveNow(): void;
   exportMidi(): Promise<void>;
   exportRpp(): Promise<void>;
   checkUpdates(silent?: boolean): Promise<void>;
@@ -240,7 +252,7 @@ export const useApp = create<AppState>((set, get) => ({
   history: { past: [], future: [] },
   audioReady: false,
   audioError: null,
-  lastSaved: null,
+  lastSaved: loadStored<{ savedAt: number }>(AUTOSAVE_KEY)?.savedAt ?? null,
 
   patchProject(updater, opts) {
     if (opts?.history !== false) get().pushHistory(opts?.coalesce);
@@ -920,6 +932,77 @@ export const useApp = create<AppState>((set, get) => ({
     }
   },
 
+  async importSampleFiles(files, replaceSelected = false) {
+    const audio = files.filter(
+      (file) => file.type.startsWith('audio/') || /\.(wav|mp3|ogg|oga|flac|m4a|aiff?|webm)$/i.test(file.name),
+    );
+    if (!audio.length) {
+      get().toast('Drop WAV, MP3, OGG, FLAC or AIFF files to import sounds');
+      return;
+    }
+    await get().initAudio();
+    const ctx = engine.ctx;
+    if (!ctx) {
+      get().toast('Audio could not start — check your browser permissions');
+      return;
+    }
+    type Loaded = { name: string; sample: NonNullable<Channel['sample']> };
+    const loaded: Loaded[] = [];
+    for (const file of audio) {
+      try {
+        const buffer = await ctx.decodeAudioData(await file.arrayBuffer());
+        const id = uid('smp');
+        SAMPLE_BANK.set(id, buffer);
+        const tags = analyzeSample(buffer);
+        loaded.push({
+          name: file.name.replace(/\.[^.]+$/, '').slice(0, 22) || 'Sample',
+          sample: { id, name: file.name, root: 60, tags: tags.tags, bpm: tags.bpm, brightness: tags.brightness, kind: tags.type },
+        });
+      } catch {
+        /* skip files the platform cannot decode */
+      }
+    }
+    if (!loaded.length) {
+      get().toast('Those audio files could not be decoded');
+      return;
+    }
+    const colors = ['#ff8a3d', '#ffc93c', '#6fd08c', '#4cc9f0', '#7b8cff', '#c77dff', '#ff6b9d'];
+    get().patchProject((p) => {
+      loaded.forEach((item, i) => {
+        const selected = p.channels.find((c) => c.id === p.selectedChannel) ?? p.channels[0];
+        if (replaceSelected && i === 0 && selected) {
+          Object.assign(selected, { preset: 'sample', name: item.name, sample: item.sample, gain: 0.85 });
+          return;
+        }
+        const index = p.channels.length;
+        const stripId = Math.max(0, ...p.strips.map((s) => s.id)) + 1;
+        const color = colors[index % colors.length];
+        const strip = createStrip(stripId, item.name, color);
+        strip.route = 0;
+        const channel = createChannel({ preset: 'sample', name: item.name, color, mixer: stripId, sample: item.sample, gain: 0.85 });
+        p.channels.push(channel);
+        p.strips.push(strip);
+        p.selectedChannel = channel.id;
+      });
+    });
+    const failed = audio.length - loaded.length;
+    get().toast(
+      `Imported ${loaded.length} sound${loaded.length === 1 ? '' : 's'}${failed ? ` · ${failed} could not be decoded` : ''}`,
+    );
+  },
+
+  autosaveNow() {
+    try {
+      const savedAt = Date.now();
+      localStorage.setItem(PROJECT_KEY, JSON.stringify(get().project));
+      localStorage.setItem(SETTINGS_KEY, JSON.stringify(get().settings));
+      localStorage.setItem(AUTOSAVE_KEY, JSON.stringify({ savedAt }));
+      set({ lastSaved: savedAt });
+    } catch {
+      /* storage full or blocked */
+    }
+  },
+
   async exportMidi() {
     const project = get().project;
     const song = exchangeFromProject(project);
@@ -975,29 +1058,40 @@ export const useApp = create<AppState>((set, get) => ({
     let timer: number | null = null;
     let lastProject = get().project;
     let lastSettings = get().settings;
+    let dirty = false;
     const save = () => {
-      if (!get().settings.autoSave) return;
-      try {
-        localStorage.setItem(PROJECT_KEY, JSON.stringify(lastProject));
-        localStorage.setItem(SETTINGS_KEY, JSON.stringify(lastSettings));
-        set({ lastSaved: Date.now() });
-      } catch {
-        /* storage full or blocked */
-      }
+      if (!get().settings.autosaveMinutes) return;
+      get().autosaveNow();
+      dirty = false;
+    };
+    const schedule = () => {
+      if (timer) window.clearInterval(timer);
+      timer = null;
+      const minutes = get().settings.autosaveMinutes;
+      if (!minutes) return;
+      timer = window.setInterval(() => {
+        if (dirty) save();
+      }, minutes * 60_000);
     };
     useApp.subscribe((state) => {
       if (state.project !== lastProject) {
         lastProject = state.project;
-        if (timer) window.clearTimeout(timer);
-        timer = window.setTimeout(save, 900);
+        dirty = true;
       }
       if (state.settings !== lastSettings) {
         lastSettings = state.settings;
-        localStorage.setItem(SETTINGS_KEY, JSON.stringify(lastSettings));
+        dirty = true;
+        try {
+          localStorage.setItem(SETTINGS_KEY, JSON.stringify(lastSettings));
+        } catch {
+          /* storage full or blocked */
+        }
+        schedule();
       }
     });
-    window.addEventListener('beforeunload', () => {
-      if (get().settings.autoSave) save();
+    schedule();
+    window.addEventListener('pagehide', () => {
+      if (get().settings.autosaveMinutes) save();
     });
   },
 }));

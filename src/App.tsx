@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { lazy, memo, Suspense, useEffect, useRef, useState } from 'react';
 import { previewPitch, useApp } from './store';
 import { themeById, themeVars } from './themes';
 import { TopBar } from './components/TopBar';
@@ -8,20 +8,29 @@ import { Playlist } from './components/Playlist';
 import { PianoRoll } from './components/PianoRoll';
 import { Mixer } from './components/Mixer';
 import { HintBar } from './components/HintBar';
-import { SettingsDialog } from './components/SettingsDialog';
-import { HelpDialog } from './components/HelpDialog';
-import { Tutorial } from './components/Tutorial';
-import { ContextMenu } from './components/ContextMenu';
-import { Changelog } from './components/Changelog';
-import { CommandPalette } from './components/CommandPalette';
-import { FixMyMix } from './components/FixMyMix';
-import { HumToMelody } from './components/HumToMelody';
-import { InspireDialog } from './components/InspireDialog';
 import { UpdateBanner } from './components/UpdateBanner';
-import { ExchangeDialog } from './components/ExchangeDialog';
 import { KEY_TO_SEMITONE, comboFromEvent } from './ui/keymapLabels';
 import { IconGrid, IconMixer, IconPiano, IconWave } from './ui/icons';
 import type { KeyAction, WorkspaceTab } from './model/types';
+
+const SettingsDialog = lazy(() => import('./components/SettingsDialog').then((m) => ({ default: m.SettingsDialog })));
+const HelpDialog = lazy(() => import('./components/HelpDialog').then((m) => ({ default: m.HelpDialog })));
+const Tutorial = lazy(() => import('./components/Tutorial').then((m) => ({ default: m.Tutorial })));
+const ContextMenu = lazy(() => import('./components/ContextMenu').then((m) => ({ default: m.ContextMenu })));
+const Changelog = lazy(() => import('./components/Changelog').then((m) => ({ default: m.Changelog })));
+const CommandPalette = lazy(() => import('./components/CommandPalette').then((m) => ({ default: m.CommandPalette })));
+const FixMyMix = lazy(() => import('./components/FixMyMix').then((m) => ({ default: m.FixMyMix })));
+const HumToMelody = lazy(() => import('./components/HumToMelody').then((m) => ({ default: m.HumToMelody })));
+const InspireDialog = lazy(() => import('./components/InspireDialog').then((m) => ({ default: m.InspireDialog })));
+const ExchangeDialog = lazy(() => import('./components/ExchangeDialog').then((m) => ({ default: m.ExchangeDialog })));
+
+const MemoTopBar = memo(TopBar);
+const MemoBrowserPanel = memo(BrowserPanel);
+const MemoChannelRack = memo(ChannelRack);
+const MemoPlaylist = memo(Playlist);
+const MemoPianoRoll = memo(PianoRoll);
+const MemoMixer = memo(Mixer);
+const MemoHintBar = memo(HintBar);
 
 const TABS: { id: WorkspaceTab; label: string; icon: React.ReactNode }[] = [
   { id: 'playlist', label: 'Playlist', icon: <IconGrid size={12} /> },
@@ -36,6 +45,7 @@ export default function App() {
   const toast = useApp((s) => s.ui.toast);
   const theme = themeById(settings.themeId, settings.customTheme);
   const booted = useRef(false);
+  const [dragging, setDragging] = useState(false);
 
   const boot = () => {
     if (booted.current) return;
@@ -50,9 +60,20 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    const clearDrag = () => setDragging(false);
+    window.addEventListener('dragend', clearDrag);
+    window.addEventListener('drop', clearDrag);
+    return () => {
+      window.removeEventListener('dragend', clearDrag);
+      window.removeEventListener('drop', clearDrag);
+    };
+  }, []);
+
+  useEffect(() => {
     let raf = 0;
     const loop = () => {
-      useApp.getState().updatePlayhead();
+      const state = useApp.getState();
+      if (state.transport.playing) state.updatePlayhead();
       raf = requestAnimationFrame(loop);
     };
     raf = requestAnimationFrame(loop);
@@ -175,6 +196,23 @@ export default function App() {
     return () => window.removeEventListener('keydown', onKeyDown);
   }, []);
 
+  const handleDrop = async (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    setDragging(false);
+    const files = Array.from(e.dataTransfer.files ?? []);
+    if (!files.length) return;
+    const state = useApp.getState();
+    const songs = files.filter((f) => /\.(mid|midi|smf|als|rpp|obeats)$/i.test(f.name));
+    const audio = files.filter(
+      (f) => f.type.startsWith('audio/') || /\.(wav|mp3|ogg|oga|flac|m4a|aiff?|webm)$/i.test(f.name),
+    );
+    if (songs[0]) await state.importSongFile(songs[0]);
+    if (audio.length) await state.importSampleFiles(audio);
+    if (!songs.length && !audio.length) {
+      state.toast('Drop an audio file, MIDI, .als, .rpp or .obeats project');
+    }
+  };
+
   const beginRackResize = (e: React.PointerEvent<HTMLDivElement>) => {
     e.preventDefault();
     const startX = e.clientX;
@@ -197,22 +235,52 @@ export default function App() {
       style={{ ...(themeVars(theme, settings.accent) as React.CSSProperties), ['--scale' as string]: settings.scale }}
       onPointerDown={boot}
       onContextMenu={(e) => e.preventDefault()}
+      onDragEnter={(e) => {
+        if (e.dataTransfer.types.includes('Files')) setDragging(true);
+      }}
+      onDragOver={(e) => {
+        if (e.dataTransfer.types.includes('Files')) {
+          e.preventDefault();
+          e.dataTransfer.dropEffect = 'copy';
+          setDragging(true);
+        }
+      }}
+      onDragLeave={(e) => {
+        if (e.currentTarget === e.target) setDragging(false);
+      }}
+      onDrop={(e) => void handleDrop(e)}
     >
-      <TopBar />
+      <a className="skip-link" href="#main-workspace">
+        Skip to workspace
+      </a>
+      <MemoTopBar />
       <UpdateBanner />
 
       <div className="workspace">
-        <BrowserPanel />
+        <MemoBrowserPanel />
         <div className="center">
-          <ChannelRack />
+          <MemoChannelRack />
           <div className="resizer-v" onPointerDown={beginRackResize} title="Drag to resize the channel rack" />
-          <div className="main">
-            <div className="tabs">
+          <div className="main" id="main-workspace" tabIndex={-1}>
+            <div className="tabs" role="tablist" aria-label="Workspace views">
               {TABS.map((tab) => (
                 <button
                   key={tab.id}
+                  id={`tab-${tab.id}`}
+                  role="tab"
+                  aria-selected={ui.tab === tab.id}
+                  aria-controls={`panel-${tab.id}`}
+                  tabIndex={ui.tab === tab.id ? 0 : -1}
                   className={`tab ${ui.tab === tab.id ? 'active' : ''}`}
                   onClick={() => useApp.getState().setUI({ tab: tab.id })}
+                  onKeyDown={(e) => {
+                    if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
+                    e.preventDefault();
+                    const index = TABS.findIndex((t) => t.id === tab.id);
+                    const next = TABS[(index + (e.key === 'ArrowRight' ? 1 : -1) + TABS.length) % TABS.length];
+                    useApp.getState().setUI({ tab: next.id });
+                    document.getElementById(`tab-${next.id}`)?.focus();
+                  }}
                 >
                   {tab.icon}
                   {tab.label}
@@ -229,32 +297,56 @@ export default function App() {
                 onClick={() => useApp.getState().setUI({ tutorialStep: 0 })}
                 style={{ margin: '2px 4px 4px' }}
                 title="Guided tour"
+                aria-label="Start the guided tour"
               >
                 ? tour
               </button>
             </div>
-            <div className="tab-body">
-              {ui.tab === 'playlist' && <Playlist />}
-              {ui.tab === 'pianoroll' && <PianoRoll />}
-              {ui.tab === 'mixer' && <Mixer />}
-              {ui.tab === 'changelog' && <Changelog />}
+            <div
+              className="tab-body"
+              id={`panel-${ui.tab}`}
+              role="tabpanel"
+              aria-labelledby={`tab-${ui.tab}`}
+            >
+              {ui.tab === 'playlist' && <MemoPlaylist />}
+              {ui.tab === 'pianoroll' && <MemoPianoRoll />}
+              {ui.tab === 'mixer' && <MemoMixer />}
+              {ui.tab === 'changelog' && (
+                <Suspense fallback={<div className="browser-empty">Loading release notes…</div>}>
+                  <Changelog />
+                </Suspense>
+              )}
             </div>
           </div>
         </div>
       </div>
 
-      <HintBar />
+      <MemoHintBar />
 
-      {ui.contextMenu && <ContextMenu />}
-      <CommandPalette />
-      <FixMyMix />
-      <HumToMelody />
-      <InspireDialog />
-      <ExchangeDialog />
-      {ui.settingsOpen && <SettingsDialog />}
-      {ui.aboutOpen && <HelpDialog />}
-      {ui.tutorialStep !== null && <Tutorial />}
-      {toast && <div className="toast">{toast}</div>}
+      <Suspense fallback={null}>
+        {ui.contextMenu && <ContextMenu />}
+        {ui.paletteOpen && <CommandPalette />}
+        {ui.fixMixOpen && <FixMyMix />}
+        {ui.humOpen && <HumToMelody />}
+        {ui.inspireOpen && <InspireDialog />}
+        {ui.exchangeOpen && <ExchangeDialog />}
+        {ui.settingsOpen && <SettingsDialog />}
+        {ui.aboutOpen && <HelpDialog />}
+        {ui.tutorialStep !== null && <Tutorial />}
+      </Suspense>
+      {dragging && (
+        <div className="drop-overlay" role="status" aria-live="assertive">
+          <div className="drop-card">
+            <strong>Drop it</strong>
+            <span>Audio → new sampler channels · MIDI / .als / .rpp / .obeats → open the song</span>
+          </div>
+        </div>
+      )}
+      {toast && (
+        <div className="toast" role="status" aria-live="polite">
+          {toast}
+        </div>
+      )}
     </div>
   );
 }

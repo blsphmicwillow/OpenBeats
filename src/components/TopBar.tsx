@@ -225,16 +225,20 @@ export function TopBar() {
           onClick={togglePlay}
           onMouseEnter={() => hint('Play / pause (Space).')}
           title="Play / pause (Space)"
+          aria-label={transport.playing ? 'Pause' : 'Play'}
+          aria-pressed={transport.playing}
         >
           <IconPlay />
         </button>
-        <button className="tbtn" onClick={rewind} title="Stop and return to the start" onMouseEnter={() => hint('Stop and return to bar 1.')}>
+        <button className="tbtn" onClick={rewind} title="Stop and return to the start" aria-label="Stop" onMouseEnter={() => hint('Stop and return to bar 1.')}>
           <IconStop />
         </button>
         <button
           className={`tbtn rec ${transport.record ? 'active' : ''}`}
           onClick={toggleRecord}
           title="Record arm (R)"
+          aria-label="Record arm"
+          aria-pressed={transport.record}
           onMouseEnter={() => hint('Arm recording: play the QWERTY keys while rolling to write notes into the current pattern.')}
         >
           <IconRecord />
@@ -260,6 +264,22 @@ export function TopBar() {
           }}
           onWheel={(e) => stepBpm(e.deltaY < 0 ? 1 : -1)}
           onDoubleClick={() => setBpm(120)}
+          role="slider"
+          tabIndex={0}
+          aria-label="Tempo in beats per minute"
+          aria-valuemin={40}
+          aria-valuemax={300}
+          aria-valuenow={Math.round(project.bpm)}
+          onKeyDown={(e) => {
+            if (e.key === 'ArrowUp' || e.key === 'ArrowRight') stepBpm(1);
+            else if (e.key === 'ArrowDown' || e.key === 'ArrowLeft') stepBpm(-1);
+            else if (e.key === 'PageUp') stepBpm(10);
+            else if (e.key === 'PageDown') stepBpm(-10);
+            else if (e.key === 'Home') setBpm(40);
+            else if (e.key === 'End') setBpm(300);
+            else return;
+            e.preventDefault();
+          }}
         >
           <span className="display-label">tempo</span>
           <span className="display-value">
@@ -292,6 +312,8 @@ export function TopBar() {
             className={`tbtn ${project.loop ? 'active' : ''}`}
             onClick={() => patchProject((p) => (p.loop = !p.loop))}
             title="Loop"
+            aria-label="Loop"
+            aria-pressed={project.loop}
             onMouseEnter={() => hint('Loop the pattern / song arrangement.')}
           >
             <IconLoop />
@@ -300,6 +322,8 @@ export function TopBar() {
             className={`tbtn ${project.metronome ? 'active' : ''}`}
             onClick={toggleMetronome}
             title="Metronome (C)"
+            aria-label="Metronome"
+            aria-pressed={project.metronome}
             onMouseEnter={() => hint('Metronome click on every beat.')}
           >
             <IconMetro />
@@ -311,7 +335,7 @@ export function TopBar() {
         <button className="tbtn small pattern-nav" onClick={() => {
           const idx = project.patterns.findIndex((p) => p.id === project.currentPattern);
           selectPattern(project.patterns[(idx - 1 + project.patterns.length) % project.patterns.length].id);
-        }} title="Previous pattern (PageUp)">
+        }} title="Previous pattern (PageUp)" aria-label="Previous pattern">
           ‹
         </button>
         <select
@@ -333,13 +357,13 @@ export function TopBar() {
         <button className="tbtn small pattern-nav" onClick={() => {
           const idx = project.patterns.findIndex((p) => p.id === project.currentPattern);
           selectPattern(project.patterns[(idx + 1) % project.patterns.length].id);
-        }} title="Next pattern (PageDown)">
+        }} title="Next pattern (PageDown)" aria-label="Next pattern">
           ›
         </button>
-        <button className="tbtn small pattern-extra" onClick={addPattern} title="New pattern">
+        <button className="tbtn small pattern-extra" onClick={addPattern} title="New pattern" aria-label="New pattern">
           <IconPlus size={11} />
         </button>
-        <button className="tbtn small pattern-extra" onClick={() => duplicatePattern()} title="Clone pattern (Ctrl+D)">
+        <button className="tbtn small pattern-extra" onClick={() => duplicatePattern()} title="Clone pattern (Ctrl+D)" aria-label="Clone pattern">
           <IconCopy size={11} />
         </button>
       </div>
@@ -366,16 +390,16 @@ export function TopBar() {
       <div className="spacer" />
 
       <div className="tb-group history-group" style={{ borderLeft: 0 }}>
-        <button className="tbtn flat" onClick={undo} disabled={!history.past.length} title="Undo (Ctrl+Z)">
+        <button className="tbtn flat" onClick={undo} disabled={!history.past.length} title="Undo (Ctrl+Z)" aria-label="Undo">
           <IconUndo size={13} />
         </button>
-        <button className="tbtn flat" onClick={redo} disabled={!history.future.length} title="Redo (Ctrl+Shift+Z)">
+        <button className="tbtn flat" onClick={redo} disabled={!history.future.length} title="Redo (Ctrl+Shift+Z)" aria-label="Redo">
           <IconRedo size={13} />
         </button>
       </div>
 
       <div className="tb-group actions-group">
-        <button className="tbtn" onClick={saveProjectFile} title="Save project (Ctrl+S)" onMouseEnter={() => hint('Save the whole project as a portable .obeats file.')}>
+        <button className="tbtn" onClick={saveProjectFile} title="Save project (Ctrl+S)" aria-label="Save project" onMouseEnter={() => hint('Save the whole project as a portable .obeats file.')}>
           <IconSave size={13} />
         </button>
         <button
@@ -383,6 +407,7 @@ export function TopBar() {
           onClick={() => void exportWav()}
           disabled={!!ui.exporting}
           title="Bounce the song to WAV"
+          aria-label="Bounce the song to WAV"
           onMouseEnter={() => hint('Bounce the arrangement to a 16-bit stereo WAV using an offline render.')}
         >
           <IconDownload size={13} />
@@ -392,13 +417,15 @@ export function TopBar() {
           className={`tbtn ${ui.browserOpen ? 'active' : ''}`}
           onClick={() => setUI({ browserOpen: !ui.browserOpen })}
           title="Browser (F10)"
+          aria-label="Toggle sample browser"
+          aria-pressed={ui.browserOpen}
         >
           <IconFolder size={13} />
         </button>
-        <button className="tbtn" onClick={() => setUI({ settingsOpen: true })} title="Settings (F11)" data-tour="settings">
+        <button className="tbtn" onClick={() => setUI({ settingsOpen: true })} title="Settings (F11)" aria-label="Open settings" data-tour="settings">
           <IconGear size={13} />
         </button>
-        <button className="tbtn" onClick={() => setUI({ aboutOpen: true })} title="Manual, shortcuts and credits (F1)">
+        <button className="tbtn" onClick={() => setUI({ aboutOpen: true })} title="Manual, shortcuts and credits (F1)" aria-label="Open manual and shortcuts">
           <IconHelp size={13} />
         </button>
       </div>

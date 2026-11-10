@@ -501,7 +501,7 @@ export function defaultSettings(): Settings {
     highContrast: false,
     focusRings: true,
     reduceTransparency: false,
-    autoSave: true,
+    autosaveMinutes: 2,
     keymap: { ...DEFAULT_KEYMAP },
     tutorialDone: false,
     sweepDemo: false,

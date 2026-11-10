@@ -1,10 +1,8 @@
 import { useRef, useState } from 'react';
 import { previewChannel, useApp } from '../store';
-import { PRESETS, createChannel, uid } from '../model/defaults';
+import { PRESETS, createChannel } from '../model/defaults';
 import { SAMPLE_BANK } from '../audio/instruments';
-import { engine } from '../audio/engine';
 import { IconDownload, IconFolder, IconPlus, IconSearch, IconWave } from '../ui/icons';
-import { analyzeSample } from '../lib/tagging';
 import type { PresetId } from '../model/types';
 
 type Tab = 'packs' | 'projects' | 'samples';
@@ -16,7 +14,7 @@ export function BrowserPanel() {
   const [query, setQuery] = useState('');
   const sampleInput = useRef<HTMLInputElement>(null);
   const projectInput = useRef<HTMLInputElement>(null);
-  const { addChannel, saveProjectFile, openProjectFile, newProject, exportWav, updateChannel, toast, initAudio, setUI, hint } = useApp.getState();
+  const { addChannel, saveProjectFile, openProjectFile, newProject, exportWav, updateChannel, importSampleFiles, setUI, hint } = useApp.getState();
 
   if (!ui.browserOpen) return null;
 
@@ -26,33 +24,7 @@ export function BrowserPanel() {
   const groups = Array.from(new Set(filtered.map((p) => p.category)));
 
   const loadSample = async (file: File) => {
-    await initAudio();
-    const ctx = engine.ctx;
-    if (!ctx) {
-      toast('Audio could not start — check your browser permissions');
-      return;
-    }
-    try {
-      const buffer = await ctx.decodeAudioData(await file.arrayBuffer());
-      const id = uid('smp');
-      SAMPLE_BANK.set(id, buffer);
-      const tags = analyzeSample(buffer);
-      const target = project.channels.find((c) => c.id === project.selectedChannel) ?? project.channels[0];
-      const name = file.name.replace(/\.[^.]+$/, '').slice(0, 22);
-      if (target) {
-        updateChannel(target.id, {
-          preset: 'sample',
-          name,
-          sample: { id, name, root: 60, tags: tags.tags, bpm: tags.bpm, brightness: tags.brightness, kind: tags.type },
-          gain: 0.85,
-        });
-        toast(`“${file.name}” — ${tags.tags.join(', ')}`);
-      } else {
-        toast('Add a channel first, then load the sample');
-      }
-    } catch {
-      toast('That audio file could not be decoded');
-    }
+    await importSampleFiles([file], true);
   };
 
   return (

@@ -246,7 +246,8 @@ export interface Settings {
   focusRings: boolean;
   /** Replace translucent glass with opaque panels and disable blur. */
   reduceTransparency: boolean;
-  autoSave: boolean;
+  /** Minutes between autosaves; 0 disables timed autosave. */
+  autosaveMinutes: 0 | 2 | 5 | 10 | 15 | 30 | 60;
   keymap: Record<KeyAction, string>;
   tutorialDone: boolean;
   sweepDemo: boolean;
