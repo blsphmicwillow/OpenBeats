@@ -105,6 +105,7 @@ export function TopBar() {
     { label: 'Mixer', shortcut: 'F9', checked: ui.tab === 'mixer', onClick: () => setUI({ tab: 'mixer' }) },
     { separator: true },
     { label: 'Browser panel', checked: ui.browserOpen, onClick: () => setUI({ browserOpen: !ui.browserOpen }) },
+    { label: 'Plugin library…', checked: ui.pluginsOpen, onClick: () => setUI({ pluginsOpen: true }) },
     { label: 'Settings…', shortcut: 'F11', onClick: () => setUI({ settingsOpen: true }) },
   ];
 
@@ -176,6 +177,7 @@ export function TopBar() {
     { label: 'Piano roll', checked: ui.tab === 'pianoroll', onClick: () => setUI({ tab: 'pianoroll' }) },
     { label: 'Mixer', checked: ui.tab === 'mixer', onClick: () => setUI({ tab: 'mixer' }) },
     { label: 'Browser', checked: ui.browserOpen, onClick: () => setUI({ browserOpen: !ui.browserOpen }) },
+    { label: 'Plugin library…', onClick: () => setUI({ pluginsOpen: true }) },
     { separator: true },
     { label: 'Tutorial', onClick: () => setUI({ tutorialStep: 0 }) },
     { label: 'Manual & shortcuts', onClick: () => setUI({ aboutOpen: true }) },
@@ -423,6 +425,9 @@ export function TopBar() {
           aria-pressed={ui.browserOpen}
         >
           <IconFolder size={13} />
+        </button>
+        <button className="tbtn" onClick={() => setUI({ pluginsOpen: true })} title="Browse VST3/CLAP plugins" aria-label="Open plugin library">
+          Plugins
         </button>
         <button className="tbtn" onClick={() => setUI({ settingsOpen: true })} title="Settings (F11)" aria-label="Open settings" data-tour="settings">
           <IconGear size={13} />

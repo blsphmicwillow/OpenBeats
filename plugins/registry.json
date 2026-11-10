@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "updatedAt": "2026-11-10",
+  "plugins": [
+    {
+      "id": "openbeats-gain",
+      "name": "OpenBeats Gain",
+      "author": "OpenBeats",
+      "description": "A transparent, smoothed ±30 dB gain utility with stereo and mono layouts. The first-party proof that OpenBeats plugins can ship as native VST3 and CLAP bundles.",
+      "homepage": "https://github.com/blsphmicwillow/OpenBeats/tree/main/plugins/openbeats-gain",
+      "repo": "blsphmicwillow/OpenBeats",
+      "releaseTag": "openbeats-gain-v0.1.0",
+      "assetPattern": "^OpenBeatsGain-.*-linux-x86_64\\.tar\\.gz$",
+      "formats": ["vst3", "clap"],
+      "platforms": ["linux-x86_64"],
+      "license": "GPL-3.0-or-later",
+      "verified": true,
+      "featured": true,
+      "notes": "Install in a VST3 or CLAP host such as Bitwig, REAPER, Ardour or Carla. OpenBeats 1.0.0 browses and downloads plugins but does not host them yet."
+    }
+  ]
+}

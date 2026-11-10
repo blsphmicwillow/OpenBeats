@@ -5,19 +5,20 @@ use std::process::Command;
 use std::sync::Mutex;
 use tauri_plugin_dialog::DialogExt;
 
+/// OpenBeats' Discord application. Rich Presence uses this app ID for every
+/// install, so users no longer have to create or paste their own.
+const DISCORD_CLIENT_ID: &str = "1569568675198140446";
+
 static DISCORD: Mutex<Option<DiscordIpcClient>> = Mutex::new(None);
 
 #[tauri::command]
-fn discord_presence(client_id: String, details: String, state: String) -> bool {
+fn discord_presence(details: String, state: String) -> bool {
     let mut guard = match DISCORD.lock() {
         Ok(guard) => guard,
         Err(_) => return false,
     };
     if guard.is_none() {
-        let mut client = match DiscordIpcClient::new(&client_id) {
-            Ok(client) => client,
-            Err(_) => return false,
-        };
+        let mut client = DiscordIpcClient::new(DISCORD_CLIENT_ID).unwrap();
         if client.connect().is_err() {
             return false;
         }

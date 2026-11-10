@@ -40,6 +40,9 @@ export const CHANGELOG: ChangelogEntry[] = [
           'Update checks against GitHub Releases with a dismissible banner; automatic launch checks can be switched off completely.',
           'Arch Linux openbeats-bin package: installs the 1.0.0 AppImage to /opt/openbeats with GTK, GStreamer and PulseAudio dependencies declared.',
           'Install guide covers Arch/AUR, AppImage, deb, RPM, Windows, macOS and source builds, plus a README FAQ.',
+          'Plugin library with search and VST3/CLAP filters, backed by a GitHub registry and bundled offline fallback; downloads open the publisher release.',
+          'OpenBeats Gain proof plugin: Rust nice-plug source exporting VST3 and CLAP, with a Linux bundle and build script. Hosting inside OpenBeats remains future work.',
+          'Community plugin submission template and registry validation scripts.',
         ],
       },
       {
@@ -97,7 +100,7 @@ export const CHANGELOG: ChangelogEntry[] = [
         items: [
           'Undo and redo are global, including when a select or dropdown has focus (Ctrl/Cmd+Z, Shift+Z, Y).',
           'Select and option text is explicitly colored against light and dark themes, with native color-scheme support.',
-          'Discord Rich Presence setting with an application-ID field; reports “Making a beat..” and the project name, and can be switched off.',
+          'Discord Rich Presence now uses OpenBeats built-in application ID 1569568675198140446; reports “Making a beat..” and the project name, and can be switched off.',
         ],
       },
       {
@@ -127,7 +130,7 @@ export const CHANGELOG: ChangelogEntry[] = [
       {
         title: 'Compatibility',
         items: [
-          'Third-party VST3/AU hosting is not included in 1.0.0; MIDI, .als import and .rpp provide the DAW bridge.',
+          'Third-party VST3/AU hosting is not included in 1.0.0; the plugin library, OpenBeats Gain and file downloads ship, but loading plugins into the mixer remains future work.',
           'FL Studio .flp is a proprietary binary format, so FL Studio projects travel through MIDI rather than .flp.',
           'The Rust/CPAL audio migration is planned in docs/RUST_AUDIO.md; 1.0.0 still renders with Web Audio.',
         ],

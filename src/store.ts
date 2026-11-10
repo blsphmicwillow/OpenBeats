@@ -268,6 +268,7 @@ export const useApp = create<AppState>((set, get) => ({
     inspireOpen: false,
     exchangeOpen: false,
     projectHubOpen: false,
+    pluginsOpen: false,
     update: null,
     updateChecking: false,
     exporting: null,

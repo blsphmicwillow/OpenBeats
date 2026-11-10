@@ -102,6 +102,23 @@ Never commit the private key.
 - **macOS**: set `APPLE_CERTIFICATE`, `APPLE_CERTIFICATE_PASSWORD`, `APPLE_SIGNING_IDENTITY`, `APPLE_ID`, `APPLE_PASSWORD`, `APPLE_TEAM_ID`. Unsigned builds trigger Gatekeeper warnings.
 - **Windows**: an Authenticode certificate avoids SmartScreen warnings; wire it through `tauri-action`'s signing inputs.
 
+## Plugin example
+
+The first-party proof plugin is a separate Rust crate and does not depend on the
+Tauri app build:
+
+```bash
+cd plugins/openbeats-gain
+./build.sh
+```
+
+Requirements: Rust 1.88+ and a C toolchain. The script builds both export targets
+and writes `OpenBeatsGain.clap` plus `OpenBeatsGain.vst3/Contents/<platform>/`.
+On Linux it also creates `OpenBeatsGain-0.1.0-linux-x86_64.tar.gz`.
+
+Validate the plugin library entries with `npm run plugins:check`. See
+[PLUGINS.md](PLUGINS.md) for the registry and the native-hosting boundary.
+
 ## Verifying a build
 
 ```bash

@@ -25,6 +25,7 @@ const HumToMelody = lazy(() => import('./components/HumToMelody').then((m) => ({
 const InspireDialog = lazy(() => import('./components/InspireDialog').then((m) => ({ default: m.InspireDialog })));
 const ExchangeDialog = lazy(() => import('./components/ExchangeDialog').then((m) => ({ default: m.ExchangeDialog })));
 const ProjectHub = lazy(() => import('./components/ProjectHub').then((m) => ({ default: m.ProjectHub })));
+const PluginBrowser = lazy(() => import('./components/PluginBrowser').then((m) => ({ default: m.PluginBrowser })));
 
 const MemoTopBar = memo(TopBar);
 const MemoBrowserPanel = memo(BrowserPanel);
@@ -68,16 +69,15 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (!settings.discordRpc || !settings.discordClientId) {
+    if (!settings.discordRpc) {
       void nativeInvoke('discord_clear');
       return;
     }
     void nativeInvoke('discord_presence', {
-      clientId: settings.discordClientId,
       details: 'Making a beat..',
       state: project.name,
     });
-  }, [settings.discordRpc, settings.discordClientId, project.name]);
+  }, [settings.discordRpc, project.name]);
 
   useEffect(() => {
     if (!useApp.getState().settings.autoCheckUpdates) return;
@@ -367,6 +367,7 @@ export default function App() {
         {ui.inspireOpen && <InspireDialog />}
         {ui.exchangeOpen && <ExchangeDialog />}
         {ui.projectHubOpen && <ProjectHub />}
+        {ui.pluginsOpen && <PluginBrowser />}
         {ui.settingsOpen && <SettingsDialog />}
         {ui.aboutOpen && <HelpDialog />}
         {ui.tutorialStep !== null && <Tutorial />}

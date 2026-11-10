@@ -1,0 +1,72 @@
+name: Plugin submission
+description: Propose a VST3 or CLAP plugin for the OpenBeats plugin library
+title: "[Plugin] "
+labels: ["plugin-registry", "needs-review"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for submitting a plugin. The library only lists public GitHub
+        Releases; it does not host or execute plugin binaries in OpenBeats 1.0.0.
+        Do not include passwords, tokens, or private download links.
+  - type: input
+    id: name
+    attributes:
+      label: Plugin name
+    validations:
+      required: true
+  - type: input
+    id: repo
+    attributes:
+      label: GitHub repository
+      description: Public owner/repo, for example `you/my-plugin`
+      placeholder: owner/repo
+    validations:
+      required: true
+  - type: input
+    id: release
+    attributes:
+      label: Release tag (optional)
+      description: Leave blank to follow the repository's latest non-prerelease release.
+  - type: dropdown
+    id: formats
+    attributes:
+      label: Formats
+      multiple: true
+      options:
+        - VST3
+        - CLAP
+        - AU
+    validations:
+      required: true
+  - type: input
+    id: platform
+    attributes:
+      label: Supported platforms
+      description: Linux, macOS, Windows, and architectures if relevant.
+      placeholder: Linux x86_64, macOS universal, Windows x64
+    validations:
+      required: true
+  - type: input
+    id: license
+    attributes:
+      label: License
+      placeholder: GPL-3.0-or-later
+    validations:
+      required: true
+  - type: textarea
+    id: description
+    attributes:
+      label: Short description
+      description: One or two sentences shown in the plugin library.
+    validations:
+      required: true
+  - type: checkboxes
+    id: confirm
+    attributes:
+      label: Confirmation
+      options:
+        - label: The repository and release assets are public and I have permission to distribute them.
+          required: true
+        - label: I understand that listing is not a security audit and OpenBeats does not host plugins yet.
+          required: true

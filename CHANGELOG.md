@@ -30,6 +30,9 @@ This is the first official release. Everything below shipped in this build; ther
 - `.github/workflows/release.yml` builds all three platforms on every push to `main`; a `v*` tag publishes the release.
 - **Arch Linux package** (`openbeats-bin`): the 1.0.0 AppImage extracts to `/opt/openbeats`, `/usr/bin/openbeats` is added, and GTK, GStreamer, audio-server and icon dependencies are declared. Install locally with `cd packaging/arch && yay -Bi .`; AUR publication steps are documented.
 - **[docs/INSTALL.md](docs/INSTALL.md)** now covers Arch/AUR, AppImage, deb, RPM, Windows, macOS and source builds, with a README download matrix and FAQ.
+- **Plugin library** (View → Plugin library…): a searchable, format-filtered browser backed by [`plugins/registry.json`](plugins/registry.json) and live GitHub Release metadata, with an offline bundled fallback and download links.
+- **OpenBeats Gain** proof plugin in [`plugins/openbeats-gain`](plugins/openbeats-gain): a Rust `nice-plug` audio effect exporting both VST3 and CLAP, with a Linux release bundle and build script. OpenBeats 1.0.0 browses and downloads plugins; it still does not host them in the mixer.
+- Community plugin submission template and registry validator (`npm run plugins:check`).
 
 ### Interchange
 
@@ -75,7 +78,7 @@ This is the first official release. Everything below shipped in this build; ther
 
 - **Undo/redo is global** across the studio, including when a dropdown has focus; `Ctrl/Cmd+Z`, `Ctrl/Cmd+Shift+Z` and `Ctrl/Cmd+Y` work from the playlist, rack, piano roll and mixer.
 - Select and option text is explicitly themed against its background, with `color-scheme` set for light and dark themes so native menus never inherit white-on-white or white-on-dark text.
-- **Discord Rich Presence** toggle and application-ID field in Settings → Workflow. When configured it reports “Making a beat..” with the current project name; turning it off clears the presence.
+- **Discord Rich Presence** toggle in Settings → Workflow. It now uses OpenBeats' built-in Discord application ID (`1569568675198140446`), reports “Making a beat..” with the current project name, and clears the presence when switched off.
 
 ### Interface
 
@@ -99,8 +102,7 @@ This is the first official release. Everything below shipped in this build; ther
 
 ### Compatibility notes
 
-- Third-party **VST3/AU hosting is not included** in 1.0.0. MIDI, `.als` import and `.rpp` provide the DAW bridge; a
-  native plugin host needs per-platform SDK work that is not part of this release.
+- Third-party **VST3/AU hosting is not included** in 1.0.0. The plugin library and OpenBeats Gain prove discovery, packaging and download; a native plugin host and audio bridge need per-platform SDK work that is not part of this release.
 - FL Studio `.flp` is a proprietary binary event stream, so FL Studio projects travel through MIDI rather than `.flp`.
 - The **Rust/CPAL audio migration plan** is published in `docs/RUST_AUDIO.md`. 1.0.0 still renders with Web Audio; a
   native engine requires ALSA development headers (and equivalent platform work) plus the staged port described there.

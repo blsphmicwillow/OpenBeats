@@ -1,0 +1,22 @@
+[package]
+name = "openbeats-gain"
+version = "0.1.0"
+edition = "2024"
+license = "GPL-3.0-or-later"
+description = "OpenBeats Gain — a small VST3/CLAP proof-of-concept plugin"
+repository = "https://github.com/blsphmicwillow/OpenBeats"
+homepage = "https://github.com/blsphmicwillow/OpenBeats"
+authors = ["OpenBeats"]
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+# nice-plug is the community-maintained continuation of nih-plug.
+# VST3 is optional in the crate so the CLAP build stays lean.
+nice-plug = { version = "=0.4.2", default-features = false, features = ["vst3"] }
+
+[profile.release]
+codegen-units = 1
+lto = "thin"
+strip = "symbols"

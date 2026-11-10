@@ -11,6 +11,8 @@
     "preview": "vite preview",
     "typecheck": "tsc -b --pretty false",
     "icons": "node scripts/make-icons.mjs",
+    "plugins:check": "node scripts/validate-plugins.mjs",
+    "plugins:fetch": "node scripts/fetch-plugins.mjs",
     "tauri": "tauri",
     "desktop": "tauri dev",
     "desktop:build": "tauri build"

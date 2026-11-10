@@ -503,7 +503,6 @@ export function defaultSettings(): Settings {
     reduceTransparency: false,
     autosaveMinutes: 2,
     discordRpc: true,
-    discordClientId: '',
     keymap: { ...DEFAULT_KEYMAP },
     tutorialDone: false,
     sweepDemo: false,

@@ -150,9 +150,11 @@ system GStreamer plugins that WebKit loads for audio, plus icon and desktop
 integration.
 
 **Can I use VST3, AU or CLAP plugins?**
-Not in 1.0.0. Hosting third-party plugins needs a native plugin host and audio
-bridge; the honest status and plan are in [docs/PLUGINS.md](docs/PLUGINS.md).
-MIDI, `.als` import and `.rpp` import/export are the current DAW bridge.
+OpenBeats 1.0.0 includes a **plugin library** for browsing and downloading native
+VST3/CLAP releases, but it does **not host** them in the mixer yet. Hosting needs
+a native plugin host and audio bridge; the honest status and plan are in
+[docs/PLUGINS.md](docs/PLUGINS.md). The first-party **OpenBeats Gain** proof
+plugin and community registry are included.
 
 **Does it need an account or the internet?**
 No. Projects, samples and exports stay local. The only network request is the
@@ -198,7 +200,7 @@ version.
 
 ### Discord Rich Presence
 - Toggle in **Settings → Workflow**. When enabled, Discord shows **“Making a beat..”** with the current project name.
-- Discord requires an application client ID: create an app at [discord.com/developers](https://discord.com/developers/applications), paste its Application ID into Settings, and the native bridge connects over Discord IPC. Switching the toggle off disconnects it.
+- Rich Presence uses OpenBeats' built-in Discord application ID (`1569568675198140446`), so there is no application ID to create or paste. Switching the toggle off disconnects it.
 
 ### Projects
 - **Projects** dialog (File → Projects…): open old songs, start a new one, save the current song and delete entries.
@@ -210,11 +212,16 @@ version.
 - **REAPER project import and export** (`.rpp`) — text project with tracks and MIDI items.
 - `.obeats` remains the lossless round-trip; WAV is the audio path. Details and fidelity limits: [docs/EXCHANGE.md](docs/EXCHANGE.md).
 
-### Sounds, drag-and-drop and plugins
+### Sounds and drag-and-drop
 - **Drop audio files anywhere** on the studio to add sampler channels; dropping several files imports them at once.
 - Drop `.mid`, `.als`, `.rpp` or `.obeats` files to open a song, with a visible drop target and a clear import report.
 - Imported one-shots are auto-tagged (BPM, brightness, family) and kept in the session sample bank.
-- **VST3/AU hosting is not in 1.0.0.** Loading third-party plugin binaries needs a native per-platform host and audio bridge, not a Web Audio feature. The current DAW bridge is MIDI / `.als` import / `.rpp`; the intended architecture and acceptance tests are in [docs/PLUGINS.md](docs/PLUGINS.md).
+
+### Plugin library
+- **View → Plugin library…** (or the **Plugins** button) lists community VST3/CLAP releases from the GitHub-backed registry in [`plugins/registry.json`](plugins/registry.json).
+- The first-party **OpenBeats Gain** proof plugin is built in [`plugins/openbeats-gain`](plugins/openbeats-gain); its release archive contains both `.clap` and `.vst3` bundles.
+- Download links open the publisher's GitHub Release. There is no silent install and no fake host: **loading plugins into OpenBeats is still not implemented in 1.0.0**.
+- Community submissions go through [the plugin submission form](.github/ISSUE_TEMPLATE/plugin-submission.yml); `npm run plugins:check` validates the registry.
 
 ### Desktop integration
 - Native save/open dialogs and “reveal in folder”.
@@ -264,6 +271,8 @@ npm run desktop      # Tauri window with hot reload
 npm run build        # type-check + production bundle
 npm run desktop:build# native binary + installers in src-tauri/target/release/bundle
 npm run icons        # regenerate app icons from scripts/make-icons.mjs
+npm run plugins:check # validate plugins/registry.json
+npm run plugins:fetch # resolve GitHub Releases into plugins/registry.lock.json
 ```
 
 Repository layout and data flow: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
@@ -283,8 +292,10 @@ src/
   lib/          analysis, mastering, theory, tagging, updates, native bridge
   model/        project types and demo song
 src-tauri/      Rust shell, capabilities, icons, bundler config
+plugins/        registry, submission guide and OpenBeats Gain example
+  openbeats-gain/  Rust VST3 + CLAP proof plugin
 docs/           build, architecture and theming guides
-scripts/        icon generation
+scripts/        icon generation and plugin validation/fetching
 ```
 
 ---
@@ -294,6 +305,7 @@ scripts/        icon generation
 - Installers are produced by CI. Building them requires the platform SDKs (Xcode on macOS, MSVC on Windows); cross-building installers is not supported.
 - The Linux packages built here target Ubuntu 24.04 (glibc 2.39). CI builds on Ubuntu 22.04 for a wider glibc range; rebuild there if you need older distributions.
 - The update checker **notifies** and links to the release. Silent in-app installation is prepared but needs a signed Tauri updater key pair (`TAURI_SIGNING_PRIVATE_KEY`, `plugins.updater.pubkey`) — see the build guide.
+- The plugin library downloads public GitHub Release assets only; it does **not** load them. Native hosting remains a separate engine milestone.
 - The assistants are deterministic local DSP, not a hosted language model. Nothing is uploaded.
 - Not implemented yet: stem separation, a WASM wavetable synth, mixer folders, track freeze, PDC, per-clip effects, project snapshots, dockable panels, a spectral editor and a live-performance mode. See [ROADMAP.md](ROADMAP.md).
 
