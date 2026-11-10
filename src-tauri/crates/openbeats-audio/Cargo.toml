@@ -1,6 +1,6 @@
 [package]
 name = "openbeats-audio"
-version = "1.0.3"
+version = "1.0.4"
 edition = "2021"
 rust-version = "1.92"
 description = "OpenBeats native audio engine: DSP, sequencer, synth voices and the CPAL device layer"

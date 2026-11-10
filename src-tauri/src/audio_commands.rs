@@ -10,7 +10,7 @@ use openbeats_audio::arp::{ArpEvent, Arpeggiator};
 use openbeats_audio::automation::{AutomationLane, AutomationSet};
 use openbeats_audio::chord::{chord_for, chord_stamp, suggest_progression, Chord};
 use openbeats_audio::command::{parse_command, ParsedCommand};
-use openbeats_audio::devices::AudioDeviceInfo;
+use openbeats_audio::devices::AudioDevices;
 use openbeats_audio::effect_graph::ModularGraph;
 use openbeats_audio::engine::list_devices;
 use openbeats_audio::engine::{EngineSnapshot, NativeEngine};
@@ -472,7 +472,7 @@ pub fn render_effect_graph(
 
 /// Every input and output device CPAL reports, for the Audio settings tab.
 #[tauri::command]
-pub fn get_audio_devices() -> Vec<AudioDeviceInfo> {
+pub fn get_audio_devices() -> AudioDevices {
     list_devices()
 }
 

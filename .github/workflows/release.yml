@@ -70,7 +70,7 @@ jobs:
       # The DSP, sequencer and feature maths are pure Rust and must stay green.
       - name: Native engine tests
         working-directory: src-tauri
-        run: cargo test -p openbeats-audio --features fundsp-graph,decode,mp3
+        run: cargo test -p openbeats-audio --features device,fundsp-graph,decode,mp3
 
       # Compile and test the desktop crate itself, including the pack commands.
       - name: Desktop crate tests
@@ -146,10 +146,9 @@ jobs:
             Desktop installers for Linux, Windows and macOS. Full notes are in CHANGELOG.md and in the app's
             Changelog tab.
 
-            Linux AppImage: `chmod +x OpenBeats_1.0.3_amd64.AppImage`. If Shelly or your file manager reports
+            Linux AppImage: `chmod +x OpenBeats_1.0.4_amd64.AppImage`. If Shelly or your file manager reports
             `InvalidExe`, install FUSE 3 (`sudo pacman -S fuse3`) or run
-            `./OpenBeats_1.0.3_amd64.AppImage --appimage-extract-and-run`. The 1.0.3 image has been tested
-            with Shelly 3.0.6 and 3.2.1.
+            `./OpenBeats_1.0.4_amd64.AppImage --appimage-extract-and-run`.
           releaseDraft: false
           prerelease: false
           includeUpdaterJson: false
@@ -179,7 +178,7 @@ jobs:
           test -x squashfs-root/usr/bin/openbeats || { echo '::error::AppImage has no executable payload'; exit 1; }
           desktop="squashfs-root/usr/share/applications/OpenBeats.desktop"
           test -f "$desktop" || { echo '::error::AppImage has no desktop entry'; exit 1; }
-          grep -q '^X-AppImage-Version=1.0.3$' "$desktop" || { echo '::error::AppImage desktop entry has no X-AppImage-Version'; exit 1; }
+          grep -q '^X-AppImage-Version=1.0.4$' "$desktop" || { echo '::error::AppImage desktop entry has no X-AppImage-Version'; exit 1; }
           grep -q '^Exec=openbeats$' "$desktop" || { echo '::error::AppImage desktop entry has an unexpected Exec'; exit 1; }
           if find squashfs-root -iname 'libfuse*' -print -quit | grep -q .; then
             echo '::error::AppImage must not bundle FUSE; use the host runtime'

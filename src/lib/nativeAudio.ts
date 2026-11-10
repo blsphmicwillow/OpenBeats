@@ -107,15 +107,16 @@ export interface NativePlaybackState {
   device_swaps: number;
 }
 
-export interface AudioDeviceInfo {
-  name: string;
-  kind: 'output' | 'input';
-  host: string;
+export interface DeviceInfo {
+  /** Host-qualified id sent back to the native input stream. */
+  id: string;
+  friendly_name: string;
   is_default: boolean;
-  channels: number;
-  sample_rate: number;
-  /** True for the Linux PulseAudio/PipeWire bridge. */
-  is_pulse_bridge: boolean;
+}
+
+export interface AudioDevices {
+  inputs: DeviceInfo[];
+  outputs: DeviceInfo[];
 }
 
 export interface NativeGroove {
@@ -288,9 +289,9 @@ export async function nativeAudioDevices(): Promise<string[]> {
 }
 
 /** Every input and output device, for the Audio settings tab. */
-export async function getAudioDevices(): Promise<AudioDeviceInfo[]> {
-  if (!isNative()) return [];
-  return (await nativeInvoke<AudioDeviceInfo[]>('get_audio_devices')) ?? [];
+export async function getAudioDevices(): Promise<AudioDevices> {
+  if (!isNative()) return { inputs: [], outputs: [] };
+  return (await nativeInvoke<AudioDevices>('get_audio_devices')) ?? { inputs: [], outputs: [] };
 }
 
 /** Rebuilds the CPAL stream on a device (null restores the platform default). */

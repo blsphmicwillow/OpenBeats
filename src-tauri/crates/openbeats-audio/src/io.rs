@@ -14,7 +14,7 @@ use std::thread::JoinHandle;
 use std::time::Duration;
 
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
-use cpal::{FromSample, SampleFormat, SizedSample};
+use cpal::{FromSample, SampleFormat, SizedSample, SupportedBufferSize};
 
 use crate::pitch::{detect, Tuning};
 
@@ -361,39 +361,163 @@ impl Drop for InputCapture {
     }
 }
 
+/// A small input period keeps monitoring and the tuner responsive. CPAL will
+/// clamp this to the range the chosen backend actually accepts.
+const INPUT_BUFFER_FRAMES: u32 = 256;
+
+fn host_by_name(name: &str) -> Option<cpal::Host> {
+    cpal::available_hosts()
+        .into_iter()
+        .find(|id| id.name().eq_ignore_ascii_case(name))
+        .and_then(|id| cpal::host_from_id(id).ok())
+}
+
+/// Windows prefers WASAPI and falls back to ASIO when the installed build has
+/// the ASIO backend. macOS always uses CoreAudio so the microphone permission
+/// prompt is attached to the correct host. Linux keeps the host default.
+fn configured_input_host() -> cpal::Host {
+    #[cfg(target_os = "windows")]
+    {
+        for name in ["WASAPI", "ASIO"] {
+            if let Some(host) = host_by_name(name) {
+                return host;
+            }
+        }
+    }
+    #[cfg(target_os = "macos")]
+    {
+        if let Ok(host) = cpal::host_from_id(cpal::HostId::CoreAudio) {
+            return host;
+        }
+    }
+    cpal::default_host()
+}
+
+fn requested_input_host(requested: Option<&str>) -> (cpal::Host, Option<String>) {
+    let Some(id) = requested else {
+        return (configured_input_host(), None);
+    };
+    let (host_name, device_name) = crate::devices::split_device_id(id);
+    let host = host_name
+        .and_then(host_by_name)
+        .unwrap_or_else(configured_input_host);
+    (host, Some(device_name.to_string()))
+}
+
+fn find_input_device(host: &cpal::Host, requested: Option<&str>) -> Option<cpal::Device> {
+    if let Some(name) = requested {
+        if let Ok(devices) = host.input_devices() {
+            if let Some(device) = devices.into_iter().find(|device| {
+                device
+                    .name()
+                    .map(|candidate| candidate.eq_ignore_ascii_case(name))
+                    .unwrap_or(false)
+            }) {
+                return Some(device);
+            }
+        }
+    }
+    host.default_input_device()
+}
+
+fn input_format_supported(format: SampleFormat) -> bool {
+    matches!(
+        format,
+        SampleFormat::F32 | SampleFormat::I16 | SampleFormat::U16
+    )
+}
+
+/// Keeps the device's native default configuration (format, rate and channel
+/// count) when it is one capture understands, otherwise picks a supported
+/// F32/I16/U16 configuration at its maximum rate.
+fn choose_input_config(device: &cpal::Device) -> Result<cpal::SupportedStreamConfig, String> {
+    if let Ok(config) = device.default_input_config() {
+        if input_format_supported(config.sample_format()) {
+            return Ok(config);
+        }
+    }
+
+    let mut supported = device
+        .supported_input_configs()
+        .map_err(|error| format!("the input device has no supported configurations: {error}"))?;
+    let range = supported
+        .find(|range| input_format_supported(range.sample_format()))
+        .ok_or_else(|| "the input device does not support F32, I16 or U16 samples".to_string())?;
+    Ok(range.with_max_sample_rate())
+}
+
+fn input_buffer_size(size: &SupportedBufferSize) -> cpal::BufferSize {
+    match size {
+        SupportedBufferSize::Range { min, max } => {
+            cpal::BufferSize::Fixed(INPUT_BUFFER_FRAMES.clamp(*min, *max).max(1))
+        }
+        SupportedBufferSize::Unknown => cpal::BufferSize::Fixed(INPUT_BUFFER_FRAMES),
+    }
+}
+
+#[cfg(target_os = "windows")]
+fn input_open_error(error: cpal::BuildStreamError) -> String {
+    eprintln!("[openbeats input] build failed: {error}");
+    "Microphone access denied. Please check Windows Privacy Settings.".to_string()
+}
+
+#[cfg(target_os = "macos")]
+fn input_open_error(error: cpal::BuildStreamError) -> String {
+    eprintln!("[openbeats input] build failed: {error}");
+    match error {
+        cpal::BuildStreamError::DeviceNotAvailable => "The microphone is unavailable. Open System Settings → Privacy & Security → Microphone, allow OpenBeats, then restart the app.".to_string(),
+        other => format!(
+            "Could not open the microphone: {other}. Check System Settings → Privacy & Security → Microphone."
+        ),
+    }
+}
+
+#[cfg(not(any(target_os = "windows", target_os = "macos")))]
+fn input_open_error(error: cpal::BuildStreamError) -> String {
+    eprintln!("[openbeats input] build failed: {error}");
+    format!("could not open the input stream: {error}")
+}
+
+#[cfg(target_os = "windows")]
+fn input_play_error(error: cpal::PlayStreamError) -> String {
+    eprintln!("[openbeats input] start failed: {error}");
+    "Microphone access denied. Please check Windows Privacy Settings.".to_string()
+}
+
+#[cfg(target_os = "macos")]
+fn input_play_error(error: cpal::PlayStreamError) -> String {
+    eprintln!("[openbeats input] start failed: {error}");
+    "The microphone could not start. Check System Settings → Privacy & Security → Microphone and allow OpenBeats.".to_string()
+}
+
+#[cfg(not(any(target_os = "windows", target_os = "macos")))]
+fn input_play_error(error: cpal::PlayStreamError) -> String {
+    eprintln!("[openbeats input] start failed: {error}");
+    format!("input stream did not start: {error}")
+}
+
 fn input_thread(
     commands: Receiver<InputCommand>,
     shared: Arc<InputShared>,
     ready: Sender<Result<String, String>>,
     requested: Option<String>,
 ) {
-    let host = cpal::default_host();
-    let device = match requested.as_deref() {
-        Some(name) => host
-            .input_devices()
-            .ok()
-            .and_then(|devices| {
-                devices
-                    .into_iter()
-                    .find(|d| d.name().map(|n| n == name).unwrap_or(false))
-            })
-            .or_else(|| host.default_input_device()),
-        None => host.default_input_device(),
-    };
-    let Some(device) = device else {
+    let (host, requested_name) = requested_input_host(requested.as_deref());
+    let Some(device) = find_input_device(&host, requested_name.as_deref()) else {
         let _ = ready.send(Err("no input device is available".into()));
         return;
     };
     let name = device.name().unwrap_or_else(|_| "default input".into());
-    let config = match device.default_input_config() {
+    let config = match choose_input_config(&device) {
         Ok(config) => config,
-        Err(e) => {
-            let _ = ready.send(Err(format!("input device has no config: {e}")));
+        Err(error) => {
+            let _ = ready.send(Err(error));
             return;
         }
     };
     let sample_format = config.sample_format();
-    let stream_config: cpal::StreamConfig = config.clone().into();
+    let mut stream_config: cpal::StreamConfig = config.clone().into();
+    stream_config.buffer_size = input_buffer_size(config.buffer_size());
     shared
         .sample_rate
         .store(config.sample_rate().0, Ordering::Relaxed);
@@ -402,17 +526,20 @@ fn input_thread(
         SampleFormat::F32 => build_input::<f32>(&device, &stream_config, Arc::clone(&shared)),
         SampleFormat::I16 => build_input::<i16>(&device, &stream_config, Arc::clone(&shared)),
         SampleFormat::U16 => build_input::<u16>(&device, &stream_config, Arc::clone(&shared)),
-        other => Err(format!("input: unsupported sample format {other:?}")),
-    };
-    let input = match input {
-        Ok(stream) => stream,
-        Err(e) => {
-            let _ = ready.send(Err(e));
+        other => {
+            let _ = ready.send(Err(format!("input: unsupported sample format {other:?}")));
             return;
         }
     };
-    if let Err(e) = input.play() {
-        let _ = ready.send(Err(format!("input stream did not start: {e}")));
+    let input = match input {
+        Ok(stream) => stream,
+        Err(error) => {
+            let _ = ready.send(Err(input_open_error(error)));
+            return;
+        }
+    };
+    if let Err(error) = input.play() {
+        let _ = ready.send(Err(input_play_error(error)));
         return;
     }
 
@@ -420,7 +547,8 @@ fn input_thread(
     // tuner still work, and the UI reports that monitoring is unavailable.
     let monitor_stream = host.default_output_device().and_then(|out| {
         let config = out.default_output_config().ok()?;
-        let stream_config: cpal::StreamConfig = config.clone().into();
+        let mut stream_config: cpal::StreamConfig = config.clone().into();
+        stream_config.buffer_size = input_buffer_size(config.buffer_size());
         match config.sample_format() {
             SampleFormat::F32 => {
                 build_monitor::<f32>(&out, &stream_config, Arc::clone(&shared)).ok()
@@ -480,7 +608,7 @@ fn build_input<T>(
     device: &cpal::Device,
     config: &cpal::StreamConfig,
     shared: Arc<InputShared>,
-) -> Result<cpal::Stream, String>
+) -> Result<cpal::Stream, cpal::BuildStreamError>
 where
     T: SizedSample + FromSample<f32>,
     f32: FromSample<T>,
@@ -489,59 +617,56 @@ where
     shared
         .record_channels
         .store(channels as u32, Ordering::Relaxed);
-    device
-        .build_input_stream(
-            config,
-            move |input: &[T], _| {
-                let recording = shared.recording.load(Ordering::Relaxed);
-                let monitor = shared.monitor.load(Ordering::Relaxed);
-                let gain = load_f32(&shared.monitor_gain);
-                let mut sum_squares = 0.0f32;
-                let mut peak = 0.0f32;
-                let mut mono = Vec::with_capacity(input.len() / channels.max(1));
-                for frame in input.chunks(channels) {
-                    let mut mixed = 0.0f32;
-                    for sample in frame {
-                        mixed += sample.to_sample::<f32>();
-                    }
-                    mixed /= channels as f32;
-                    mono.push(mixed);
-                    sum_squares += mixed * mixed;
-                    peak = peak.max(mixed.abs());
+    device.build_input_stream(
+        config,
+        move |input: &[T], _| {
+            let recording = shared.recording.load(Ordering::Relaxed);
+            let monitor = shared.monitor.load(Ordering::Relaxed);
+            let gain = load_f32(&shared.monitor_gain);
+            let mut sum_squares = 0.0f32;
+            let mut peak = 0.0f32;
+            let mut mono = Vec::with_capacity(input.len() / channels.max(1));
+            for frame in input.chunks(channels) {
+                let mut mixed = 0.0f32;
+                for sample in frame {
+                    mixed += sample.to_sample::<f32>();
                 }
-                if recording {
-                    if let Ok(mut buffer) = shared.recorded.try_lock() {
-                        // Store mono so a recorded take loads as a one-channel clip.
-                        buffer.extend_from_slice(&mono);
-                    }
+                mixed /= channels as f32;
+                mono.push(mixed);
+                sum_squares += mixed * mixed;
+                peak = peak.max(mixed.abs());
+            }
+            if recording {
+                if let Ok(mut buffer) = shared.recorded.try_lock() {
+                    // Store mono so a recorded take loads as a one-channel clip.
+                    buffer.extend_from_slice(&mono);
                 }
-                if monitor {
-                    if let Ok(mut queue) = shared.monitor_queue.try_lock() {
-                        for sample in &mono {
-                            if queue.len() < 16_384 {
-                                queue.push_back(sample * gain);
-                            }
+            }
+            if monitor {
+                if let Ok(mut queue) = shared.monitor_queue.try_lock() {
+                    for sample in &mono {
+                        if queue.len() < 16_384 {
+                            queue.push_back(sample * gain);
                         }
                     }
                 }
-                if let Ok(mut tuner) = shared.tuner_buffer.try_lock() {
-                    tuner.extend_from_slice(&mono);
-                    let keep =
-                        (shared.sample_rate.load(Ordering::Relaxed) as usize / 10).max(1_024);
-                    if tuner.len() > keep * 2 {
-                        let drain = tuner.len() - keep;
-                        tuner.drain(0..drain);
-                    }
+            }
+            if let Ok(mut tuner) = shared.tuner_buffer.try_lock() {
+                tuner.extend_from_slice(&mono);
+                let keep = (shared.sample_rate.load(Ordering::Relaxed) as usize / 10).max(1_024);
+                if tuner.len() > keep * 2 {
+                    let drain = tuner.len() - keep;
+                    tuner.drain(0..drain);
                 }
-                if !mono.is_empty() {
-                    store_f32(&shared.level, (sum_squares / mono.len() as f32).sqrt());
-                }
-                store_f32(&shared.peak, peak);
-            },
-            |err| eprintln!("[openbeats input] stream error: {err}"),
-            None,
-        )
-        .map_err(|e| format!("could not open the input stream: {e}"))
+            }
+            if !mono.is_empty() {
+                store_f32(&shared.level, (sum_squares / mono.len() as f32).sqrt());
+            }
+            store_f32(&shared.peak, peak);
+        },
+        |err| eprintln!("[openbeats input] stream error: {err}"),
+        None,
+    )
 }
 
 fn build_monitor<T>(
@@ -574,4 +699,35 @@ where
             None,
         )
         .map_err(|e| format!("could not open the monitor stream: {e}"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn input_requests_a_256_sample_buffer() {
+        let size = SupportedBufferSize::Range { min: 64, max: 1024 };
+        assert!(matches!(
+            input_buffer_size(&size),
+            cpal::BufferSize::Fixed(INPUT_BUFFER_FRAMES)
+        ));
+    }
+
+    #[test]
+    fn input_buffer_is_clamped_to_the_device_range() {
+        let size = SupportedBufferSize::Range {
+            min: 512,
+            max: 2048,
+        };
+        assert!(matches!(
+            input_buffer_size(&size),
+            cpal::BufferSize::Fixed(512)
+        ));
+        let unknown = SupportedBufferSize::Unknown;
+        assert!(matches!(
+            input_buffer_size(&unknown),
+            cpal::BufferSize::Fixed(INPUT_BUFFER_FRAMES)
+        ));
+    }
 }

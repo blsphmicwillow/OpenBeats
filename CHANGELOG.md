@@ -3,6 +3,38 @@
 The same entries are bundled into the app and shown in the **Changelog** tab, so the notes ship with the build.
 Keep this file and `src/lib/changelog.ts` in sync, and bump `APP_VERSION` in `src/lib/version.ts`.
 
+## 1.0.4 — 2026-11-10
+
+**OpenBeats v1.0.4 — working microphone capture on Windows and macOS.**
+
+Linux, Windows and macOS installers are built by CI from the `v1.0.4` tag and attached to that GitHub release.
+1.0.3 stays available from its own tag.
+
+### Fixes
+
+- Fixed Windows audio input detection. Input now enumerates all CPAL hosts, prefers WASAPI, and falls back to an
+  ASIO host when the installed build provides one.
+- The input stream now uses the device's native sample format (F32, I16 or U16) and channel count instead of assuming
+  the default format and channels.
+- Failed Windows input streams report **“Microphone access denied. Please check Windows Privacy Settings.”** so the
+  privacy setting is discoverable instead of producing a generic device error.
+- Fixed macOS microphone permission prompts by adding `NSMicrophoneUsageDescription` to `src-tauri/Info.plist` and
+  selecting the CoreAudio host explicitly.
+- macOS `BuildStreamError::DeviceNotAvailable` now points to **System Settings → Privacy & Security → Microphone**.
+- Device enumeration is unified into `AudioDevices { inputs, outputs }`. Only devices that report a usable input or
+  output configuration are listed, so ghost endpoints no longer appear in the pickers.
+- Input capture uses a dedicated 256-sample buffer, routes monitored input to the master output, and writes recorded
+  takes as 16-bit PCM WAV through the `hound` crate.
+
+### Notes
+
+- **Volim cried watching the programming.** We felt that. The audio input bugs were rough. We fixed them.
+
+### Verification
+
+- `cargo check` and `cargo test` cover the audio crate and desktop crate. Windows and macOS installers are built and
+  attached by the release workflow.
+
 ## 1.0.3 — 2026-11-10
 
 **Crash-free pack importing, FL-style pack layouts and a transparent import report.**

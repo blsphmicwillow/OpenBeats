@@ -11,6 +11,30 @@ export interface ChangelogEntry {
  */
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '1.0.4',
+    date: '2026-11-10',
+    headline: 'Working microphone capture on Windows and macOS.',
+    groups: [
+      {
+        title: 'Audio input',
+        items: [
+          'Windows input enumerates every CPAL host, prefers WASAPI and falls back to ASIO when the installed build provides it.',
+          'Input streams use the device native F32, I16 or U16 sample format and channel count instead of assuming the defaults.',
+          'A failed Windows microphone stream reports “Microphone access denied. Please check Windows Privacy Settings.”',
+          'macOS declares NSMicrophoneUsageDescription, opens the CoreAudio host explicitly, and points a missing device to System Settings → Privacy & Security → Microphone.',
+          'Device enumeration now returns separate inputs and outputs and hides endpoints with no usable stream configuration.',
+          'Input monitoring uses a dedicated 256-sample buffer, and recorded takes are written as 16-bit PCM WAV with hound.',
+        ],
+      },
+      {
+        title: 'Notes',
+        items: [
+          'Volim cried watching the programming. We felt that. The audio input bugs were rough. We fixed them.',
+        ],
+      },
+    ],
+  },
+  {
     version: '1.0.3',
     date: '2026-11-10',
     headline: 'Crash-free pack importing, FL-style pack layouts and a transparent import report.',

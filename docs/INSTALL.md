@@ -134,14 +134,15 @@ yay -Rns openbeats-bin
 
 ```bash
 curl -L -o OpenBeats.AppImage \
-  https://github.com/blsphmicwillow/OpenBeats/releases/download/v1.0.3/OpenBeats_1.0.3_amd64.AppImage
+  https://github.com/blsphmicwillow/OpenBeats/releases/download/v1.0.4/OpenBeats_1.0.4_amd64.AppImage
 chmod +x OpenBeats.AppImage
 ./OpenBeats.AppImage
 ```
 
-The published 1.0.3 AppImage includes `X-AppImage-Version=1.0.3`, has an
-executable payload and bundles no `libfuse`. It installs and lists correctly
-with Shelly 3.0.6 and 3.2.1. Its SHA-256 is listed with the release assets.
+The 1.0.4 AppImage includes `X-AppImage-Version=1.0.4`, has an executable
+payload and bundles no `libfuse`. It is built with the same packaging
+configuration as the tested 1.0.3 image. Its SHA-256 is listed with the release
+assets.
 
 The AppImage bundles WebKitGTK, GTK 3, GStreamer and the audio plugins used by
 Web Audio (`bundleMediaFramework`), so `gst-inspect-1.0` on the host is not

@@ -32,23 +32,23 @@ Eleven built-in themes, Classic and Modern chrome, and an editable **My theme** 
 
 ---
 
-## Install OpenBeats 1.0.3
+## Install OpenBeats 1.0.4
 
 Every package is built by GitHub Actions and attached to the
-[1.0.3 release](https://github.com/blsphmicwillow/OpenBeats/releases/tag/v1.0.3).
+[1.0.4 release](https://github.com/blsphmicwillow/OpenBeats/releases/tag/v1.0.4).
 No account is required.
 
 | Platform | Release file | Install |
 | --- | --- | --- |
 | Arch Linux | `openbeats-bin` (in this repo) | `cd packaging/arch && yay -Bi .` — see below |
-| Linux (any) | `OpenBeats_1.0.3_amd64.AppImage` | `chmod +x`, then run it |
-| Debian / Ubuntu | `OpenBeats_1.0.3_amd64.deb` | `sudo apt install ./OpenBeats_1.0.3_amd64.deb` |
-| Fedora / RPM | `OpenBeats-1.0.3-1.x86_64.rpm` | `sudo dnf install ./OpenBeats-1.0.3-1.x86_64.rpm` |
-| Windows 10/11 | `OpenBeats_1.0.3_x64-setup.exe` | Run the installer (or use the `.msi`) |
-| macOS (Apple silicon) | `OpenBeats_1.0.3_aarch64.dmg` | Open the DMG and drag OpenBeats to Applications |
+| Linux (any) | `OpenBeats_1.0.4_amd64.AppImage` | `chmod +x`, then run it |
+| Debian / Ubuntu | `OpenBeats_1.0.4_amd64.deb` | `sudo apt install ./OpenBeats_1.0.4_amd64.deb` |
+| Fedora / RPM | `OpenBeats-1.0.4-1.x86_64.rpm` | `sudo dnf install ./OpenBeats-1.0.4-1.x86_64.rpm` |
+| Windows 10/11 | `OpenBeats_1.0.4_x64-setup.exe` | Run the installer (or use the `.msi`) |
+| macOS (Apple silicon) | `OpenBeats_1.0.4_aarch64.dmg` | Open the DMG and drag OpenBeats to Applications |
 | Source | `git clone` | [docs/BUILDING.md](docs/BUILDING.md) |
 
-There is no separate Intel-Mac DMG in 1.0.3; Intel Macs can build from source.
+There is no separate Intel-Mac DMG in 1.0.4; Intel Macs can build from source.
 Full per-platform commands, dependencies and troubleshooting are in
 [docs/INSTALL.md](docs/INSTALL.md).
 
@@ -100,7 +100,7 @@ git commit -m "openbeats-bin 1.0.0" && git push
 
 ```bash
 curl -L -o OpenBeats.AppImage \
-  https://github.com/blsphmicwillow/OpenBeats/releases/download/v1.0.3/OpenBeats_1.0.3_amd64.AppImage
+  https://github.com/blsphmicwillow/OpenBeats/releases/download/v1.0.4/OpenBeats_1.0.4_amd64.AppImage
 chmod +x OpenBeats.AppImage
 ./OpenBeats.AppImage
 ```
@@ -115,8 +115,8 @@ and retry; `--appimage-extract-and-run` also bypasses the FUSE mount.
 ### Debian / Ubuntu
 
 ```bash
-curl -L -O https://github.com/blsphmicwillow/OpenBeats/releases/download/v1.0.3/OpenBeats_1.0.3_amd64.deb
-sudo apt install ./OpenBeats_1.0.3_amd64.deb
+curl -L -O https://github.com/blsphmicwillow/OpenBeats/releases/download/v1.0.4/OpenBeats_1.0.4_amd64.deb
+sudo apt install ./OpenBeats_1.0.4_amd64.deb
 openbeats
 ```
 
@@ -127,7 +127,7 @@ should not need to install audio plugins by hand.
 ### Fedora
 
 ```bash
-sudo dnf install ./OpenBeats-1.0.3-1.x86_64.rpm
+sudo dnf install ./OpenBeats-1.0.4-1.x86_64.rpm
 openbeats
 ```
 
@@ -136,7 +136,7 @@ server, so no separate multimedia package list is required.
 
 ### Windows
 
-1. Download `OpenBeats_1.0.3_x64-setup.exe` (or the `.msi`) from the release.
+1. Download `OpenBeats_1.0.4_x64-setup.exe` (or the `.msi`) from the release.
 2. Run it. Current installers embed the WebView2 offline runtime, so the app
    does not depend on a separate WebView2 download.
 3. SmartScreen may warn because the build is not code-signed: **More info →
@@ -144,7 +144,7 @@ server, so no separate multimedia package list is required.
 
 ### macOS (Apple silicon)
 
-1. Download `OpenBeats_1.0.3_aarch64.dmg` and open it.
+1. Download `OpenBeats_1.0.4_aarch64.dmg` and open it.
 2. Drag **OpenBeats** into **Applications**.
 3. The DMG is not notarised, so on first launch use **Control-click → Open**, or
    run `xattr -dr com.apple.quarantine /Applications/OpenBeats.app`.
@@ -182,7 +182,7 @@ and the GStreamer runtime itself; the one thing an AppImage cannot provide is
 the system audio server, so PipeWire-Pulse or PulseAudio must be running.
 
 **Can I use VST3, AU or CLAP plugins?**
-OpenBeats 1.0.3 includes a **plugin library** for browsing and downloading native
+OpenBeats 1.0.4 includes a **plugin library** for browsing and downloading native
 VST3/CLAP releases, but it does **not host** them in the mixer yet. Hosting needs
 a native plugin host and audio bridge; the honest status and plan are in
 [docs/PLUGINS.md](docs/PLUGINS.md). The first-party **OpenBeats Gain** proof
@@ -199,7 +199,7 @@ the Projects dialog rather than editing browser-storage files by hand; exports
 are written wherever you choose.
 
 **Is there an Intel Mac build?**
-Not in 1.0.3. Build from source with the steps in
+Not in 1.0.4. Build from source with the steps in
 [docs/BUILDING.md](docs/BUILDING.md).
 
 **How do I update?**
@@ -207,10 +207,11 @@ Download the latest release. The in-app banner and **Help → Check for updates�
 notify you and link to GitHub; silent self-update is not enabled because the
 release is not signed with a Tauri updater key.
 
-**Is OpenBeats really 1.0.3?**
-Yes. 1.0.3 fixes the Import Pack crash, adds FL-style pack layouts, safe zip
-extraction and a per-import report. The version is bumped in the app, Tauri
-bundle and both Rust crates.
+**Is OpenBeats really 1.0.4?**
+Yes. 1.0.4 fixes microphone input on Windows and macOS: WASAPI-first host
+selection, native sample formats and channel counts, macOS microphone usage
+description, CoreAudio input, and privacy-aware errors. The version is bumped
+in the app, Tauri bundle and both Rust crates.
 
 ---
 
@@ -264,7 +265,7 @@ bundle and both Rust crates.
 ### Plugin library
 - **View → Plugin library…** (or the **Plugins** button) lists community VST3/CLAP releases from the GitHub-backed registry in [`plugins/registry.json`](plugins/registry.json), with vendor-style category filtering.
 - The first-party **OpenBeats Gain** proof plugin is built in [`plugins/openbeats-gain`](plugins/openbeats-gain); its release archive contains both `.clap` and `.vst3` bundles.
-- Download links open the publisher's GitHub Release. There is no silent install and no fake host: **loading plugins into OpenBeats is still not implemented in 1.0.3**.
+- Download links open the publisher's GitHub Release. There is no silent install and no fake host: **loading plugins into OpenBeats is still not implemented in 1.0.4**.
 - Community submissions go through [the plugin submission form](.github/ISSUE_TEMPLATE/plugin-submission.yml); `npm run plugins:check` validates the registry.
 
 ### Desktop integration

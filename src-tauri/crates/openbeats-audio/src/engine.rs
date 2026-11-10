@@ -23,7 +23,7 @@ use std::time::Duration;
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use cpal::{FromSample, SampleFormat, SizedSample, SupportedBufferSize};
 
-use crate::devices::{self, AudioDeviceInfo, Candidate};
+use crate::devices::{self, AudioDevices, Candidate, DeviceInfo};
 use crate::dsp::{Compressor, Eq3, Transmitter, TruePeakLimiter};
 use crate::logger::AudioLogger;
 use crate::sequencer::{PlaybackChannel, PlaybackProject, Sequencer, Trigger};
@@ -454,12 +454,12 @@ impl NativeEngine {
         }
     }
 
-    /// Names of the available output devices.
+    /// Friendly names of the available output devices.
     pub fn devices() -> Vec<String> {
         list_devices()
+            .outputs
             .into_iter()
-            .filter(|info| info.kind == "output")
-            .map(|info| info.name)
+            .map(|info| info.friendly_name)
             .collect()
     }
 }
@@ -473,38 +473,74 @@ impl Drop for NativeEngine {
     }
 }
 
-/// Every input and output device the host reports, for the Audio settings tab.
-pub fn list_devices() -> Vec<AudioDeviceInfo> {
-    let host = cpal::default_host();
-    let host_name = host.id().name().to_string();
-    let default_output = host.default_output_device().and_then(|d| d.name().ok());
-    let default_input = host.default_input_device().and_then(|d| d.name().ok());
-    let mut devices = Vec::new();
+/// A device is only useful to the app when the host reports at least one
+/// stream configuration for it. Broken/ghost endpoints are filtered out here.
+fn has_output_config(device: &cpal::Device) -> bool {
+    device
+        .supported_output_configs()
+        .map(|mut configs| configs.next().is_some())
+        .unwrap_or(false)
+}
 
-    if let Ok(outputs) = host.output_devices() {
-        for device in outputs {
-            let Ok(name) = device.name() else { continue };
-            let mut info = AudioDeviceInfo::new(name.clone(), "output", host_name.clone());
-            info.is_default = default_output.as_deref() == Some(name.as_str());
-            if let Ok(config) = device.default_output_config() {
-                info.channels = config.channels();
-                info.sample_rate = config.sample_rate().0;
+/// Input capture understands F32, I16 and U16, so only advertise devices that
+/// can provide one of those native formats.
+fn has_input_config(device: &cpal::Device) -> bool {
+    device
+        .supported_input_configs()
+        .map(|mut configs| {
+            configs.any(|range| {
+                matches!(
+                    range.sample_format(),
+                    SampleFormat::F32 | SampleFormat::I16 | SampleFormat::U16
+                )
+            })
+        })
+        .unwrap_or(false)
+}
+
+/// Every input and output device on every available CPAL host, for the Audio
+/// settings tab. Windows exposes WASAPI (and ASIO when built in), macOS exposes
+/// CoreAudio, and Linux exposes ALSA/JACK as available.
+pub fn list_devices() -> AudioDevices {
+    let mut devices = AudioDevices::default();
+
+    for host_id in cpal::available_hosts() {
+        let Ok(host) = cpal::host_from_id(host_id) else {
+            continue;
+        };
+        let host_name = host.id().name().to_string();
+        let default_output = host.default_output_device().and_then(|d| d.name().ok());
+        let default_input = host.default_input_device().and_then(|d| d.name().ok());
+
+        if let Ok(outputs) = host.output_devices() {
+            for device in outputs {
+                let Ok(name) = device.name() else { continue };
+                if !has_output_config(&device) {
+                    continue;
+                }
+                devices.outputs.push(DeviceInfo {
+                    id: devices::device_id(&host_name, &name),
+                    is_default: default_output.as_deref() == Some(name.as_str()),
+                    friendly_name: name,
+                });
             }
-            devices.push(info);
+        }
+
+        if let Ok(inputs) = host.input_devices() {
+            for device in inputs {
+                let Ok(name) = device.name() else { continue };
+                if !has_input_config(&device) {
+                    continue;
+                }
+                devices.inputs.push(DeviceInfo {
+                    id: devices::device_id(&host_name, &name),
+                    is_default: default_input.as_deref() == Some(name.as_str()),
+                    friendly_name: name,
+                });
+            }
         }
     }
-    if let Ok(inputs) = host.input_devices() {
-        for device in inputs {
-            let Ok(name) = device.name() else { continue };
-            let mut info = AudioDeviceInfo::new(name.clone(), "input", host_name.clone());
-            info.is_default = default_input.as_deref() == Some(name.as_str());
-            if let Ok(config) = device.default_input_config() {
-                info.channels = config.channels();
-                info.sample_rate = config.sample_rate().0;
-            }
-            devices.push(info);
-        }
-    }
+
     devices
 }
 

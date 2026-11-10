@@ -17,7 +17,7 @@ import {
   selectAudioDevice,
   setCueGain,
   setLowLatency,
-  type AudioDeviceInfo,
+  type AudioDevices,
   type NativePlaybackState,
 } from '../lib/nativeAudio';
 import { KEY_ACTION_LABELS, comboFromEvent } from '../ui/keymapLabels';
@@ -814,7 +814,7 @@ function errorText(err: unknown): string {
  * device list is empty and the panel explains why.
  */
 function NativeDevicePanel() {
-  const [devices, setDevices] = useState<AudioDeviceInfo[]>([]);
+  const [devices, setDevices] = useState<AudioDevices>({ inputs: [], outputs: [] });
   const [snapshot, setSnapshot] = useState<NativePlaybackState | null>(null);
   const [output, setOutput] = useState('');
   const [input, setInput] = useState('');
@@ -827,10 +827,10 @@ function NativeDevicePanel() {
     const list = await getAudioDevices();
     setDevices(list);
     setSnapshot(await nativePlaybackState());
-    const out = list.find((d) => d.kind === 'output' && d.is_default) ?? list.find((d) => d.kind === 'output');
-    const inp = list.find((d) => d.kind === 'input' && d.is_default) ?? list.find((d) => d.kind === 'input');
-    setOutput((current) => current || out?.name || '');
-    setInput((current) => current || inp?.name || '');
+    const out = list.outputs.find((d) => d.is_default) ?? list.outputs[0];
+    const inp = list.inputs.find((d) => d.is_default) ?? list.inputs[0];
+    setOutput((current) => current || out?.friendly_name || '');
+    setInput((current) => current || inp?.id || '');
   }, []);
 
   useEffect(() => {
@@ -841,8 +841,8 @@ function NativeDevicePanel() {
     return () => window.clearInterval(id);
   }, [refresh]);
 
-  const outputs = devices.filter((d) => d.kind === 'output');
-  const inputs = devices.filter((d) => d.kind === 'input');
+  const outputs = devices.outputs;
+  const inputs = devices.inputs;
 
   const chooseOutput = async (name: string) => {
     setOutput(name);
@@ -906,11 +906,9 @@ function NativeDevicePanel() {
           >
             {outputs.length === 0 && <option value="">No native devices (browser build)</option>}
             {outputs.map((device) => (
-              <option key={device.name} value={device.name}>
-                {devMode ? device.name : friendlyDeviceName(device.name)}
+              <option key={device.id} value={device.friendly_name}>
+                {devMode ? device.id : device.friendly_name}
                 {device.is_default ? ' · default' : ''}
-                {devMode && device.is_pulse_bridge ? ' · Pulse/PipeWire' : ''}
-                {devMode ? ` · ${device.host}` : ''}
               </option>
             ))}
           </select>
@@ -931,10 +929,9 @@ function NativeDevicePanel() {
           >
             {inputs.length === 0 && <option value="">No inputs found</option>}
             {inputs.map((device) => (
-              <option key={device.name} value={device.name}>
-                {devMode ? device.name : friendlyDeviceName(device.name)}
+              <option key={device.id} value={device.id}>
+                {devMode ? device.id : device.friendly_name}
                 {device.is_default ? ' · default' : ''}
-                {devMode ? ` · ${device.host}` : ''}
               </option>
             ))}
           </select>
@@ -943,7 +940,7 @@ function NativeDevicePanel() {
       <div className="field">
         <div className="field-label">
           Dev Mode
-          <small>Show raw ALSA/PipeWire/CoreAudio strings, host APIs and channel counts. Off by default.</small>
+          <small>Show host-qualified device IDs, including WASAPI, ASIO, CoreAudio and ALSA names. Off by default.</small>
         </div>
         <div className="field-control">
           <input

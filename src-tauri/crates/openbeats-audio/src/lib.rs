@@ -59,7 +59,7 @@ pub use chime::{bundled as bundled_chime, decode_wav};
 pub use chord::{chord_for, suggest_progression, Chord};
 pub use clips::{expand_clip, PlaybackClip, PlaybackPattern};
 pub use command::{parse_command, ParsedCommand};
-pub use devices::AudioDeviceInfo;
+pub use devices::{AudioDevices, DeviceInfo};
 pub use dsp::{Compressor, Eq3, Limiter, Transmitter};
 pub use effect_graph::{ModularGraph, NodeKind};
 pub use export::{encode as encode_export, wav_bytes, ExportFormat};

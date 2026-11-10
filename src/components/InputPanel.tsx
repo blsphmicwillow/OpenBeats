@@ -7,7 +7,7 @@ import {
   nativeStartInput,
   nativeStartInputRecording,
   nativeStopInputRecording,
-  type AudioDeviceInfo,
+  type AudioDevices,
   type NativeInputReading,
 } from '../lib/nativeAudio';
 
@@ -25,6 +25,10 @@ export function friendlyDeviceName(raw: string): string {
   return name.charAt(0).toUpperCase() + name.slice(1);
 }
 
+function errorText(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
+}
+
 function noteName(midi: number): string {
   const names = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
   return `${names[midi % 12]}${Math.floor(midi / 12) - 1}`;
@@ -33,7 +37,7 @@ function noteName(midi: number): string {
 /** Input monitoring, one-take recording and the tuner, plus the Dev Mode view. */
 export function InputPanel() {
   const toast = useApp((s) => s.ui.toast);
-  const [devices, setDevices] = useState<AudioDeviceInfo[]>([]);
+  const [devices, setDevices] = useState<AudioDevices>({ inputs: [], outputs: [] });
   const [device, setDevice] = useState('');
   const [open, setOpen] = useState(false);
   const [monitor, setMonitor] = useState(false);
@@ -52,8 +56,8 @@ export function InputPanel() {
   useEffect(() => {
     void getAudioDevices().then((list) => {
       setDevices(list);
-      const preferred = list.find((d) => d.kind === 'input' && d.is_default) ?? list.find((d) => d.kind === 'input');
-      setDevice((current) => current || preferred?.name || '');
+      const preferred = list.inputs.find((d) => d.is_default) ?? list.inputs[0];
+      setDevice((current) => current || preferred?.id || '');
     });
   }, []);
 
@@ -74,35 +78,57 @@ export function InputPanel() {
     }
   };
 
-  const openInput = useCallback(async () => {
-    if (open) return;
-    const name = await nativeStartInput(device || undefined);
-    setOpen(Boolean(name));
-    setNote(name ? `Listening on ${devMode ? name : friendlyDeviceName(name)}` : 'Input needs the desktop build.');
+  const openInput = useCallback(async (): Promise<boolean> => {
+    if (open) return true;
+    try {
+      const name = await nativeStartInput(device || undefined);
+      setOpen(Boolean(name));
+      setNote(
+        name ? `Listening on ${devMode ? name : friendlyDeviceName(name)}` : 'Input needs the desktop build.',
+      );
+      return Boolean(name);
+    } catch (err) {
+      setOpen(false);
+      setNote(errorText(err));
+      return false;
+    }
   }, [open, device, devMode]);
 
   const toggleMonitor = async () => {
-    await openInput();
+    if (!(await openInput())) return;
     const next = !monitor;
-    setMonitor(next);
-    await nativeSetInputMonitor(next, gain);
-    setNote(next ? 'Monitoring the input — headphones recommended.' : 'Monitoring off.');
+    try {
+      await nativeSetInputMonitor(next, gain);
+      setMonitor(next);
+      setNote(next ? 'Monitoring the input — headphones recommended.' : 'Monitoring off.');
+    } catch (err) {
+      setNote(errorText(err));
+    }
   };
 
   const toggleRecord = async () => {
     if (!recording) {
-      await openInput();
-      const started = await nativeStartInputRecording();
-      setRecording(started);
-      setNote(started ? 'Recording the input…' : 'Recording needs the desktop build.');
+      if (!(await openInput())) return;
+      try {
+        const started = await nativeStartInputRecording();
+        setRecording(started);
+        setNote(started ? 'Recording the input…' : 'Recording needs the desktop build.');
+      } catch (err) {
+        setNote(errorText(err));
+      }
       return;
     }
-    const take = await nativeStopInputRecording();
-    setRecording(false);
-    setNote(take ? `Saved ${take.seconds.toFixed(1)}s to ${take.path}` : 'No take was captured.');
+    try {
+      const take = await nativeStopInputRecording();
+      setRecording(false);
+      setNote(take ? `Saved ${take.seconds.toFixed(1)}s to ${take.path}` : 'No take was captured.');
+    } catch (err) {
+      setRecording(false);
+      setNote(errorText(err));
+    }
   };
 
-  const inputs = devices.filter((d) => d.kind === 'input');
+  const inputs = devices.inputs;
   const tuning = reading?.tuning ?? null;
 
   return (
@@ -129,8 +155,8 @@ export function InputPanel() {
           >
             {inputs.length === 0 && <option value="">No inputs found</option>}
             {inputs.map((d) => (
-              <option key={`${d.host}:${d.name}`} value={d.name}>
-                {devMode ? d.name : friendlyDeviceName(d.name)}
+              <option key={d.id} value={d.id}>
+                {devMode ? d.id : d.friendly_name}
                 {d.is_default ? ' · default' : ''}
               </option>
             ))}
@@ -156,7 +182,9 @@ export function InputPanel() {
             onChange={(e) => {
               const value = Number(e.target.value);
               setGain(value);
-              if (monitor) void nativeSetInputMonitor(true, value);
+              if (monitor) {
+                void nativeSetInputMonitor(true, value).catch((err) => setNote(errorText(err)));
+              }
             }}
             aria-label="Monitor level"
             style={{ flex: 1 }}
@@ -196,7 +224,7 @@ export function InputPanel() {
       <div className="field">
         <div className="field-label">
           Dev Mode
-          <small>Show raw ALSA/PipeWire strings, host APIs, channel counts and sample rates.</small>
+          <small>Show host-qualified device IDs, including WASAPI, ASIO, CoreAudio and ALSA names.</small>
         </div>
         <div className="field-control">
           <input type="checkbox" checked={devMode} onChange={(e) => toggleDevMode(e.target.checked)} />
@@ -205,11 +233,16 @@ export function InputPanel() {
 
       {devMode && (
         <div className="browser-empty" style={{ fontFamily: 'monospace', fontSize: 10, lineHeight: 1.6 }}>
-          {devices.map((d) => (
-            <div key={`${d.kind}:${d.host}:${d.name}`}>
-              [{d.kind}] {d.name} · {d.host} · {d.channels}ch · {d.sample_rate} Hz
+          {devices.inputs.map((d) => (
+            <div key={`input:${d.id}`}>
+              [input] {d.friendly_name} · {d.id}
               {d.is_default ? ' · default' : ''}
-              {d.is_pulse_bridge ? ' · pulse' : ''}
+            </div>
+          ))}
+          {devices.outputs.map((d) => (
+            <div key={`output:${d.id}`}>
+              [output] {d.friendly_name} · {d.id}
+              {d.is_default ? ' · default' : ''}
             </div>
           ))}
           {reading && (

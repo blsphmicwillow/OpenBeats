@@ -63,33 +63,40 @@ pub fn pick(
     candidates.iter().position(|c| c.is_default).or(Some(0))
 }
 
-/// Description of one enumerated device for the settings UI.
-#[derive(Debug, Clone, serde::Serialize)]
-pub struct AudioDeviceInfo {
-    pub name: String,
-    /// `"output"` or `"input"`.
-    pub kind: String,
-    pub host: String,
-    pub is_default: bool,
-    pub channels: u16,
-    pub sample_rate: u32,
-    /// True for the PulseAudio/PipeWire bridge on Linux.
-    pub is_pulse_bridge: bool,
+/// Separates the CPAL host name from the device name in a stable device id.
+const DEVICE_ID_SEPARATOR: char = '|';
+
+/// Builds the id the UI sends back when it wants a specific device opened.
+///
+/// The host is part of the id so Windows can open a WASAPI or ASIO device
+/// explicitly, macOS can stay on CoreAudio, and Linux can target ALSA/JACK
+/// without guessing from a display name that may be duplicated.
+pub fn device_id(host: &str, name: &str) -> String {
+    format!("{host}{DEVICE_ID_SEPARATOR}{name}")
 }
 
-impl AudioDeviceInfo {
-    pub fn new(name: impl Into<String>, kind: &str, host: impl Into<String>) -> Self {
-        let name = name.into();
-        Self {
-            is_pulse_bridge: is_pulse_bridge(&name),
-            name,
-            kind: kind.into(),
-            host: host.into(),
-            is_default: false,
-            channels: 2,
-            sample_rate: 48_000,
-        }
+/// Splits a device id into its optional host and its device name. Ids without a
+/// separator are treated as plain names for backwards compatibility.
+pub fn split_device_id(id: &str) -> (Option<&str>, &str) {
+    match id.split_once(DEVICE_ID_SEPARATOR) {
+        Some((host, name)) if !host.is_empty() && !name.is_empty() => (Some(host), name),
+        _ => (None, id),
     }
+}
+
+/// One input or output device, as serialized to the settings UI.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct DeviceInfo {
+    pub id: String,
+    pub friendly_name: String,
+    pub is_default: bool,
+}
+
+/// The unified device list returned by `get_audio_devices`.
+#[derive(Debug, Clone, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct AudioDevices {
+    pub inputs: Vec<DeviceInfo>,
+    pub outputs: Vec<DeviceInfo>,
 }
 
 #[cfg(test)]
@@ -154,5 +161,41 @@ mod tests {
     #[test]
     fn an_empty_device_list_has_no_choice() {
         assert_eq!(pick(&[], Some("anything"), true), None);
+    }
+
+    #[test]
+    fn device_ids_round_trip_the_host_and_name() {
+        let id = device_id("WASAPI", "Microphone (USB Audio)");
+        assert_eq!(id, "WASAPI|Microphone (USB Audio)");
+        assert_eq!(
+            split_device_id(&id),
+            (Some("WASAPI"), "Microphone (USB Audio)")
+        );
+    }
+
+    #[test]
+    fn legacy_plain_device_names_still_work() {
+        assert_eq!(split_device_id("Speakers"), (None, "Speakers"));
+        assert_eq!(split_device_id("|Speakers"), (None, "|Speakers"));
+    }
+
+    #[test]
+    fn the_ui_receives_separate_input_and_output_lists() {
+        let devices = AudioDevices {
+            inputs: vec![DeviceInfo {
+                id: device_id("CoreAudio", "MacBook Microphone"),
+                friendly_name: "MacBook Microphone".into(),
+                is_default: true,
+            }],
+            outputs: vec![DeviceInfo {
+                id: device_id("CoreAudio", "MacBook Speakers"),
+                friendly_name: "MacBook Speakers".into(),
+                is_default: true,
+            }],
+        };
+        let json = serde_json::to_value(devices).expect("serialize devices");
+        assert_eq!(json["inputs"][0]["friendly_name"], "MacBook Microphone");
+        assert_eq!(json["outputs"][0]["id"], "CoreAudio|MacBook Speakers");
+        assert_eq!(json["inputs"][0]["is_default"], true);
     }
 }

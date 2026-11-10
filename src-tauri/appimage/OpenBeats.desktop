@@ -8,4 +8,4 @@ Icon=openbeats
 Terminal=false
 Categories=AudioVideo;Audio;Music;
 StartupWMClass=openbeats
-X-AppImage-Version=1.0.3
+X-AppImage-Version=1.0.4

@@ -4,7 +4,6 @@
 //! system (pack import, export) or an extra audio stream lives here so the
 //! audio engine module stays focused on playback.
 
-use std::io::Write;
 use std::panic::AssertUnwindSafe;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
@@ -12,7 +11,6 @@ use std::time::Duration;
 
 use base64::{engine::general_purpose::STANDARD, Engine as _};
 use openbeats_audio::decode;
-use openbeats_audio::export;
 use openbeats_audio::io::{InputCapture, PreviewEngine};
 use openbeats_audio::packs::{self, Pack, PackImport};
 use openbeats_audio::suggestion;
@@ -937,6 +935,32 @@ pub async fn remove_pack(app: AppHandle, root: String) -> Result<RemovePackResul
  * Input: monitor, recording and tuner
  * ------------------------------------------------------------------ */
 
+/// Writes a mono f32 take as a 16-bit PCM WAV using hound.
+fn write_take_wav(
+    path: &Path,
+    samples: &[f32],
+    sample_rate: u32,
+    channels: u16,
+) -> Result<(), String> {
+    let spec = hound::WavSpec {
+        channels: channels.max(1),
+        sample_rate: sample_rate.max(1),
+        bits_per_sample: 16,
+        sample_format: hound::SampleFormat::Int,
+    };
+    let mut writer = hound::WavWriter::create(path, spec)
+        .map_err(|error| format!("could not create the take: {error}"))?;
+    for &sample in samples {
+        let value = (sample.clamp(-1.0, 1.0) * i16::MAX as f32).round() as i16;
+        writer
+            .write_sample(value)
+            .map_err(|error| format!("could not write the take: {error}"))?;
+    }
+    writer
+        .finalize()
+        .map_err(|error| format!("could not finish the take: {error}"))
+}
+
 #[tauri::command]
 pub fn start_input(
     state: State<'_, SystemState>,
@@ -947,7 +971,15 @@ pub fn start_input(
         .lock()
         .map_err(|_| "the input state is unavailable".to_string())?;
     if let Some(existing) = guard.as_ref() {
-        return Ok(existing.device_name().to_string());
+        let requested_name = device
+            .as_deref()
+            .map(|id| openbeats_audio::devices::split_device_id(id).1);
+        if requested_name.is_none() || requested_name == Some(existing.device_name()) {
+            return Ok(existing.device_name().to_string());
+        }
+        // The user picked a different microphone: close the old stream before
+        // opening the new one so the device id is actually honoured.
+        guard.take();
     }
     let capture = InputCapture::start(device.as_deref())?;
     let name = capture.device_name().to_string();
@@ -1022,8 +1054,7 @@ pub fn stop_input_recording(
             picked
         }
     };
-    let bytes = export::wav_bytes(&samples, rate, channels, 16);
-    std::fs::write(&target, bytes).map_err(|e| format!("could not write the take: {e}"))?;
+    write_take_wav(&target, &samples, rate, channels)?;
     Ok(RecordingResult {
         path: target.display().to_string(),
         seconds: samples.len() as f32 / rate.max(1) as f32,
@@ -1092,4 +1123,32 @@ pub fn read_sample(path: String) -> Result<SamplePayload, String> {
             .unwrap_or_else(|| "sample".into()),
         data: STANDARD.encode(bytes),
     })
+}
+
+#[cfg(test)]
+mod input_recording_tests {
+    use super::*;
+
+    #[test]
+    fn writes_take_as_pcm16_wav() {
+        let path =
+            std::env::temp_dir().join(format!("openbeats-input-take-{}.wav", std::process::id()));
+        let _ = std::fs::remove_file(&path);
+
+        write_take_wav(&path, &[0.0, 0.5, -0.5], 44_100, 1).expect("write take");
+
+        let mut reader = hound::WavReader::open(&path).expect("open take");
+        let spec = reader.spec();
+        assert_eq!(spec.channels, 1);
+        assert_eq!(spec.sample_rate, 44_100);
+        assert_eq!(spec.bits_per_sample, 16);
+        assert_eq!(spec.sample_format, hound::SampleFormat::Int);
+        let samples: Vec<i16> = reader.samples::<i16>().map(Result::unwrap).collect();
+        assert_eq!(samples.len(), 3);
+        assert_eq!(samples[0], 0);
+        assert!(samples[1] > 16_000);
+        assert!(samples[2] < -16_000);
+
+        let _ = std::fs::remove_file(&path);
+    }
 }
