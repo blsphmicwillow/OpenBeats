@@ -27,7 +27,7 @@ security-audited.
 
 ## What is not included
 
-OpenBeats **cannot load VST3, AU, CLAP or FL Studio plugins into its own mixer**
+OpenBeats **cannot load VST3, AU, CLAP or reference DAW plugins into its own mixer**
 in 1.0.0. That is a native-hosting problem, not a missing file picker. The plugin
 library is deliberately separate from the audio engine so it can ship without
 pretending hosting exists.

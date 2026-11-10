@@ -58,7 +58,7 @@ This is the first official release. Everything below shipped in this build; ther
 ### Interchange
 
 - **MIDI import/export** (SMF type 1) with one track per channel, tempo, programs and running-status parsing — works with
-  FL Studio, Ableton, Logic, Cubase, Studio One, Bitwig and REAPER.
+  reference DAW, Ableton, Logic, Cubase, Studio One, Bitwig and REAPER.
 - **Ableton Live Set (`.als`) import**: gunzips the XML and rebuilds MIDI tracks, clips and notes as channels, patterns and
   playlist clips.
 - **REAPER (`.rpp`) import and export**: tempo, tracks, MIDI items and note events round-trip as plain text.
@@ -112,7 +112,7 @@ This is the first official release. Everything below shipped in this build; ther
 
 - Added project-wide **key detection** (major/minor profile) to the piano roll toolbar.
 - Rounded playlist clip edges for clearer section boundaries, a recurring Ableton user request.
-- Audited current FL Studio and Ableton requests; already covered: dynamic mixer tracks, loop/chord generation,
+- Audited current reference DAW and Ableton requests; already covered: dynamic mixer tracks, loop/chord generation,
   command palette, device A/B, browser and project portability through `.obeats`. See `docs/RESEARCH.md`.
 
 ### Design
@@ -124,6 +124,6 @@ This is the first official release. Everything below shipped in this build; ther
 ### Compatibility notes
 
 - Third-party **VST3/AU hosting is not included** in 1.0.0. The plugin library and OpenBeats Gain prove discovery, packaging and download; a native plugin host and audio bridge need per-platform SDK work that is not part of this release.
-- FL Studio `.flp` is a proprietary binary event stream, so FL Studio projects travel through MIDI rather than `.flp`.
+- reference DAW `.flp` is a proprietary binary event stream, so reference DAW projects travel through MIDI rather than `.flp`.
 - The **Rust/CPAL audio migration plan** is published in `docs/RUST_AUDIO.md`. 1.0.0 still renders with Web Audio; a
   native engine requires ALSA development headers (and equivalent platform work) plus the staged port described there.

@@ -6,7 +6,7 @@ OpenBeats exchanges **musical data**, not plugin graphs. What travels: track nam
 
 | DAW | Into OpenBeats | Out of OpenBeats | Notes |
 | --- | --- | --- | --- |
-| **FL Studio** | MIDI | MIDI | FLP is a binary event stream with plugin data; export MIDI from FL (`File → Export → MIDI`) and import it here. |
+| **reference DAW** | MIDI | MIDI | FLP is a binary event stream with plugin data; export MIDI from FL (`File → Export → MIDI`) and import it here. |
 | **Ableton Live** | `.als` (10–12), MIDI | MIDI | `.als` is gzipped XML — tracks, clips, notes and tempo are read. Live imports SMF type 1 as separate tracks. |
 | **REAPER** | `.rpp`, MIDI | `.rpp`, MIDI | RPP is plain text; tracks and MIDI items round-trip. |
 | **Logic Pro** | MIDI | MIDI | Logic imports SMF type 1. |
@@ -43,7 +43,7 @@ OpenBeats exchanges **musical data**, not plugin graphs. What travels: track nam
 
 - No FLP, ALS or RPP **writing** except RPP: reproducing another DAW's full project schema without that DAW to validate against would produce files that silently fail to open. MIDI and RPP are safe to generate.
 - Ableton import reads MIDI tracks only. Audio tracks, warping, devices and automation are counted and reported as skipped.
-- FL Studio `.flp` is a proprietary binary (header `FLhd`, `FLdt` event stream with length-prefixed plugin blobs). Parsing it is possible but version-fragile; MIDI is the supported path.
+- reference DAW `.flp` is a proprietary binary (header `FLhd`, `FLdt` event stream with length-prefixed plugin blobs). Parsing it is possible but version-fragile; MIDI is the supported path.
 - Drum racks, sampler mappings and plugin presets are not translated. Imported drum tracks use OpenBeats' synthesised kits.
 - Tempo changes inside a song are not imported: the first tempo becomes the project tempo.
 

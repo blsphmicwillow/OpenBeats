@@ -69,7 +69,7 @@ export const CHANGELOG: ChangelogEntry[] = [
       {
         title: 'Interchange',
         items: [
-          'Multi-track MIDI import/export (SMF type 1) for FL Studio, Ableton, Logic, Cubase, Studio One, Bitwig and REAPER.',
+          'Multi-track MIDI import/export (SMF type 1) for reference DAW, Ableton, Logic, Cubase, Studio One, Bitwig and REAPER.',
           'Ableton Live Set (.als) import from the gzipped XML, including tracks, clips, notes and tempo.',
           'REAPER (.rpp) import and export with tempo, tracks and MIDI items.',
           'Import / export song dialog with per-format fidelity notes and native binary save dialogs.',
@@ -138,7 +138,7 @@ export const CHANGELOG: ChangelogEntry[] = [
         items: [
           'Project-wide key detection in the piano roll toolbar, estimated from all note pitch classes.',
           'Rounded playlist clip edges for clearer section boundaries, a recurring Ableton request.',
-          'Audited FL Studio 2026 and Ableton Live 12 requests; dynamic mixer tracks, loop/chord generation, device A/B and project portability were already covered.',
+          'Audited reference DAW 2026 and Ableton Live 12 requests; dynamic mixer tracks, loop/chord generation, device A/B and project portability were already covered.',
         ],
       },
       {
@@ -152,7 +152,7 @@ export const CHANGELOG: ChangelogEntry[] = [
         title: 'Compatibility',
         items: [
           'Third-party VST3/AU hosting is not included in 1.0.0; the plugin library, OpenBeats Gain and file downloads ship, but loading plugins into the mixer remains future work.',
-          'FL Studio .flp is a proprietary binary format, so FL Studio projects travel through MIDI rather than .flp.',
+          'reference DAW .flp is a proprietary binary format, so reference DAW projects travel through MIDI rather than .flp.',
           'The Rust/CPAL audio migration is planned in docs/RUST_AUDIO.md; 1.0.0 still renders with Web Audio.',
         ],
       },

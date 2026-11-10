@@ -1,12 +1,12 @@
-# FL Studio and Ableton request audit
+# reference DAW and Ableton request audit
 
-Research date: 2026-11-10. Sources: Image-Line's FL Studio 2026 release notes and forum,
-the FL Studio 2026 Reddit AMA, Ableton's Live 12 release notes and the official feature
+Research date: 2026-11-10. Sources: Image-Line's reference DAW 2026 release notes and forum,
+the reference DAW 2026 Reddit AMA, Ableton's Live 12 release notes and the official feature
 wishlist thread.
 
 ## What users ask for
 
-### FL Studio
+### reference DAW
 
 - Project portability and cloud backup of projects, Project Bones/Data and loop packages.
 - Key and chord detection in the Piano Roll / Chord Panel.
