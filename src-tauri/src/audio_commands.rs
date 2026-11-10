@@ -64,6 +64,9 @@ fn stopped_snapshot() -> EngineSnapshot {
         stream_errors: 0,
         sample_rate: 0.0,
         device: String::new(),
+        latency_ms: 0.0,
+        channels: 0,
+        device_swaps: 0,
     }
 }
 
