@@ -129,6 +129,40 @@ export class AudioEngine {
   private key = '';
   error: string | null = null;
 
+  /**
+   * Resumes WebKit's audio pipeline and pushes one silent buffer through it.
+   * WebKitGTK can leave resume() pending forever when the page was backgrounded,
+   * so every wait is bounded and the context state is checked afterwards.
+   */
+  async unlock(): Promise<boolean> {
+    if (!this.ctx) return false;
+    if (this.ctx.state === 'running') return true;
+    try {
+      await Promise.race([
+        this.ctx.resume(),
+        new Promise<void>((_, reject) => window.setTimeout(() => reject(new Error('Audio resume timed out')), 1500)),
+      ]);
+    } catch {
+      /* fall through to the state check and a silent-buffer kick */
+    }
+    if ((this.ctx.state as string) === 'running') {
+      try {
+        const buffer = this.ctx.createBuffer(1, 1, 22050);
+        const source = this.ctx.createBufferSource();
+        source.buffer = buffer;
+        source.connect(this.ctx.destination);
+        source.start(0);
+      } catch {
+        /* harmless */
+      }
+    }
+    const running = (this.ctx.state as string) === 'running';
+    this.error = running
+      ? null
+      : 'Audio is suspended by the system. Click the studio or check your GStreamer/PulseAudio installation.';
+    return running;
+  }
+
   async ensure(project: Project): Promise<boolean> {
     this.project = project;
     if (!this.ctx) {
@@ -140,15 +174,11 @@ export class AudioEngine {
         return false;
       }
     }
-    if (this.ctx.state === 'suspended') {
-      try {
-        await this.ctx.resume();
-      } catch {
-        /* browsers may refuse without a gesture; the next click retries */
-      }
-    }
     if (!this.graph) this.rebuild(project);
     else this.sync(project);
+    const running = await this.unlock();
+    if (!running) return false;
+    this.error = null;
     return true;
   }
 

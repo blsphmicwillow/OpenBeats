@@ -14,7 +14,7 @@ Installers are built by GitHub Actions and attached to [Releases](https://github
 
 | Platform | File | Notes |
 | --- | --- | --- |
-| Linux | `OpenBeats_<version>_amd64.deb` | Debian/Ubuntu. Needs WebKitGTK 4.1 (`libwebkit2gtk-4.1-0`). |
+| Linux | `OpenBeats_<version>_amd64.deb` | Debian/Ubuntu. Needs WebKitGTK 4.1 (`libwebkit2gtk-4.1-0`) plus GStreamer `base`, `good` and `pulseaudio` plugins for audio. |
 | Linux | `OpenBeats_<version>_amd64.AppImage` | Portable, no install. |
 | Windows | `OpenBeats_<version>_x64-setup.exe` | NSIS installer. |
 | Windows | `OpenBeats_<version>_x64_en-US.msi` | MSI for managed machines. |

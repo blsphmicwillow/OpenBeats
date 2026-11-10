@@ -146,7 +146,7 @@ export interface AppState {
   openMenu(x: number, y: number, items: MenuItem[]): void;
   closeMenu(): void;
 
-  initAudio(): Promise<void>;
+  initAudio(): Promise<boolean>;
   togglePlay(): void;
   play(fromStep?: number): void;
   stop(): void;
@@ -356,6 +356,7 @@ export const useApp = create<AppState>((set, get) => ({
     const ok = await engine.ensure(get().project);
     set({ audioReady: ok, audioError: ok ? null : engine.error });
     if (ok) engine.sync(get().project);
+    return ok;
   },
 
   togglePlay() {
@@ -364,9 +365,12 @@ export const useApp = create<AppState>((set, get) => ({
   },
 
   play(fromStep) {
-    void get().initAudio().then(() => {
+    void get().initAudio().then((ok) => {
       const { project } = get();
-      if (!engine.ctx) return;
+      if (!ok || !engine.ctx) {
+        get().toast(engine.error ?? 'Audio could not start — click the studio and try again');
+        return;
+      }
       if (playTimer) clearInterval(playTimer);
       const start = fromStep ?? get().transport.step;
       nextStep = Math.max(0, start);

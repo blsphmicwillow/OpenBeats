@@ -55,6 +55,17 @@ export default function App() {
   };
 
   useEffect(() => {
+    // WebKitGTK needs a user gesture to unlock Web Audio. Pointer and keyboard
+    // gestures both count, and Space must work without clicking first.
+    const unlock = () => {
+      boot();
+      void useApp.getState().initAudio();
+    };
+    window.addEventListener('keydown', unlock, { once: true });
+    return () => window.removeEventListener('keydown', unlock);
+  }, []);
+
+  useEffect(() => {
     if (!useApp.getState().settings.autoCheckUpdates) return;
     const timer = window.setTimeout(() => void useApp.getState().checkUpdates(true), 1500);
     return () => window.clearTimeout(timer);

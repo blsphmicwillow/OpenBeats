@@ -58,6 +58,14 @@ export const CHANGELOG: ChangelogEntry[] = [
         ],
       },
       {
+        title: 'Audio reliability',
+        items: [
+          'No more frozen green transport: audio must actually reach the running state before playback starts.',
+          'WebKitGTK audio unlock uses a bounded resume plus a silent buffer, triggered by the first Spacebar or click.',
+          'Linux packages now declare GStreamer base, good and PulseAudio plugins for Web Audio output.',
+        ],
+      },
+      {
         title: 'Autosave',
         items: [
           'Crash-safe local snapshots with a selectable interval: 2, 5, 10, 15, 30 or 60 minutes, or Never.',

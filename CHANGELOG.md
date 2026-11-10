@@ -44,6 +44,12 @@ This is the first official release. Everything below shipped in this build; ther
 - Dropping `.mid`, `.als`, `.rpp` or `.obeats` opens the song, with a visible drop target and clear feedback.
 - One-shot import auto-tags tempo, brightness and instrument family, and keeps a session sample bank.
 
+### Audio reliability
+
+- Transport now refuses to turn green when the system blocks Web Audio; it reports the suspended context instead of showing a frozen playhead.
+- Every audio start resumes WebKitGTK's pipeline with a bounded wait and a silent-buffer unlock, and the first Spacebar or pointer gesture unlocks audio.
+- Linux packages now declare the GStreamer base/good/PulseAudio plugins that WebKitGTK needs for Web Audio output.
+
 ### Autosave
 
 - Crash-safe local snapshots on a selectable timer: **2, 5, 10, 15, 30 or 60 minutes, or Never**.
