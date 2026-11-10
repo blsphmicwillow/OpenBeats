@@ -1432,7 +1432,10 @@ mod tests {
         fs::remove_dir_all(&root).ok();
     }
 
-    #[cfg(unix)]
+    // Linux filesystems allow arbitrary bytes in names. APFS rejects names that
+    // are not valid UTF-8 with EILSEQ, so this fixture can only run on Unixes
+    // whose filesystem permits it.
+    #[cfg(all(unix, not(target_os = "macos")))]
     #[test]
     fn non_utf8_filenames_are_handled_without_panicking() {
         use std::ffi::OsString;
