@@ -45,6 +45,7 @@ export const CHANGELOG: ChangelogEntry[] = [
           'Classic and Modern interface modes share the same themes, so every palette restyles both ways.',
           'Glass and Liquid Glass themes in both light and dark variants: translucent panels and 22 px backdrop blur.',
           'Colour editor with a wheel, HEX field and RGB sliders for every theme token, a glass toggle, and JSON import/export.',
+          'Dedicated Updates tab with a real opt-out of launch checks, plus an Accessibility tab for reduced motion, high contrast, focus rings, scaling and hints.',
           'Command palette (Ctrl/Cmd+K) with searchable actions.',
           'New “Studio 2006” theme for the classic rig look.',
         ],

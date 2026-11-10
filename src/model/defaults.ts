@@ -498,6 +498,8 @@ export function defaultSettings(): Settings {
     autoScroll: true,
     showMeters: true,
     reduceMotion: false,
+    highContrast: false,
+    focusRings: true,
     autoSave: true,
     keymap: { ...DEFAULT_KEYMAP },
     tutorialDone: false,

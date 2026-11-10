@@ -240,6 +240,10 @@ export interface Settings {
   autoScroll: boolean;
   showMeters: boolean;
   reduceMotion: boolean;
+  /** Stronger borders and text for low-vision use. */
+  highContrast: boolean;
+  /** Always draw a visible keyboard focus ring. */
+  focusRings: boolean;
   autoSave: boolean;
   keymap: Record<KeyAction, string>;
   tutorialDone: boolean;

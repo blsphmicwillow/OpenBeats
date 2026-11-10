@@ -2474,3 +2474,49 @@ input[type='color'] {
   .app.theme-glass .strip,
   .app.theme-glass .modal { backdrop-filter: blur(14px); }
 }
+
+/* ==========================================================================
+   Accessibility preferences
+   ========================================================================== */
+.app.high-contrast {
+  --dim: color-mix(in srgb, var(--text) 82%, var(--panel));
+  --border: color-mix(in srgb, var(--text) 42%, transparent);
+}
+.app.high-contrast .tab,
+.app.high-contrast .btn,
+.app.high-contrast .tbtn,
+.app.high-contrast .step,
+.app.high-contrast .channel,
+.app.high-contrast .clip,
+.app.high-contrast .strip,
+.app.high-contrast .field,
+.app.high-contrast input,
+.app.high-contrast select,
+.app.high-contrast .modal {
+  border-color: color-mix(in srgb, var(--text) 48%, transparent) !important;
+}
+.app.high-contrast .field-label small,
+.app.high-contrast .hinttext,
+.app.high-contrast .tiny-note,
+.app.high-contrast .cr-name {
+  color: color-mix(in srgb, var(--text) 82%, var(--panel)) !important;
+}
+.app.high-contrast .tab.active,
+.app.high-contrast .btn.primary {
+  outline: 1px solid color-mix(in srgb, var(--text) 55%, transparent);
+  outline-offset: 1px;
+}
+.app.focus-rings :focus-visible,
+.app.high-contrast :focus-visible {
+  outline: 2px solid var(--accent) !important;
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+.reduce-motion *,
+.reduce-motion *::before,
+.reduce-motion *::after {
+  animation-duration: 0.001ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.001ms !important;
+  scroll-behavior: auto !important;
+}

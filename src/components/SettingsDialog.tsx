@@ -6,13 +6,16 @@ import { ThemeColorEditor } from './ThemeColorEditor';
 import { DEFAULT_KEYMAP, defaultSettings } from '../model/defaults';
 import { engine } from '../audio/engine';
 import { KEY_ACTION_LABELS, comboFromEvent } from '../ui/keymapLabels';
+import { APP_VERSION } from '../lib/version';
 import type { KeyAction, Settings, Theme } from '../model/types';
 
-type Tab = 'appearance' | 'workflow' | 'keys' | 'audio' | 'opensource';
+type Tab = 'appearance' | 'accessibility' | 'workflow' | 'updates' | 'keys' | 'audio' | 'opensource';
 
 const TABS: { id: Tab; label: string }[] = [
   { id: 'appearance', label: 'Appearance' },
+  { id: 'accessibility', label: 'Accessibility' },
   { id: 'workflow', label: 'Workflow' },
+  { id: 'updates', label: 'Updates' },
   { id: 'keys', label: 'Keyboard' },
   { id: 'audio', label: 'Audio' },
   { id: 'opensource', label: 'Open source' },
@@ -21,6 +24,7 @@ const TABS: { id: Tab; label: string }[] = [
 export function SettingsDialog() {
   const open = useApp((s) => s.ui.settingsOpen);
   const settings = useApp((s) => s.settings);
+  const updateChecking = useApp((s) => s.ui.updateChecking);
   const [tab, setTab] = useState<Tab>('appearance');
   const [capturing, setCapturing] = useState<KeyAction | null>(null);
   const importRef = useRef<HTMLInputElement>(null);
@@ -249,47 +253,6 @@ export function SettingsDialog() {
                   </button>
                 </div>
               </div>
-              <div className="field">
-                <div className="field-label">
-                  Interface scale <small>{Math.round(settings.scale * 100)}%</small>
-                </div>
-                <div className="field-control">
-                  <input
-                    type="range"
-                    min={0.8}
-                    max={1.3}
-                    step={0.01}
-                    value={settings.scale}
-                    onChange={(e) => patchSettings({ scale: Number(e.target.value) })}
-                  />
-                </div>
-              </div>
-              <div className="field">
-                <div className="field-label">Density</div>
-                <div className="field-control">
-                  <select
-                    className="select"
-                    value={settings.density}
-                    onChange={(e) => patchSettings({ density: e.target.value as Settings['density'] })}
-                  >
-                    <option value="comfortable">Comfortable</option>
-                    <option value="compact">Compact</option>
-                  </select>
-                </div>
-              </div>
-              <div className="field">
-                <div className="field-label">
-                  Reduce motion
-                  <small>Disables the recording pulse and transitions.</small>
-                </div>
-                <div className="field-control">
-                  <input
-                    type="checkbox"
-                    checked={settings.reduceMotion}
-                    onChange={(e) => patchSettings({ reduceMotion: e.target.checked })}
-                  />
-                </div>
-              </div>
             </>
           )}
 
@@ -318,40 +281,8 @@ export function SettingsDialog() {
                 </div>
               </div>
 
-              <div className="field">
-                <div className="field-label">
-                  Update repository
-                  <small>GitHub “owner/repo” whose Releases feed the update checker.</small>
-                </div>
-                <div className="field-control">
-                  <input
-                    className="text-input"
-                    value={settings.updateRepo}
-                    onChange={(e) => patchSettings({ updateRepo: e.target.value })}
-                    placeholder="openbeats/openbeats"
-                  />
-                  <button className="btn ghost" onClick={() => void useApp.getState().checkUpdates()}>
-                    Check now
-                  </button>
-                </div>
-              </div>
-              <div className="field">
-                <div className="field-label">
-                  Automatic update checks
-                  <small>Ask GitHub Releases for a newer build shortly after launch.</small>
-                </div>
-                <div className="field-control">
-                  <input
-                    type="checkbox"
-                    checked={settings.autoCheckUpdates}
-                    onChange={(e) => patchSettings({ autoCheckUpdates: e.target.checked })}
-                  />
-                </div>
-              </div>
               {(
                 [
-                  ['showHints', 'Hint bar', 'Show the explanation bar at the bottom of the window.'],
-                  ['cursorHints', 'Values at the pointer', 'Show knob and fader values next to the cursor while dragging.'],
                   ['showMeters', 'Channel rack meters', 'Display a live level meter on every channel.'],
                   ['autoScroll', 'Follow the playhead', 'Keep the playlist and piano roll near the playhead.'],
                   ['autoSave', 'Autosave', 'Store the project in this browser as you work.'],
@@ -413,6 +344,185 @@ export function SettingsDialog() {
                 <div className="field-control">
                   <button className="btn ghost" onClick={() => setUI({ rackWidth: 470, browserWidth: 232, browserOpen: true })}>
                     Reset layout
+                  </button>
+                </div>
+              </div>
+            </>
+          )}
+
+          {tab === 'accessibility' && (
+            <>
+              <h3>Accessibility</h3>
+              <p className="hinttext">
+                Readability and motion controls. Everything here applies immediately and is saved with your settings;
+                none of it changes your project.
+              </p>
+              <div className="field">
+                <div className="field-label">
+                  Reduce motion
+                  <small>Disables the recording pulse, meters and interface transitions.</small>
+                </div>
+                <div className="field-control">
+                  <input
+                    type="checkbox"
+                    checked={settings.reduceMotion}
+                    onChange={(e) => patchSettings({ reduceMotion: e.target.checked })}
+                  />
+                </div>
+              </div>
+              <div className="field">
+                <div className="field-label">
+                  High contrast
+                  <small>Stronger borders, brighter labels and clearer separators on any theme.</small>
+                </div>
+                <div className="field-control">
+                  <input
+                    type="checkbox"
+                    checked={settings.highContrast}
+                    onChange={(e) => patchSettings({ highContrast: e.target.checked })}
+                  />
+                </div>
+              </div>
+              <div className="field">
+                <div className="field-label">
+                  Keyboard focus rings
+                  <small>Always outline the focused control, even when using a mouse.</small>
+                </div>
+                <div className="field-control">
+                  <input
+                    type="checkbox"
+                    checked={settings.focusRings}
+                    onChange={(e) => patchSettings({ focusRings: e.target.checked })}
+                  />
+                </div>
+              </div>
+              <div className="field">
+                <div className="field-label">
+                  Interface scale <small>{Math.round(settings.scale * 100)}%</small>
+                </div>
+                <div className="field-control">
+                  <input
+                    type="range"
+                    min={0.8}
+                    max={1.3}
+                    step={0.01}
+                    value={settings.scale}
+                    onChange={(e) => patchSettings({ scale: Number(e.target.value) })}
+                  />
+                </div>
+              </div>
+              <div className="field">
+                <div className="field-label">
+                  Density
+                  <small>Compact fits more tracks; comfortable adds breathing room.</small>
+                </div>
+                <div className="field-control">
+                  <select
+                    className="select"
+                    value={settings.density}
+                    onChange={(e) => patchSettings({ density: e.target.value as Settings['density'] })}
+                  >
+                    <option value="comfortable">Comfortable</option>
+                    <option value="compact">Compact</option>
+                  </select>
+                </div>
+              </div>
+              <div className="field">
+                <div className="field-label">
+                  Hint bar
+                  <small>Show the explanation bar at the bottom of the window.</small>
+                </div>
+                <div className="field-control">
+                  <input
+                    type="checkbox"
+                    checked={settings.showHints}
+                    onChange={(e) => patchSettings({ showHints: e.target.checked })}
+                  />
+                </div>
+              </div>
+              <div className="field">
+                <div className="field-label">
+                  Values at the pointer
+                  <small>Show knob and fader values next to the cursor while dragging.</small>
+                </div>
+                <div className="field-control">
+                  <input
+                    type="checkbox"
+                    checked={settings.cursorHints}
+                    onChange={(e) => patchSettings({ cursorHints: e.target.checked })}
+                  />
+                </div>
+              </div>
+            </>
+          )}
+
+          {tab === 'updates' && (
+            <>
+              <h3>Updates</h3>
+              <p className="hinttext">
+                OpenBeats checks this repository’s GitHub Releases for a newer build. The check is a single request to
+                api.github.com; nothing about you or your projects is sent.
+              </p>
+              <div className="field">
+                <div className="field-label">
+                  Installed version
+                  <small>Bundled with this build.</small>
+                </div>
+                <div className="field-control">
+                  <span className="chip">{APP_VERSION}</span>
+                </div>
+              </div>
+              <div className="field">
+                <div className="field-label">
+                  Automatic update checks
+                  <small>
+                    Off means OpenBeats never contacts GitHub on its own — no launch check, no banner. You can still
+                    check manually below.
+                  </small>
+                </div>
+                <div className="field-control">
+                  <input
+                    type="checkbox"
+                    checked={settings.autoCheckUpdates}
+                    onChange={(e) => {
+                      patchSettings({ autoCheckUpdates: e.target.checked });
+                      if (!e.target.checked) setUI({ update: null });
+                    }}
+                  />
+                </div>
+              </div>
+              <div className="field">
+                <div className="field-label">
+                  Update repository
+                  <small>GitHub “owner/repo” whose Releases feed the checker.</small>
+                </div>
+                <div className="field-control">
+                  <input
+                    className="text-input"
+                    value={settings.updateRepo}
+                    onChange={(e) => patchSettings({ updateRepo: e.target.value })}
+                    placeholder="openbeats/openbeats"
+                  />
+                </div>
+              </div>
+              <div className="field">
+                <div className="field-label">
+                  Check now
+                  <small>Manual checks work even when automatic checks are off.</small>
+                </div>
+                <div className="field-control">
+                  <button className="btn" onClick={() => void useApp.getState().checkUpdates()}>Check for updates</button>
+                  {updateChecking && <span className="tiny-note">checking…</span>}
+                </div>
+              </div>
+              <div className="field">
+                <div className="field-label">
+                  Release notes
+                  <small>The Changelog tab always shows what changed in this build.</small>
+                </div>
+                <div className="field-control">
+                  <button className="btn ghost" onClick={() => { setUI({ settingsOpen: false, tab: 'changelog' }); }}>
+                    Open changelog
                   </button>
                 </div>
               </div>

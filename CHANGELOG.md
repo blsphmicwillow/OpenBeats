@@ -39,6 +39,9 @@ Keep this file and `src/lib/changelog.ts` in sync, and bump `APP_VERSION` in `sr
 - **Glass** and **Liquid Glass** themes, each in a **light and dark** variant: translucent panels and 22 px backdrop blur.
 - **Colour editor** with a colour wheel, HEX field and R/G/B inputs for every theme token, plus a glass-surface
   toggle for custom themes and JSON import/export.
+- **Updates** tab with a clear opt-out of automatic launch checks (no request is made when disabled) and a manual
+  check that still works.
+- **Accessibility** tab: reduced motion, high contrast, visible focus rings, interface scale, density and hint toggles.
 - **Command palette** (Ctrl/Cmd+K) covering transport, views, channels, audio tools and project actions.
 
 ## 1.0.0 — 2026-10-28

@@ -192,7 +192,7 @@ export default function App() {
 
   return (
     <div
-      className={`app density-${settings.density} mode-${settings.uiMode} ${theme.glass ? 'theme-glass' : ''} ${theme.dark ? 'theme-dark' : 'theme-light'} ${settings.reduceMotion ? 'reduce-motion' : ''}`}
+      className={`app density-${settings.density} mode-${settings.uiMode} ${theme.glass ? 'theme-glass' : ''} ${theme.dark ? 'theme-dark' : 'theme-light'} ${settings.reduceMotion ? 'reduce-motion' : ''} ${settings.highContrast ? 'high-contrast' : ''} ${settings.focusRings ? 'focus-rings' : ''}`}
       style={{ ...(themeVars(theme, settings.accent) as React.CSSProperties), ['--scale' as string]: settings.scale }}
       onPointerDown={boot}
       onContextMenu={(e) => e.preventDefault()}

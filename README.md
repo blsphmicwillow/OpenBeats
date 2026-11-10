@@ -57,7 +57,9 @@ Until a release is published you can build from source — see [docs/BUILDING.md
 - **Classic** and **Modern** interface modes over the same theme tokens.
 - Built-in themes, including **Glass (dark)** and **Liquid Glass (light)** glassmorphism styles.
 - **My theme** editor: colour wheel, HEX field and RGB sliders for every token; import/export theme JSON.
-- Command palette, density switch, interface scale, reduced motion, accent override.
+- Command palette, density switch, interface scale, accent override.
+- **Accessibility**: reduced motion, high contrast, visible keyboard focus rings, scaling and hint toggles in their own tab.
+- **Updates** tab: opt out of automatic launch checks entirely, or check manually at any time.
 - Optional *Studio 2006* throwback theme.
 
 ---
