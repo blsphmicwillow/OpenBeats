@@ -1,0 +1,601 @@
+import { useEffect, useRef, useState } from 'react';
+import { useApp } from '../store';
+import { Modal } from '../ui/Modal';
+import { THEMES, themeById } from '../themes';
+import { ThemeColorEditor } from './ThemeColorEditor';
+import { DEFAULT_KEYMAP, defaultSettings } from '../model/defaults';
+import { engine } from '../audio/engine';
+import { KEY_ACTION_LABELS, comboFromEvent } from '../ui/keymapLabels';
+import type { KeyAction, Settings, Theme } from '../model/types';
+
+type Tab = 'appearance' | 'workflow' | 'keys' | 'audio' | 'opensource';
+
+const TABS: { id: Tab; label: string }[] = [
+  { id: 'appearance', label: 'Appearance' },
+  { id: 'workflow', label: 'Workflow' },
+  { id: 'keys', label: 'Keyboard' },
+  { id: 'audio', label: 'Audio' },
+  { id: 'opensource', label: 'Open source' },
+];
+
+export function SettingsDialog() {
+  const open = useApp((s) => s.ui.settingsOpen);
+  const settings = useApp((s) => s.settings);
+  const [tab, setTab] = useState<Tab>('appearance');
+  const [capturing, setCapturing] = useState<KeyAction | null>(null);
+  const importRef = useRef<HTMLInputElement>(null);
+  const { setUI, patchSettings, setKey, toast } = useApp.getState();
+
+  useEffect(() => {
+    if (!capturing) return;
+    const handler = (e: KeyboardEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (e.key === 'Escape') {
+        setCapturing(null);
+        return;
+      }
+      const combo = comboFromEvent(e);
+      if (combo) {
+        setKey(capturing, combo);
+        setCapturing(null);
+      }
+    };
+    window.addEventListener('keydown', handler, true);
+    return () => window.removeEventListener('keydown', handler, true);
+  }, [capturing, setKey]);
+
+  if (!open) return null;
+
+  const theme = themeById(settings.themeId, settings.customTheme);
+  const updateTheme = (key: keyof Theme, value: string) => {
+    patchSettings({
+      themeId: 'custom',
+      customTheme: { ...settings.customTheme, [key]: value, id: 'custom' },
+    });
+  };
+
+  const saveFile = (name: string, data: unknown) => {
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = name;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 3000);
+  };
+
+  return (
+    <Modal
+      title="Settings"
+      subtitle="Everything is stored locally in this browser"
+      onClose={() => setUI({ settingsOpen: false })}
+      footer={
+        <>
+          <span className="tiny-note">UI scale, theme, keymap and workflow are saved automatically.</span>
+          <div className="spacer" />
+          <button className="btn ghost" onClick={() => patchSettings(defaultSettings())}>
+            Restore defaults
+          </button>
+          <button className="btn primary" onClick={() => setUI({ settingsOpen: false })}>
+            Done
+          </button>
+        </>
+      }
+    >
+      <div className="settings-layout">
+        <div className="settings-tabs">
+          {TABS.map((t) => (
+            <button key={t.id} className={`settings-tab ${tab === t.id ? 'active' : ''}`} onClick={() => setTab(t.id)}>
+              {t.label}
+            </button>
+          ))}
+        </div>
+
+        <div className="settings-pane">
+          {tab === 'appearance' && (
+            <>
+              <h3>Theme</h3>
+              <p className="hinttext">
+                Themes restyle every panel, knob, meter and native effect instantly. Duplicate one, tweak the colours, then
+                export it as JSON to share.
+              </p>
+              <div className="theme-grid">
+                {THEMES.map((t) => (
+                  <div
+                    key={t.id}
+                    className={`theme-card ${settings.themeId === t.id ? 'active' : ''}`}
+                    onClick={() => patchSettings({ themeId: t.id })}
+                  >
+                    <div className="tc-name">{t.name}</div>
+                    <div className="theme-swatch">
+                      <i style={{ background: t.bg }} />
+                      <i style={{ background: t.panel }} />
+                      <i style={{ background: t.panel3 }} />
+                      <i style={{ background: t.accent }} />
+                      <i style={{ background: t.text }} />
+                    </div>
+                  </div>
+                ))}
+                <div
+                  className={`theme-card ${settings.themeId === 'custom' ? 'active' : ''}`}
+                  onClick={() => patchSettings({ themeId: 'custom' })}
+                >
+                  <div className="tc-name">My theme (editable)</div>
+                  <div className="theme-swatch">
+                    <i style={{ background: settings.customTheme.bg }} />
+                    <i style={{ background: settings.customTheme.panel }} />
+                    <i style={{ background: settings.customTheme.panel3 }} />
+                    <i style={{ background: settings.customTheme.accent }} />
+                    <i style={{ background: settings.customTheme.text }} />
+                  </div>
+                </div>
+              </div>
+
+              <div className="field">
+                <div className="field-label">
+                  Interface mode
+                  <small>Classic keeps the workstation chrome; Modern flattens it. Your theme colours carry across both.</small>
+                </div>
+                <div className="field-control">
+                  {(['classic', 'modern'] as const).map((m) => (
+                    <button
+                      key={m}
+                      className={`btn ${settings.uiMode === m ? 'primary' : 'ghost'}`}
+                      onClick={() => patchSettings({ uiMode: m })}
+                    >
+                      {m === 'classic' ? 'Classic' : 'Modern'}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', gap: 6, margin: '10px 0' }}>
+                <button
+                  className="btn"
+                  onClick={() =>
+                    patchSettings({
+                      themeId: 'custom',
+                      customTheme: { ...theme, id: 'custom', name: 'My Theme', dark: settings.customTheme.dark },
+                    })
+                  }
+                >
+                  Copy current theme → My theme
+                </button>
+                <button className="btn ghost" onClick={() => saveFile('openbeats-theme.json', theme)}>
+                  Export theme JSON
+                </button>
+                <button className="btn ghost" onClick={() => importRef.current?.click()}>
+                  Import theme
+                </button>
+                <input
+                  ref={importRef}
+                  type="file"
+                  accept="application/json"
+                  hidden
+                  onChange={async (e) => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    try {
+                      const imported = JSON.parse(await file.text()) as Theme;
+                      if (!imported.bg || !imported.accent) throw new Error('missing colours');
+                      patchSettings({ themeId: 'custom', customTheme: { ...imported, id: 'custom' } });
+                      toast('Theme imported');
+                    } catch {
+                      toast('That file is not an OpenBeats theme');
+                    }
+                    e.target.value = '';
+                  }}
+                />
+              </div>
+
+              <div className="field-label" style={{ marginTop: 18 }}>
+                Colour editor
+                <small style={{ display: 'block', fontWeight: 400 }}>
+                  Wheel, HEX and RGB stay in sync. Edits are saved to “My theme”, so built-in palettes stay untouched.
+                </small>
+              </div>
+              <ThemeColorEditor
+                theme={theme}
+                onChange={(patch) =>
+                  patchSettings({
+                    themeId: 'custom',
+                    customTheme: {
+                      ...(settings.themeId === 'custom' ? settings.customTheme : theme),
+                      ...patch,
+                      id: 'custom',
+                      name: 'My theme',
+                    },
+                  })
+                }
+              />
+              <div className="field">
+                <div className="field-label">
+                  Glass surfaces
+                  <small>Translucent panels and background blur. Works best with the Glass presets.</small>
+                </div>
+                <div className="field-control">
+                  <input
+                    type="checkbox"
+                    checked={!!theme.glass}
+                    onChange={(e) =>
+                      patchSettings({
+                        themeId: 'custom',
+                        customTheme: {
+                          ...(settings.themeId === 'custom' ? settings.customTheme : theme),
+                          glass: e.target.checked,
+                          id: 'custom',
+                          name: 'My theme',
+                        },
+                      })
+                    }
+                  />
+                </div>
+              </div>
+
+              <div className="field">
+                <div className="field-label">
+                  Accent override
+                  <small>Pushes one accent colour across the current theme.</small>
+                </div>
+                <div className="field-control">
+                  <input
+                    type="color"
+                    value={settings.accent ?? theme.accent}
+                    onChange={(e) => patchSettings({ accent: e.target.value })}
+                  />
+                  <button className="btn ghost" onClick={() => patchSettings({ accent: null })}>
+                    Clear
+                  </button>
+                </div>
+              </div>
+              <div className="field">
+                <div className="field-label">
+                  Interface scale <small>{Math.round(settings.scale * 100)}%</small>
+                </div>
+                <div className="field-control">
+                  <input
+                    type="range"
+                    min={0.8}
+                    max={1.3}
+                    step={0.01}
+                    value={settings.scale}
+                    onChange={(e) => patchSettings({ scale: Number(e.target.value) })}
+                  />
+                </div>
+              </div>
+              <div className="field">
+                <div className="field-label">Density</div>
+                <div className="field-control">
+                  <select
+                    className="select"
+                    value={settings.density}
+                    onChange={(e) => patchSettings({ density: e.target.value as Settings['density'] })}
+                  >
+                    <option value="comfortable">Comfortable</option>
+                    <option value="compact">Compact</option>
+                  </select>
+                </div>
+              </div>
+              <div className="field">
+                <div className="field-label">
+                  Reduce motion
+                  <small>Disables the recording pulse and transitions.</small>
+                </div>
+                <div className="field-control">
+                  <input
+                    type="checkbox"
+                    checked={settings.reduceMotion}
+                    onChange={(e) => patchSettings({ reduceMotion: e.target.checked })}
+                  />
+                </div>
+              </div>
+            </>
+          )}
+
+          {tab === 'workflow' && (
+            <>
+              <h3>Workflow</h3>
+              <p className="hinttext">Small conveniences that change how the studio feels day to day.</p>
+
+              <div className="field">
+                <div className="field-label">
+                  Bounce mastering
+                  <small>Applied to the offline render on export.</small>
+                </div>
+                <div className="field-control">
+                  <select
+                    className="select"
+                    value={settings.masterTarget}
+                    onChange={(e) => patchSettings({ masterTarget: e.target.value as Settings['masterTarget'] })}
+                  >
+                    <option value="none">None (raw mix)</option>
+                    <option value="spotify">Spotify · −14 LUFS</option>
+                    <option value="club">Club · −9 LUFS</option>
+                    <option value="soundcloud">SoundCloud · −13 LUFS</option>
+                    <option value="youtube">YouTube · −14 LUFS</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="field">
+                <div className="field-label">
+                  Update repository
+                  <small>GitHub “owner/repo” whose Releases feed the update checker.</small>
+                </div>
+                <div className="field-control">
+                  <input
+                    className="text-input"
+                    value={settings.updateRepo}
+                    onChange={(e) => patchSettings({ updateRepo: e.target.value })}
+                    placeholder="openbeats/openbeats"
+                  />
+                  <button className="btn ghost" onClick={() => void useApp.getState().checkUpdates()}>
+                    Check now
+                  </button>
+                </div>
+              </div>
+              <div className="field">
+                <div className="field-label">
+                  Automatic update checks
+                  <small>Ask GitHub Releases for a newer build shortly after launch.</small>
+                </div>
+                <div className="field-control">
+                  <input
+                    type="checkbox"
+                    checked={settings.autoCheckUpdates}
+                    onChange={(e) => patchSettings({ autoCheckUpdates: e.target.checked })}
+                  />
+                </div>
+              </div>
+              {(
+                [
+                  ['showHints', 'Hint bar', 'Show the explanation bar at the bottom of the window.'],
+                  ['cursorHints', 'Values at the pointer', 'Show knob and fader values next to the cursor while dragging.'],
+                  ['showMeters', 'Channel rack meters', 'Display a live level meter on every channel.'],
+                  ['autoScroll', 'Follow the playhead', 'Keep the playlist and piano roll near the playhead.'],
+                  ['autoSave', 'Autosave', 'Store the project in this browser as you work.'],
+                ] as const
+              ).map(([key, label, desc]) => (
+                <div className="field" key={key}>
+                  <div className="field-label">
+                    {label}
+                    <small>{desc}</small>
+                  </div>
+                  <div className="field-control">
+                    <input
+                      type="checkbox"
+                      checked={Boolean(settings[key])}
+                      onChange={(e) => patchSettings({ [key]: e.target.checked } as Partial<Settings>)}
+                    />
+                  </div>
+                </div>
+              ))}
+              <div className="field">
+                <div className="field-label">
+                  Default snap
+                  <small>Used by the playlist and piano roll.</small>
+                </div>
+                <div className="field-control">
+                  <select className="select" value={String(settings.snap)} onChange={(e) => patchSettings({ snap: Number(e.target.value) })}>
+                    <option value="1">1/16 note</option>
+                    <option value="0.5">1/32 note</option>
+                    <option value="0.25">1/64 note</option>
+                    <option value="0">Off (free)</option>
+                  </select>
+                </div>
+              </div>
+              <div className="field">
+                <div className="field-label">
+                  Sample previews
+                  <small>Audition packs and samples with a single click.</small>
+                </div>
+                <div className="field-control">
+                  <span className="tiny-note">always on</span>
+                </div>
+              </div>
+              <div className="field">
+                <div className="field-label">
+                  Tutorial
+                  <small>Replay the guided tour of the studio.</small>
+                </div>
+                <div className="field-control">
+                  <button className="btn" onClick={() => { setUI({ settingsOpen: false, tutorialStep: 0 }); }}>
+                    Start the tour
+                  </button>
+                </div>
+              </div>
+              <div className="field">
+                <div className="field-label">
+                  Panel sizes
+                  <small>Reset the browser and channel rack widths.</small>
+                </div>
+                <div className="field-control">
+                  <button className="btn ghost" onClick={() => setUI({ rackWidth: 470, browserWidth: 232, browserOpen: true })}>
+                    Reset layout
+                  </button>
+                </div>
+              </div>
+            </>
+          )}
+
+          {tab === 'keys' && (
+            <>
+              <h3>Keyboard</h3>
+              <p className="hinttext">
+                Click a shortcut, then press the combination you want. Letters are case-insensitive; Ctrl works as Cmd on
+                macOS. QWERTY note keys always play the selected channel.
+              </p>
+              {(Object.keys(DEFAULT_KEYMAP) as KeyAction[]).map((action) => (
+                <div className="keymap-row" key={action}>
+                  <span style={{ flex: 1 }}>{KEY_ACTION_LABELS[action]}</span>
+                  <button
+                    className={`km-combo ${capturing === action ? 'capturing' : ''}`}
+                    onClick={() => setCapturing(capturing === action ? null : action)}
+                    title="Click, then press a key combination"
+                  >
+                    {capturing === action ? 'press keys…' : settings.keymap[action]}
+                  </button>
+                </div>
+              ))}
+              <div style={{ marginTop: 10, display: 'flex', gap: 6 }}>
+                <button className="btn ghost" onClick={() => patchSettings({ keymap: { ...DEFAULT_KEYMAP } })}>
+                  Reset shortcuts
+                </button>
+              </div>
+              <p className="hinttext" style={{ marginTop: 12 }}>
+                Editing: <span className="code">Z–M</span> and <span className="code">Q–U</span> play notes,{' '}
+                <span className="code">+</span>/<span className="code">−</span> transpose the selected channel,{' '}
+                <span className="code">Delete</span> is not bound (use right-click) so nothing disappears by accident.
+              </p>
+            </>
+          )}
+
+          {tab === 'audio' && <AudioTab />}
+
+          {tab === 'opensource' && (
+            <>
+              <h3>OpenBeats is free software</h3>
+              <p className="hinttext">
+                OpenBeats is an original, open-source beatmaking studio built with React, TypeScript and the Web Audio API.
+                It is licensed under the GNU GPL v3: you can use it, study it, change it and share it. No code, assets or
+                samples from any commercial DAW are included — the workflow is inspired by classic pattern-based studios,
+                and every sound is synthesised or supplied by you.
+              </p>
+              <div className="field">
+                <div className="field-label">License</div>
+                <a className="btn ghost" href="https://www.gnu.org/licenses/gpl-3.0.html" target="_blank" rel="noreferrer">
+                  GPL-3.0 text
+                </a>
+              </div>
+              <div className="field">
+                <div className="field-label">Built with</div>
+                <div className="field-control tiny-note">React · Vite · TypeScript · Zustand · Web Audio</div>
+              </div>
+              <div className="field">
+                <div className="field-label">Project format</div>
+                <div className="field-control tiny-note">.obeats — readable JSON, versioned</div>
+              </div>
+              <div className="field">
+                <div className="field-label">
+                  Settings file
+                  <small>Move your theme, shortcuts and workflow between machines.</small>
+                </div>
+                <div className="field-control">
+                  <button className="btn ghost" onClick={() => saveFile('openbeats-settings.json', settings)}>
+                    Export settings
+                  </button>
+                  <button className="btn ghost" onClick={() => setUI({ aboutOpen: true })}>
+                    Manual
+                  </button>
+                </div>
+              </div>
+              <div className="field">
+                <div className="field-label">
+                  Start over
+                  <small>Clears the autosaved project and every setting.</small>
+                </div>
+                <div className="field-control">
+                  <button
+                    className="btn danger"
+                    onClick={() => {
+                      if (window.confirm('Clear the autosaved project and reset all settings?')) useApp.getState().resetAll();
+                    }}
+                  >
+                    Reset everything
+                  </button>
+                </div>
+              </div>
+              <p className="hinttext" style={{ marginTop: 12 }}>
+                Tip: projects are plain JSON. Keep them in version control alongside your music — diffs are readable.
+              </p>
+            </>
+          )}
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+function AudioTab() {
+  const project = useApp((s) => s.project);
+  const audioReady = useApp((s) => s.audioReady);
+  const [state, setState] = useState<{ state: string; rate: number; base: number } | null>(null);
+
+  useEffect(() => {
+    const id = window.setInterval(() => {
+      const ctx = engine.ctx;
+      setState(ctx ? { state: ctx.state, rate: ctx.sampleRate, base: ctx.baseLatency } : null);
+    }, 500);
+    return () => window.clearInterval(id);
+  }, []);
+
+  return (
+    <>
+      <h3>Audio engine</h3>
+      <p className="hinttext">
+        OpenBeats renders everything with Web Audio: instruments are synthesised per note, effects run as native nodes, and
+        the WAV bounce reuses the same graph in an offline context.
+      </p>
+      <div className="field">
+        <div className="field-label">Engine</div>
+        <div className="field-control">
+          <span className={`chip`} style={{ background: audioReady ? undefined : 'color-mix(in srgb,#ef4444 20%,transparent)' }}>
+            {state ? `${state.state} · ${Math.round(state.rate / 1000)} kHz` : 'not started'}
+          </span>
+        </div>
+      </div>
+      <div className="field">
+        <div className="field-label">
+          Output latency
+          <small>Reported by the browser; smaller is tighter for playing keys.</small>
+        </div>
+        <div className="field-control tiny-note">
+          {state ? `${Math.round((state.base + (engine.ctx?.outputLatency ?? 0)) * 1000)} ms` : '—'}
+        </div>
+      </div>
+      <div className="field">
+        <div className="field-label">
+          Master chain
+          <small>Limiter and compressor on the master strip keep the bounce safe.</small>
+        </div>
+        <div className="field-control tiny-note">Master → Compressor → Limiter → Output</div>
+      </div>
+      <div className="field">
+        <div className="field-label">Test the engine</div>
+        <div className="field-control">
+          <button
+            className="btn"
+            onClick={async () => {
+              await useApp.getState().initAudio();
+              const ch = project.channels.find((c) => c.preset === 'keys') ?? project.channels[0];
+              if (ch) engine.preview(ch);
+            }}
+          >
+            Play a test note
+          </button>
+          <button className="btn ghost" onClick={() => useApp.getState().stop()}>
+            Stop
+          </button>
+        </div>
+      </div>
+      <div className="field">
+        <div className="field-label">
+          Metronome
+          <small>Also available from the transport bar (C).</small>
+        </div>
+        <div className="field-control">
+          <input
+            type="checkbox"
+            checked={project.metronome}
+            onChange={() => useApp.getState().toggleMetronome()}
+          />
+        </div>
+      </div>
+      <p className="hinttext" style={{ marginTop: 10 }}>
+        Browsers only allow sound after a click or key press — press Space or click anywhere in the studio to start the
+        engine. The Bounce button renders faster than real time.
+      </p>
+    </>
+  );
+}
