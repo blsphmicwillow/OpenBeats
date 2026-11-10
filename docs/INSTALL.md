@@ -139,10 +139,9 @@ chmod +x OpenBeats.AppImage
 ./OpenBeats.AppImage
 ```
 
-The published 1.0.3 AppImage has SHA-256
-`47cea74824f4533915d2401e10ce9750030d80a030b9b670820b58447aee34a4`.
-It includes `X-AppImage-Version=1.0.3`, has an executable payload and bundles no
-`libfuse`. It installs and lists correctly with Shelly 3.0.6 and 3.2.1.
+The published 1.0.3 AppImage includes `X-AppImage-Version=1.0.3`, has an
+executable payload and bundles no `libfuse`. It installs and lists correctly
+with Shelly 3.0.6 and 3.2.1. Its SHA-256 is listed with the release assets.
 
 The AppImage bundles WebKitGTK, GTK 3, GStreamer and the audio plugins used by
 Web Audio (`bundleMediaFramework`), so `gst-inspect-1.0` on the host is not
