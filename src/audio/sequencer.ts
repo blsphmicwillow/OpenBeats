@@ -85,6 +85,10 @@ export function eventsAtSongStep(project: Project, songStep: number): VoiceEvent
       for (const e of eventsAtPatternStep(project, clip.pattern, localStep)) {
         out.push({
           ...e,
+          // `eventsAtPatternStep` reports the position inside the pattern for
+          // the live tick. The flattened song needs the absolute song step so
+          // the offline renderer places every clip at its arrangement time.
+          step: songStep,
           pitch: Math.max(0, Math.min(127, e.pitch + transpose)),
           gain,
           pan,
