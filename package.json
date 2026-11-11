@@ -14,6 +14,7 @@
     "icons": "node scripts/make-icons.mjs",
     "plugins:check": "node scripts/validate-plugins.mjs",
     "plugins:fetch": "node scripts/fetch-plugins.mjs",
+    "docs:check": "node scripts/check-docs.mjs",
     "tauri": "tauri",
     "desktop": "tauri dev",
     "desktop:build": "tauri build"

@@ -1,0 +1,11 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Install and troubleshooting guide
+    url: https://github.com/blsphmicwillow/OpenBeats/blob/main/docs/INSTALL.md
+    about: Download links, platform requirements and common fixes.
+  - name: Latest release
+    url: https://github.com/blsphmicwillow/OpenBeats/releases/latest
+    about: Installers for Linux, Windows and macOS.
+  - name: Contributing guide
+    url: https://github.com/blsphmicwillow/OpenBeats/blob/main/CONTRIBUTING.md
+    about: Setup, checks and pull request expectations.

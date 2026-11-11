@@ -1,0 +1,80 @@
+name: Bug report
+description: Report a reproducible problem in OpenBeats
+title: "[Bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report. Search existing issues first, and include enough
+        detail to reproduce the problem. Never paste passwords, tokens or
+        private project files.
+  - type: input
+    id: version
+    attributes:
+      label: OpenBeats version
+      description: Shown in Settings and in the window title.
+      placeholder: "1.0.6"
+    validations:
+      required: true
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Platform
+      options:
+        - Linux (AppImage)
+        - Linux (deb)
+        - Linux (RPM)
+        - Linux (Arch package)
+        - Windows
+        - macOS
+        - Browser build
+    validations:
+      required: true
+  - type: dropdown
+    id: engine
+    attributes:
+      label: Audio engine
+      options:
+        - Native Rust/CPAL (desktop)
+        - Web Audio (browser or fallback)
+        - Not sure
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open the Tutorial project
+        2. Add a channel and draw notes
+        3. Press Space
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behaviour
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: What happened instead
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs or screenshots (optional)
+      description: Paste terminal output, console errors or drag in screenshots.
+      render: shell
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I searched existing issues and did not find the same problem.
+          required: true
+        - label: I am using the latest release, or I have said which version I am on.
+          required: true

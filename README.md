@@ -1,14 +1,17 @@
 # OpenBeats
 
-**An open-source beatmaking studio for the desktop.** Channel Rack, step sequencer, piano roll, playlist and mixer — built with a Rust/Tauri desktop shell and a React/Web Audio front end. Linux, Windows and macOS.
+**An open-source beatmaking studio for the desktop.** Channel Rack, step sequencer, piano roll, playlist and mixer — built with a Rust/Tauri desktop shell, a native Rust/CPAL audio engine and a React/Web Audio front end. Linux, Windows and macOS.
+
+[![Latest release](https://img.shields.io/github/v/release/blsphmicwillow/OpenBeats?label=release&color=ffa31a)](https://github.com/blsphmicwillow/OpenBeats/releases/latest)
+[![Release build](https://github.com/blsphmicwillow/OpenBeats/actions/workflows/release.yml/badge.svg)](https://github.com/blsphmicwillow/OpenBeats/actions/workflows/release.yml)
+[![License: GPL-3.0-or-later](https://img.shields.io/badge/license-GPL--3.0--or--later-blue)](LICENSE)
+[![Platforms](https://img.shields.io/badge/platform-linux%20%7C%20windows%20%7C%20macOS-lightgrey)](#install-openbeats-106)
 
 ![OpenBeats studio](docs/screenshots/studio-default.png)
 
 > OpenBeats is an independent project. It is *inspired by* the workflow of classic pattern-based DAWs (channel rack → patterns → playlist → mixer); it ships no code, samples, presets or assets from any commercial DAW.
 
 ## Screenshots
-
-![OpenBeats studio](docs/screenshots/studio-default.png)
 
 Eleven built-in themes, Classic and Modern chrome, and an editable **My theme** with a colour wheel, HEX and RGB fields:
 
@@ -50,7 +53,7 @@ No account is required.
 
 There is no separate Intel-Mac DMG in 1.0.6; Intel Macs can build from source.
 Full per-platform commands, dependencies and troubleshooting are in
-[docs/INSTALL.md](docs/INSTALL.md).
+[docs/INSTALL.md](docs/INSTALL.md). Release history: [CHANGELOG.md](CHANGELOG.md).
 
 ### Arch Linux with `yay`
 
@@ -340,10 +343,11 @@ npm install
 npm run dev          # browser build at http://localhost:3000
 npm run desktop      # Tauri window with hot reload
 npm run build        # type-check + production bundle
-npm run desktop:build# native binary + installers in src-tauri/target/release/bundle
+npm run desktop:build # native binary + installers in target/release/bundle
 npm run icons        # regenerate app icons from scripts/make-icons.mjs
 npm run plugins:check # validate plugins/registry.json
 npm run plugins:fetch # resolve GitHub Releases into plugins/registry.lock.json
+npm run docs:check   # verify README/INSTALL versions and relative links
 ```
 
 Repository layout and data flow: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
@@ -376,7 +380,7 @@ scripts/        icon generation and plugin validation/fetching
 ## Status and limitations
 
 - Installers are produced by CI. Building them requires the platform SDKs (Xcode on macOS, MSVC on Windows); cross-building installers is not supported.
-- The Linux packages built here target Ubuntu 24.04 (glibc 2.39). CI builds on Ubuntu 22.04 for a wider glibc range; rebuild there if you need older distributions.
+- CI builds the Linux packages on Ubuntu 22.04 (glibc 2.35), so they run on 22.04 and newer. A local build follows the host's glibc and may not start on older distributions.
 - The update checker **notifies** and links to the release. Silent in-app installation is prepared but needs a signed Tauri updater key pair (`TAURI_SIGNING_PRIVATE_KEY`, `plugins.updater.pubkey`) — see the build guide.
 - The desktop build plays through the **native Rust engine**; the browser build uses Web Audio. The two are not sample-identical yet, and the new mixer/automation graph is not wired into the audio callback.
 - **VST3/CLAP hosting** runs out of process on Windows and macOS. It is unavailable on Linux; the plugin browser still works and the app says so plainly.

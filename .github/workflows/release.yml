@@ -83,6 +83,10 @@ jobs:
       - name: Install frontend dependencies
         run: npm ci
 
+      - name: Check docs version and relative links
+        if: matrix.platform == 'ubuntu-22.04'
+        run: node scripts/check-docs.mjs
+
       # The DSP, sequencer and feature maths are pure Rust and must stay green
       # on every platform in the matrix.
       - name: Native engine tests
@@ -257,23 +261,49 @@ jobs:
       - name: List release assets
         run: find release-assets -type f -printf '%f\n' | sort
 
+      - name: Generate SHA-256 checksums
+        run: |
+          cd release-assets
+          sha256sum * > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name }}
           name: OpenBeats ${{ github.ref_name }}
           body: |
-            Native desktop installers for Linux, Windows and macOS.
+            ## OpenBeats ${{ github.ref_name }}
 
-            - Linux: `.deb`, `.rpm`, `.AppImage`
-            - Windows: `.msi`, NSIS setup `.exe`
-            - macOS: `.dmg`, zipped `.app`
+            Native installers for Linux, Windows and macOS, built and tested by
+            GitHub Actions on native runners.
 
-            Linux AppImage: `chmod +x OpenBeats_*_amd64.AppImage`. If your file
-            manager reports `InvalidExe`, install FUSE 3 or run the AppImage with
-            `--appimage-extract-and-run`.
+            ### Downloads
 
-            Full notes are in CHANGELOG.md and the app's Changelog tab.
+            - **Linux:** `.deb`, `.rpm`, `.AppImage`
+            - **Windows:** `.msi`, NSIS setup `.exe`
+            - **macOS:** `.dmg`, zipped `.app`
+
+            ### Verify
+
+            Every asset is listed in `SHA256SUMS.txt`:
+
+            ```bash
+            sha256sum -c SHA256SUMS.txt --ignore-missing
+            ```
+
+            ### Notes
+
+            - macOS builds are unsigned and not notarised; use Control-click →
+              Open on first launch.
+            - Linux AppImage: `chmod +x OpenBeats_*_amd64.AppImage`. If your file
+              manager reports `InvalidExe`, install FUSE 3 or run with
+              `--appimage-extract-and-run`.
+            - Playlist audio clips and mixer automation remain Web Audio only in
+              1.0.6; native CPAL playback for both is pending.
+
+            Full notes: [CHANGELOG.md](https://github.com/blsphmicwillow/OpenBeats/blob/main/CHANGELOG.md).
+            Install help: [docs/INSTALL.md](https://github.com/blsphmicwillow/OpenBeats/blob/main/docs/INSTALL.md).
           files: release-assets/**/*
           fail_on_unmatched_files: true
           draft: false

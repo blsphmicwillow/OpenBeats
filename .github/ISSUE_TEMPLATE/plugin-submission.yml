@@ -7,7 +7,7 @@ body:
     attributes:
       value: |
         Thanks for submitting a plugin. The library only lists public GitHub
-        Releases; it does not host or execute plugin binaries in OpenBeats 1.0.0.
+        Releases; it does not host or execute plugin binaries in OpenBeats 1.0.6.
         Do not include passwords, tokens, or private download links.
   - type: input
     id: name

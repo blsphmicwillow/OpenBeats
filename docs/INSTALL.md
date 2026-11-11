@@ -1,56 +1,52 @@
-# Installing OpenBeats 1.0.0
+# Installing OpenBeats 1.0.6
 
-OpenBeats is distributed as a native Tauri application. Pick the package for
-your platform; all of them are attached to the
-[v1.0.0 release](https://github.com/blsphmicwillow/OpenBeats/releases/tag/v1.0.0).
+OpenBeats is a native desktop app for Linux, Windows and macOS. Every installer
+on this page is built and tested by GitHub Actions and attached to the
+[v1.0.6 release](https://github.com/blsphmicwillow/OpenBeats/releases/tag/v1.0.6).
 
-| Platform | File | Package manager path |
+| Platform | Release file | Install |
 | --- | --- | --- |
-| Arch Linux | AUR/local package | `cd packaging/arch && yay -Bi .` |
-| Linux | `OpenBeats_1.0.0_amd64.AppImage` | none |
-| Debian/Ubuntu | `OpenBeats_1.0.0_amd64.deb` | `apt` |
-| Fedora/RHEL | `OpenBeats-1.0.0-1.x86_64.rpm` | `dnf` |
-| Windows 10/11 | `OpenBeats_1.0.0_x64-setup.exe` / `.msi` | installer |
-| macOS Apple silicon | `OpenBeats_1.0.0_aarch64.dmg` | drag to Applications |
+| Arch Linux | `openbeats-bin` (local package) | `cd packaging/arch && yay -Bi .` |
+| Linux (any x86_64) | `OpenBeats_1.0.6_amd64.AppImage` | `chmod +x`, then run |
+| Debian / Ubuntu | `OpenBeats_1.0.6_amd64.deb` | `sudo apt install ./OpenBeats_1.0.6_amd64.deb` |
+| Fedora / RHEL | `OpenBeats-1.0.6-1.x86_64.rpm` | `sudo dnf install ./OpenBeats-1.0.6-1.x86_64.rpm` |
+| Windows 10/11 | `OpenBeats_1.0.6_x64-setup.exe` or `.msi` | Run the installer |
+| macOS (Apple silicon) | `OpenBeats_1.0.6_aarch64.dmg` | Open the DMG, drag to Applications |
+| Source | `git clone` | [Build from source](#build-from-source) |
 
-There is no Intel-Mac DMG in 1.0.0. Build from source on Intel macOS; see
-[BUILDING.md](BUILDING.md).
+There is no Intel-Mac installer in 1.0.6; Intel Macs can build from source.
+The desktop app plays through the native Rust/CPAL engine, with the Web Audio
+engine retained for the browser build and for features that are still Web Audio
+only. No account or internet connection is required.
 
-## Check the download (optional)
+## Verify downloads
 
-The published 1.0.0 AppImage has this SHA-256:
+Every release includes `SHA256SUMS.txt`. Download it next to the installer and
+check the file before running it.
 
-```text
-48d98b230e29dd9859351e23c99a760df515d26117b3b6f146be74d656e20485
-```
+Linux and macOS:
 
 ```bash
-sha256sum OpenBeats_1.0.0_amd64.AppImage
+curl -L -O https://github.com/blsphmicwillow/OpenBeats/releases/download/v1.0.6/SHA256SUMS.txt
+sha256sum -c SHA256SUMS.txt --ignore-missing
 ```
 
-The other assets do not ship a separate checksum file. Download them from the
-release page over HTTPS rather than a mirror.
+Windows PowerShell:
+
+```powershell
+Get-FileHash .\OpenBeats_1.0.6_x64-setup.exe -Algorithm SHA256
+```
+
+Compare the printed hash with the matching line in `SHA256SUMS.txt`. Download
+assets from the release page over HTTPS rather than a mirror.
 
 ## Arch Linux
 
-### What the package does
+The package lives in [`packaging/arch`](../packaging/arch) and is named
+`openbeats-bin`. It installs the official 1.0.6 AppImage under `/opt/openbeats`,
+creates `/usr/bin/openbeats`, and installs the desktop entry and icon.
 
-`packaging/arch/PKGBUILD` is a binary package named `openbeats-bin`:
-
-- downloads the official 1.0.0 AppImage;
-- verifies its SHA-256;
-- extracts it to `/opt/openbeats`;
-- installs a `/usr/bin/openbeats` launcher that runs `/opt/openbeats/AppRun`;
-- installs the desktop entry and the 256×256 icon;
-- declares the GTK, GStreamer, icon and audio dependencies.
-
-It does **not** use FUSE at runtime, because the AppImage is already extracted.
-The package declares the virtual `pulse-native-provider` dependency, satisfied by
-either PipeWire's `pipewire-pulse` or `pulseaudio`.
-
-### Option A — install from this repository now
-
-This is the working path today. `yay` can build a local `PKGBUILD` with `-B`.
+### Install from this repository
 
 ```bash
 sudo pacman -S --needed base-devel git
@@ -61,185 +57,125 @@ cd OpenBeats/packaging/arch
 yay -Bi .
 ```
 
-`yay -Bi` asks before installing missing dependencies. To install them yourself
-first:
+`yay -Bi` builds and installs the local `PKGBUILD` and offers to install missing
+dependencies. To install them yourself first:
 
 ```bash
-sudo pacman -S --needed \
-  gtk3 gstreamer gst-plugins-base gst-plugins-good gst-plugins-bad \
-  gst-plugins-ugly gst-libav \
-  libpulse alsa-lib \
-  libayatana-appindicator librsvg openssl \
-  xdg-utils hicolor-icon-theme
+sudo pacman -S --needed gtk3 gstreamer gst-plugins-base gst-plugins-good \
+  gst-plugins-bad gst-plugins-ugly gst-libav libpulse alsa-lib \
+  libayatana-appindicator librsvg openssl xdg-utils hicolor-icon-theme
+
+# Choose the audio server you actually use:
+sudo pacman -S --needed pipewire-pulse   # PipeWire (recommended)
+# sudo pacman -S --needed pulseaudio     # PulseAudio instead
 ```
 
-Then install **one** audio server:
+The package declares `pulse-native-provider`, so `pacman` requires either
+`pipewire-pulse` or `pulseaudio`. Do not install both; they conflict. Log out
+and back in after switching audio servers.
 
-```bash
-# PipeWire (default on current Arch desktops)
-sudo pacman -S --needed pipewire-pulse
+### AUR status
 
-# or, if you deliberately use PulseAudio
-sudo pacman -S --needed pulseaudio
-```
-
-Installing `openbeats-bin` itself also pulls `pulse-native-provider`; `pacman`
-will ask which of those two packages should satisfy it.
-
-Do not install both `pipewire-pulse` and `pulseaudio`; they conflict. After
-installing or switching, log out and back in so the user audio service starts.
-
-### Option B — from the AUR
-
-The intended package name is `openbeats-bin`:
-
-```bash
-yay -S openbeats-bin
-```
-
-As of 1.0.0 the package has **not been pushed to the AUR** (the build
-environment has no AUR SSH key). Until it is, use Option A. Maintainer
-publication steps are in [`packaging/arch/README.md`](../packaging/arch/README.md).
+`yay -S openbeats-bin` works only after the package is published to the AUR.
+It is **not published yet**. Use the local build above; the maintainer steps are
+in [`packaging/arch/README.md`](../packaging/arch/README.md).
 
 ### Verify and uninstall
 
 ```bash
-command -v openbeats     # /usr/bin/openbeats
+command -v openbeats
 openbeats
-```
-
-The app also appears as **OpenBeats** in the desktop application menu.
-
-```bash
 yay -Rns openbeats-bin
 ```
 
-### Arch troubleshooting
-
-- **The window opens but playback stays stalled.** Confirm a sink exists:
-  `pactl info` and `pactl list short sinks`. Install `pipewire-pulse` (or
-  `pulseaudio`) and the GStreamer plugin packages above, then restart the app.
-- **No instruments, only silence.** `gst-inspect-1.0 pulsesink` should find the
-  PulseAudio sink. If it does not, install `gst-plugins-good`.
-- **`yay -Bi` cannot find dependencies.** Run `sudo pacman -Syu` first; a partial
-  upgrade can leave the package database inconsistent.
-- **“Could not find the program `openbeats`” or permission denied.** Rebuild the
-  local package after pulling the launcher fix below. Do not launch the
-  `OpenBeats.desktop` file from an extracted AppImage directly; it expects the
-  packaged `openbeats` command. Run `openbeats` as your normal user, not root.
-- **Icon is missing.** Reinstall `hicolor-icon-theme` and run
-  `gtk-update-icon-cache -f /usr/share/icons/hicolor` if your desktop caches icons.
-
-## AppImage (any x86_64 Linux)
+## AppImage (portable Linux)
 
 ```bash
 curl -L -o OpenBeats.AppImage \
-  https://github.com/blsphmicwillow/OpenBeats/releases/download/v1.0.4/OpenBeats_1.0.4_amd64.AppImage
+  https://github.com/blsphmicwillow/OpenBeats/releases/download/v1.0.6/OpenBeats_1.0.6_amd64.AppImage
 chmod +x OpenBeats.AppImage
 ./OpenBeats.AppImage
 ```
 
-The 1.0.4 AppImage includes `X-AppImage-Version=1.0.4`, has an executable
-payload and bundles no `libfuse`. It is built with the same packaging
-configuration as the tested 1.0.3 image. Its SHA-256 is listed with the release
-assets.
-
-The AppImage bundles WebKitGTK, GTK 3, GStreamer and the audio plugins used by
-Web Audio (`bundleMediaFramework`), so `gst-inspect-1.0` on the host is not
-needed. This applies to AppImages produced from the current packaging config;
-artifacts built before that change still rely on the host's GStreamer
-installation. The host must provide:
+The AppImage bundles WebKitGTK, GTK 3, GStreamer and the audio plugins Web Audio
+needs. The host must provide:
 
 - a working X11 or Wayland session;
 - a PulseAudio-compatible server (`pipewire-pulse` or `pulseaudio`);
 - FUSE 3 (`sudo pacman -S fuse3` on Arch, `libfuse2` on Ubuntu 22.04+), **or**
   launch with `--appimage-extract-and-run`.
 
-If an older Shelly reports `InvalidExe`, update Shelly first. Then install FUSE 3
-(`sudo pacman -S fuse3`) and retry, or run
-`./OpenBeats.AppImage --appimage-extract-and-run` to bypass the FUSE mount.
+If a file manager or older Shelly reports `InvalidExe`, update the frontend and
+install FUSE 3, or bypass the mount:
 
-The AppImage cannot bundle a system sound server. Every mainstream Linux desktop
-ships one; on a minimal install, install `pipewire-pulse` (or `pulseaudio`).
-
-To keep it on the desktop, move it somewhere permanent and create a menu entry;
-or use the `.deb`/`.rpm` packages, which do this for you.
+```bash
+./OpenBeats.AppImage --appimage-extract-and-run
+```
 
 ## Debian / Ubuntu
 
 ```bash
-curl -L -O https://github.com/blsphmicwillow/OpenBeats/releases/download/v1.0.0/OpenBeats_1.0.0_amd64.deb
-sudo apt install ./OpenBeats_1.0.0_amd64.deb
+curl -L -O https://github.com/blsphmicwillow/OpenBeats/releases/download/v1.0.6/OpenBeats_1.0.6_amd64.deb
+sudo apt install ./OpenBeats_1.0.6_amd64.deb
 openbeats
 ```
 
-`apt install ./file.deb` (not `dpkg -i`) resolves dependencies automatically.
-The package is built for Ubuntu 24.04 / glibc 2.39. Older distributions may
-need the AppImage or a source build.
+Use `apt install ./file.deb` rather than `dpkg -i` so dependencies resolve.
+CI builds this package on Ubuntu 22.04 (glibc 2.35), so it runs on 22.04 and
+newer. A locally built package follows the host's glibc and may not start on
+older distributions.
 
-The package declares the GStreamer audio plugins and a PulseAudio-compatible
-server. If the system has no sound server at all, install `pipewire-pulse` or
-`pulseaudio`, then log out and back in.
-
-Uninstall: `sudo apt remove open-beats`.
+The package declares WebKitGTK 4.1, the GStreamer audio stack and a
+PulseAudio-compatible server. Uninstall with `sudo apt remove open-beats`.
 
 ## Fedora / RHEL
 
 ```bash
-sudo dnf install ./OpenBeats-1.0.0-1.x86_64.rpm
+sudo dnf install ./OpenBeats-1.0.6-1.x86_64.rpm
 openbeats
 ```
 
 The RPM declares the GStreamer audio plugins and a PipeWire-Pulse/PulseAudio
-server; a separate multimedia package list is not required.
-
-Uninstall: `sudo dnf remove open-beats`.
+server, so no separate multimedia package list is required. Uninstall with
+`sudo dnf remove open-beats`.
 
 ## Windows 10/11
 
-1. Download `OpenBeats_1.0.0_x64-setup.exe` from the release page.
-2. Run it and complete the installer. Administrators can deploy the `.msi`
-   instead.
-3. The installer carries the Visual C++ runtime and uses the WebView2 download
-   bootstrapper. If WebView2 is not already installed, setup downloads the
-   Evergreen Runtime once, so allow network access on the first install.
-4. The executable is unsigned, so SmartScreen may show “Windows protected your
-   PC”. Choose **More info → Run anyway** only if the file came from the release
-   page above.
+1. Download `OpenBeats_1.0.6_x64-setup.exe` (or the `.msi`) from the release.
+2. Run the installer. Administrators can deploy the `.msi` instead.
+3. The installer uses the WebView2 download bootstrapper. If WebView2 is
+   missing, setup downloads the Evergreen Runtime once; allow network access on
+   the first install.
+4. SmartScreen may warn because the build is not code-signed: **More info →
+   Run anyway**, but only for a file downloaded from the release page.
 
-Audio uses the default Windows output device through Web Audio. No separate
-audio driver is required.
-
-Uninstall from **Settings → Apps → OpenBeats**.
+Desktop playback uses the native Rust/CPAL engine and the default Windows output
+device; the browser build falls back to Web Audio. No extra audio driver is
+required. Uninstall from **Settings → Apps → OpenBeats**.
 
 ## macOS (Apple silicon)
 
-1. Download `OpenBeats_1.0.0_aarch64.dmg`.
+1. Download `OpenBeats_1.0.6_aarch64.dmg`.
 2. Open the DMG and drag **OpenBeats** to **Applications**.
-3. First launch: Control-click the app, choose **Open**, then confirm. Or clear
-   the quarantine flag:
+3. The build is not notarised. On first launch, Control-click the app, choose
+   **Open**, then confirm. Alternatively clear the quarantine flag:
 
 ```bash
 xattr -dr com.apple.quarantine /Applications/OpenBeats.app
 open /Applications/OpenBeats.app
 ```
 
-The build is not notarised. There is no `x64` DMG in 1.0.0; Intel users can
-build from source. Audio uses CoreAudio through WebKit and needs no extra
-install.
-
-Uninstall: move `OpenBeats.app` from Applications to the Trash.
+`OpenBeats.app.zip` contains the same app bundle. Desktop playback uses the
+native Rust/CPAL engine (CoreAudio); no extra audio install is needed. There is
+no Intel-Mac DMG in 1.0.6. Uninstall by moving the app to the Trash.
 
 ## Build from source
 
-Use this when your distribution or architecture has no package, or when you
-want to test a change.
+Use this when your distribution or architecture has no package, or when you want
+to test a change. Full platform notes are in [BUILDING.md](BUILDING.md).
 
-### All platforms
-
-- Node.js 20+ and npm 10+
-- Rust stable 1.77+
-- Platform build tools listed below
+Requirements: Node.js 20+, npm 10+, Rust stable 1.77+, and the Tauri system
+packages for your OS.
 
 ```bash
 git clone https://github.com/blsphmicwillow/OpenBeats.git
@@ -248,11 +184,12 @@ npm install
 npm run desktop:build
 ```
 
-Installers are written under
-`src-tauri/target/release/bundle/`. The current platform is the only one that
-can be bundled; build Windows on Windows and macOS on macOS.
+Installers are written under `target/release/bundle/`. Only the current platform
+can be bundled: build Windows on Windows and macOS on macOS.
 
-### Arch build dependencies
+### Linux build dependencies
+
+Arch:
 
 ```bash
 sudo pacman -S --needed base-devel webkit2gtk-4.1 gtk3 libayatana-appindicator \
@@ -261,7 +198,7 @@ sudo pacman -S --needed base-devel webkit2gtk-4.1 gtk3 libayatana-appindicator \
   pipewire-pulse   # or pulseaudio
 ```
 
-### Debian/Ubuntu build dependencies
+Debian/Ubuntu:
 
 ```bash
 sudo apt install libwebkit2gtk-4.1-dev libgtk-3-dev \
@@ -272,7 +209,7 @@ sudo apt install libwebkit2gtk-4.1-dev libgtk-3-dev \
   gstreamer1.0-plugins-ugly gstreamer1.0-libav gstreamer1.0-pulseaudio gstreamer1.0-alsa
 ```
 
-### Fedora build dependencies
+Fedora:
 
 ```bash
 sudo dnf install webkit2gtk4.1-devel gtk3-devel libappindicator-gtk3-devel \
@@ -282,32 +219,31 @@ sudo dnf install webkit2gtk4.1-devel gtk3-devel libappindicator-gtk3-devel \
 Run the checks before opening a pull request:
 
 ```bash
-npx tsc -b
+npm run typecheck
 npm run build
+npm run docs:check
 cd src-tauri && cargo fmt --all -- --check
 ```
-
-More detail, including signing and release automation, is in
-[BUILDING.md](BUILDING.md).
 
 ## Common problems
 
 | Symptom | Fix |
 | --- | --- |
 | Transport turns green but the playhead does not move | Web Audio never resumed. Make sure a PipeWire-Pulse or PulseAudio server is running, restart the app, and click the window once before pressing Space. |
-| AppImage says “dlopen(): error loading libfuse.so.2” | Install FUSE 2, or run `./OpenBeats.AppImage --appimage-extract-and-run`. |
+| AppImage says `dlopen(): error loading libfuse.so.2` | Install FUSE 3, or run `./OpenBeats.AppImage --appimage-extract-and-run`. |
 | Blank white window on Linux | Install/repair Mesa/GPU drivers, then try `WEBKIT_DISABLE_COMPOSITING_MODE=1 openbeats`. |
-| Blank window on Windows | Reinstall with the current installer; it uses the WebView2 download bootstrapper. If WebView2 is missing, allow setup network access. If you built the installer yourself, rebuild with the repository's `tauri.conf.json`. |
+| Blank window on Windows | Reinstall with the current installer so the WebView2 bootstrapper can run, and allow network access during setup. |
 | macOS says the app is damaged | Clear quarantine with the `xattr` command above; do not disable Gatekeeper globally. |
-| “App is already running” / old version opens | Close all OpenBeats windows and relaunch; packages install side-by-side with a previously extracted AppImage only if both are kept. |
-| Plugins do not appear | VST3/AU/CLAP hosting is not implemented in 1.0.0. See [PLUGINS.md](PLUGINS.md). |
+| App is already running / an old version opens | Close every OpenBeats window and relaunch. Remove an old extracted AppImage if you installed both forms. |
+| Plugins do not appear in a mixer strip | Plugin hosting exists out of process on Windows/macOS, but inserts are not routed into the audio callback in 1.0.6. See [PLUGINS.md](PLUGINS.md). |
+| No sound on Linux | Confirm `pactl info` lists a sink and that `pipewire-pulse` or `pulseaudio` is running; the AppImage cannot bundle the system sound server. |
 
 ## Where data lives
 
-OpenBeats stores projects, autosave snapshots and settings in the app's local
-WebKit data store for your user account. Use **File → Projects…** to open or
-delete songs rather than editing browser-storage files by hand. Exports go
-wherever you choose in the save dialog.
+Projects, autosave snapshots and settings live in the app's local WebKit data
+store for your user account. Use **File → Projects…** to open or delete songs
+rather than editing browser-storage files by hand. Exports go wherever you
+choose in the save dialog.
 
 ## Uninstall
 
@@ -319,6 +255,6 @@ wherever you choose in the save dialog.
 | AppImage | delete the file |
 | Windows | Settings → Apps → OpenBeats → Uninstall |
 | macOS | move `OpenBeats.app` to the Trash |
-| Source build | delete the cloned directory and `src-tauri/target` |
+| Source build | delete the cloned directory and `target/` |
 
-User projects are not removed by uninstalling the application.
+Uninstalling does not delete your projects.
