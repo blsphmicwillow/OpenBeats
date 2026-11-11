@@ -1,7 +1,7 @@
 pkgbase = openbeats-bin
 	pkgdesc = Open-source beatmaking studio (native Tauri build)
 	pkgver = 1.0.8
-	pkgrel = 1
+	pkgrel = 2
 	url = https://github.com/blsphmicwillow/OpenBeats
 	arch = x86_64
 	license = GPL-3.0-or-later
@@ -26,6 +26,6 @@ pkgbase = openbeats-bin
 	conflicts = openbeats-git
 	options = !strip
 	source = openbeats-1.0.8.AppImage::https://github.com/blsphmicwillow/OpenBeats/releases/download/v1.0.8/OpenBeats_1.0.8_amd64.AppImage
-	sha256sums = c189a465b7ddd83827905be36fb45957be86a1f5257dbe1f505e6173d68e3dce
+	sha256sums = 8941285b02752d6f8500f8534061f68e7ef3da7124e66078ce312998612c5609
 
 pkgname = openbeats-bin
