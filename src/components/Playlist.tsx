@@ -56,6 +56,7 @@ export function Playlist() {
     addClip,
     updateClip,
     removeClip,
+    splitClipAt,
     addAudioClip,
     updateAudioClip,
     removeAudioClip,
@@ -404,6 +405,11 @@ export function Playlist() {
         };
       })(),
       { separator: true },
+      {
+        label: 'Split at playhead',
+        disabled: transport.step <= clip.start || transport.step >= clip.start + clip.len,
+        onClick: () => splitClipAt(clip.id, transport.step) && hint('Clip split at the playhead'),
+      },
       { label: `Pattern: ${pat?.name ?? 'unknown'}`, disabled: true },
       { label: 'Delete clip', danger: true, onClick: () => removeClip(clip.id) },
     ]);
@@ -447,6 +453,11 @@ export function Playlist() {
         };
       })(),
       { separator: true },
+      {
+        label: 'Split at playhead',
+        disabled: transport.step * TICKS_PER_STEP <= clip.start_tick || transport.step * TICKS_PER_STEP >= clip.start_tick + clip.length_ticks,
+        onClick: () => splitClipAt(clip.id, transport.step) && hint('Audio clip split at the playhead'),
+      },
       { label: 'Delete clip', danger: true, onClick: () => removeAudioClip(clip.id) },
     ]);
   };
@@ -497,6 +508,16 @@ export function Playlist() {
   const selectedFadeIn = selectedPattern ? (selectedPattern.fadeIn ?? 0) : selectedAudio ? ticksToSteps(selectedAudio.fade_in) : 0;
   const selectedFadeOut = selectedPattern ? (selectedPattern.fadeOut ?? 0) : selectedAudio ? ticksToSteps(selectedAudio.fade_out) : 0;
   const selectedFadeMax = selectedPattern?.len ?? (selectedAudio ? ticksToSteps(selectedAudio.length_ticks) : 0);
+  const selectedCanSplit = selectedPattern
+    ? transport.step > selectedPattern.start && transport.step < selectedPattern.start + selectedPattern.len
+    : selectedAudio
+      ? transport.step * TICKS_PER_STEP > selectedAudio.start_tick &&
+        transport.step * TICKS_PER_STEP < selectedAudio.start_tick + selectedAudio.length_ticks
+      : false;
+  const splitSelected = () => {
+    if (!selectedClip || !selectedCanSplit) return;
+    if (splitClipAt(selectedClip, transport.step)) hint('Clip split at the playhead');
+  };
   const setSelectedGain = (value: number) => {
     if (selectedPattern) updateClip(selectedPattern.id, { gain: value }, `inspector:${selectedPattern.id}:gain`);
     else if (selectedAudio) updateAudioClip(selectedAudio.id, { gain: value }, `inspector:${selectedAudio.id}:gain`);
@@ -537,6 +558,9 @@ export function Playlist() {
         </select>
         <button className="tbtn small" onClick={() => addClip(project.currentPattern, 0, transport.step, (patternById(project, project.currentPattern)?.bars ?? 2) * barSteps)} title="Add a clip at the playhead">
           <IconPlus size={10} /> Clip
+        </button>
+        <button className="tbtn small" disabled={!selectedCanSplit} onClick={splitSelected} title="Split the selected clip at the playhead">
+          Split
         </button>
         <button className="tbtn small" onClick={() => addMarker()} title="Add a marker at the playhead (M)">
           <IconPlus size={10} /> Marker

@@ -32,7 +32,8 @@ import {
 import { engine, routeIsSafe } from './audio/engine';
 import { SAMPLE_BANK } from './audio/instruments';
 import { advanceAudioClips, startAudioClips, stopAudioClips } from './audio/audioClipTransport';
-import { createAudioClipFromDrop, normalizeAudioClips, type AudioClip } from './model/audioClip';
+import { createAudioClipFromDrop, normalizeAudioClips, TICKS_PER_STEP, type AudioClip } from './model/audioClip';
+import { splitAudioClip, splitPatternClip } from './model/clipSplit';
 import { markerLoopRange, nextMarker, normalizeMarkers, previousMarker } from './model/markers';
 import { normalizeAutomation, projectHasAutomation } from './model/automation';
 import { putSample } from './audio/mediaStore';
@@ -217,6 +218,7 @@ export interface AppState {
   addClip(patternId: string, track: number, start: number, len: number): void;
   updateClip(id: string, patch: Partial<Clip>, coalesce?: string): void;
   removeClip(id: string): void;
+  splitClipAt(id: string, atStep: number): boolean;
   addAudioClip(clip: AudioClip): void;
   updateAudioClip(id: string, patch: Partial<AudioClip>, coalesce?: string): void;
   removeAudioClip(id: string): void;
@@ -846,6 +848,31 @@ export const useApp = create<AppState>((set, get) => ({
     get().patchProject((p) => {
       p.clips = p.clips.filter((c) => c.id !== id);
     });
+  },
+
+  splitClipAt(id, atStep) {
+    let split = false;
+    get().patchProject((p) => {
+      const patternIndex = p.clips.findIndex((clip) => clip.id === id);
+      if (patternIndex >= 0) {
+        const clip = p.clips[patternIndex];
+        const parts = splitPatternClip(clip, atStep, () => uid('cl'));
+        if (parts) {
+          p.clips.splice(patternIndex, 1, ...parts);
+          split = true;
+        }
+        return;
+      }
+      const audioIndex = p.audioClips.findIndex((clip) => clip.id === id);
+      if (audioIndex < 0) return;
+      const clip = p.audioClips[audioIndex];
+      const parts = splitAudioClip(clip, atStep * TICKS_PER_STEP, () => uid('ac'));
+      if (parts) {
+        p.audioClips.splice(audioIndex, 1, ...parts);
+        split = true;
+      }
+    });
+    return split;
   },
 
   addAudioClip(clip) {
