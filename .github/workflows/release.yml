@@ -311,8 +311,10 @@ jobs:
             - Linux AppImage: `chmod +x OpenBeats_*_amd64.AppImage`. If your file
               manager reports `InvalidExe`, install FUSE 3 or run with
               `--appimage-extract-and-run`.
-            - Playlist audio clips and mixer automation remain Web Audio only in
-              1.0.6; native CPAL playback for both is pending.
+            - Playlist audio clips, per-clip effects and pan automation remain
+              Web Audio only in 1.0.7; native CPAL audio-clip playback is pending.
+            - Linux master volume now reaches the native CPAL engine; no separate
+              plugin or audio-group setup is required.
 
             Full notes: [CHANGELOG.md](https://github.com/blsphmicwillow/OpenBeats/blob/main/CHANGELOG.md).
             Install help: [docs/INSTALL.md](https://github.com/blsphmicwillow/OpenBeats/blob/main/docs/INSTALL.md).

@@ -726,6 +726,7 @@ fn open_session(
 fn apply_command(state: &mut CallbackState, shared: &Arc<Shared>, command: EngineCommand) {
     match command {
         EngineCommand::Play(project) => {
+            state.master_gain = project.master_gain.clamp(0.0, 2.0);
             state.voice_pool.all_notes_off();
             state.strip_pools = project
                 .channels

@@ -527,6 +527,18 @@ pub fn set_low_latency(
 
 /// Level of the cue bus written to outputs 3/4.
 #[tauri::command]
+pub fn set_master_gain(state: State<'_, AudioState>, gain: f32) -> Result<(), String> {
+    let guard = state
+        .engine
+        .lock()
+        .map_err(|_| "the audio state is unavailable".to_string())?;
+    if let Some(engine) = guard.as_ref() {
+        engine.set_master_gain(gain);
+    }
+    Ok(())
+}
+
+#[tauri::command]
 pub fn set_cue_gain(state: State<'_, AudioState>, gain: f32) -> Result<(), String> {
     let guard = state
         .engine

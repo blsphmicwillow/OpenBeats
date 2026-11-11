@@ -225,6 +225,7 @@ pub fn run() {
             audio_commands::get_audio_devices,
             audio_commands::select_audio_device,
             audio_commands::set_low_latency,
+            audio_commands::set_master_gain,
             audio_commands::set_cue_gain,
             audio_commands::audio_engine_info,
             // Smart workflow and composition

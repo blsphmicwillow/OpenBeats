@@ -1,20 +1,20 @@
-# Installing OpenBeats 1.0.6
+# Installing OpenBeats 1.0.7
 
 OpenBeats is a native desktop app for Linux, Windows and macOS. Every installer
 on this page is built and tested by GitHub Actions and attached to the
-[v1.0.6 release](https://github.com/blsphmicwillow/OpenBeats/releases/tag/v1.0.6).
+[v1.0.7 release](https://github.com/blsphmicwillow/OpenBeats/releases/tag/v1.0.7).
 
 | Platform | Release file | Install |
 | --- | --- | --- |
 | Arch Linux | `openbeats-bin` (local package) | `cd packaging/arch && yay -Bi .` |
-| Linux (any x86_64) | `OpenBeats_1.0.6_amd64.AppImage` | `chmod +x`, then run |
-| Debian / Ubuntu | `OpenBeats_1.0.6_amd64.deb` | `sudo apt install ./OpenBeats_1.0.6_amd64.deb` |
-| Fedora / RHEL | `OpenBeats-1.0.6-1.x86_64.rpm` | `sudo dnf install ./OpenBeats-1.0.6-1.x86_64.rpm` |
-| Windows 10/11 | `OpenBeats_1.0.6_x64-setup.exe` or `.msi` | Run the installer |
-| macOS (Apple silicon) | `OpenBeats_1.0.6_aarch64.dmg` | Open the DMG, drag to Applications |
+| Linux (any x86_64) | `OpenBeats_1.0.7_amd64.AppImage` | `chmod +x`, then run |
+| Debian / Ubuntu | `OpenBeats_1.0.7_amd64.deb` | `sudo apt install ./OpenBeats_1.0.7_amd64.deb` |
+| Fedora / RHEL | `OpenBeats-1.0.7-1.x86_64.rpm` | `sudo dnf install ./OpenBeats-1.0.7-1.x86_64.rpm` |
+| Windows 10/11 | `OpenBeats_1.0.7_x64-setup.exe` or `.msi` | Run the installer |
+| macOS (Apple silicon) | `OpenBeats_1.0.7_aarch64.dmg` | Open the DMG, drag to Applications |
 | Source | `git clone` | [Build from source](#build-from-source) |
 
-There is no Intel-Mac installer in 1.0.6; Intel Macs can build from source.
+There is no Intel-Mac installer in 1.0.7; Intel Macs can build from source.
 The desktop app plays through the native Rust/CPAL engine, with the Web Audio
 engine retained for the browser build and for features that are still Web Audio
 only. No account or internet connection is required.
@@ -27,14 +27,14 @@ check the file before running it.
 Linux and macOS:
 
 ```bash
-curl -L -O https://github.com/blsphmicwillow/OpenBeats/releases/download/v1.0.6/SHA256SUMS.txt
+curl -L -O https://github.com/blsphmicwillow/OpenBeats/releases/download/v1.0.7/SHA256SUMS.txt
 sha256sum -c SHA256SUMS.txt --ignore-missing
 ```
 
 Windows PowerShell:
 
 ```powershell
-Get-FileHash .\OpenBeats_1.0.6_x64-setup.exe -Algorithm SHA256
+Get-FileHash .\OpenBeats_1.0.7_x64-setup.exe -Algorithm SHA256
 ```
 
 Compare the printed hash with the matching line in `SHA256SUMS.txt`. Download
@@ -43,7 +43,7 @@ assets from the release page over HTTPS rather than a mirror.
 ## Arch Linux
 
 The package lives in [`packaging/arch`](../packaging/arch) and is named
-`openbeats-bin`. It installs the official 1.0.6 AppImage under `/opt/openbeats`,
+`openbeats-bin`. It installs the official 1.0.7 AppImage under `/opt/openbeats`,
 creates `/usr/bin/openbeats`, and installs the desktop entry and icon.
 
 ### Install from this repository
@@ -92,7 +92,7 @@ yay -Rns openbeats-bin
 
 ```bash
 curl -L -o OpenBeats.AppImage \
-  https://github.com/blsphmicwillow/OpenBeats/releases/download/v1.0.6/OpenBeats_1.0.6_amd64.AppImage
+  https://github.com/blsphmicwillow/OpenBeats/releases/download/v1.0.7/OpenBeats_1.0.7_amd64.AppImage
 chmod +x OpenBeats.AppImage
 ./OpenBeats.AppImage
 ```
@@ -115,8 +115,8 @@ install FUSE 3, or bypass the mount:
 ## Debian / Ubuntu
 
 ```bash
-curl -L -O https://github.com/blsphmicwillow/OpenBeats/releases/download/v1.0.6/OpenBeats_1.0.6_amd64.deb
-sudo apt install ./OpenBeats_1.0.6_amd64.deb
+curl -L -O https://github.com/blsphmicwillow/OpenBeats/releases/download/v1.0.7/OpenBeats_1.0.7_amd64.deb
+sudo apt install ./OpenBeats_1.0.7_amd64.deb
 openbeats
 ```
 
@@ -131,7 +131,7 @@ PulseAudio-compatible server. Uninstall with `sudo apt remove open-beats`.
 ## Fedora / RHEL
 
 ```bash
-sudo dnf install ./OpenBeats-1.0.6-1.x86_64.rpm
+sudo dnf install ./OpenBeats-1.0.7-1.x86_64.rpm
 openbeats
 ```
 
@@ -141,7 +141,7 @@ server, so no separate multimedia package list is required. Uninstall with
 
 ## Windows 10/11
 
-1. Download `OpenBeats_1.0.6_x64-setup.exe` (or the `.msi`) from the release.
+1. Download `OpenBeats_1.0.7_x64-setup.exe` (or the `.msi`) from the release.
 2. Run the installer. Administrators can deploy the `.msi` instead.
 3. The installer uses the WebView2 download bootstrapper. If WebView2 is
    missing, setup downloads the Evergreen Runtime once; allow network access on
@@ -155,7 +155,7 @@ required. Uninstall from **Settings → Apps → OpenBeats**.
 
 ## macOS (Apple silicon)
 
-1. Download `OpenBeats_1.0.6_aarch64.dmg`.
+1. Download `OpenBeats_1.0.7_aarch64.dmg`.
 2. Open the DMG and drag **OpenBeats** to **Applications**.
 3. The build is not notarised. On first launch, Control-click the app, choose
    **Open**, then confirm. Alternatively clear the quarantine flag:
@@ -167,7 +167,7 @@ open /Applications/OpenBeats.app
 
 `OpenBeats.app.zip` contains the same app bundle. Desktop playback uses the
 native Rust/CPAL engine (CoreAudio); no extra audio install is needed. There is
-no Intel-Mac DMG in 1.0.6. Uninstall by moving the app to the Trash.
+no Intel-Mac DMG in 1.0.7. Uninstall by moving the app to the Trash.
 
 ## Build from source
 
@@ -235,7 +235,7 @@ cd src-tauri && cargo fmt --all -- --check
 | Blank window on Windows | Reinstall with the current installer so the WebView2 bootstrapper can run, and allow network access during setup. |
 | macOS says the app is damaged | Clear quarantine with the `xattr` command above; do not disable Gatekeeper globally. |
 | App is already running / an old version opens | Close every OpenBeats window and relaunch. Remove an old extracted AppImage if you installed both forms. |
-| Plugins do not appear in a mixer strip | Plugin hosting exists out of process on Windows/macOS, but inserts are not routed into the audio callback in 1.0.6. See [PLUGINS.md](PLUGINS.md). |
+| Plugins do not appear in a mixer strip | Plugin hosting exists out of process on Windows/macOS, but inserts are not routed into the audio callback in 1.0.7. See [PLUGINS.md](PLUGINS.md). |
 | No sound on Linux | Confirm `pactl info` lists a sink and that `pipewire-pulse` or `pulseaudio` is running; the AppImage cannot bundle the system sound server. |
 
 ## Where data lives

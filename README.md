@@ -3,7 +3,7 @@
 **An open-source beatmaking studio for the desktop.** Channel Rack, step sequencer, piano roll, playlist and mixer — built with a Rust/Tauri desktop shell, a native Rust/CPAL audio engine and a React/Web Audio front end. Linux, Windows and macOS.
 
 [![Latest release](https://img.shields.io/github/v/release/blsphmicwillow/OpenBeats?label=release&color=ffa31a)](https://github.com/blsphmicwillow/OpenBeats/releases/latest)
-[![Release build](https://github.com/blsphmicwillow/OpenBeats/actions/workflows/release.yml/badge.svg?branch=v1.0.6)](https://github.com/blsphmicwillow/OpenBeats/actions/workflows/release.yml)
+[![Release build](https://github.com/blsphmicwillow/OpenBeats/actions/workflows/release.yml/badge.svg?branch=v1.0.7)](https://github.com/blsphmicwillow/OpenBeats/actions/workflows/release.yml)
 [![License: GPL-3.0-or-later](https://img.shields.io/badge/license-GPL--3.0--or--later-blue)](LICENSE)
 [![Platforms](https://img.shields.io/badge/platform-linux%20%7C%20windows%20%7C%20macOS-lightgrey)](#install-openbeats-106)
 
@@ -35,30 +35,30 @@ Eleven built-in themes, Classic and Modern chrome, and an editable **My theme** 
 
 ---
 
-## Install OpenBeats 1.0.6
+## Install OpenBeats 1.0.7
 
 Every package is built by GitHub Actions and attached to the
-[1.0.6 release](https://github.com/blsphmicwillow/OpenBeats/releases/tag/v1.0.6).
+[1.0.7 release](https://github.com/blsphmicwillow/OpenBeats/releases/tag/v1.0.7).
 No account is required.
 
 | Platform | Release file | Install |
 | --- | --- | --- |
 | Arch Linux | `openbeats-bin` (in this repo) | `cd packaging/arch && yay -Bi .` — see below |
-| Linux (any) | `OpenBeats_1.0.6_amd64.AppImage` | `chmod +x`, then run it |
-| Debian / Ubuntu | `OpenBeats_1.0.6_amd64.deb` | `sudo apt install ./OpenBeats_1.0.6_amd64.deb` |
-| Fedora / RPM | `OpenBeats-1.0.6-1.x86_64.rpm` | `sudo dnf install ./OpenBeats-1.0.6-1.x86_64.rpm` |
-| Windows 10/11 | `OpenBeats_1.0.6_x64-setup.exe` | Run the installer (or use the `.msi`) |
-| macOS (Apple silicon) | `OpenBeats_1.0.6_aarch64.dmg` | Open the DMG and drag OpenBeats to Applications |
+| Linux (any) | `OpenBeats_1.0.7_amd64.AppImage` | `chmod +x`, then run it |
+| Debian / Ubuntu | `OpenBeats_1.0.7_amd64.deb` | `sudo apt install ./OpenBeats_1.0.7_amd64.deb` |
+| Fedora / RPM | `OpenBeats-1.0.7-1.x86_64.rpm` | `sudo dnf install ./OpenBeats-1.0.7-1.x86_64.rpm` |
+| Windows 10/11 | `OpenBeats_1.0.7_x64-setup.exe` | Run the installer (or use the `.msi`) |
+| macOS (Apple silicon) | `OpenBeats_1.0.7_aarch64.dmg` | Open the DMG and drag OpenBeats to Applications |
 | Source | `git clone` | [docs/BUILDING.md](docs/BUILDING.md) |
 
-There is no separate Intel-Mac DMG in 1.0.6; Intel Macs can build from source.
+There is no separate Intel-Mac DMG in 1.0.7; Intel Macs can build from source.
 Full per-platform commands, dependencies and troubleshooting are in
 [docs/INSTALL.md](docs/INSTALL.md). Release history: [CHANGELOG.md](CHANGELOG.md).
 
 ### Arch Linux with `yay`
 
 The AUR-ready package lives in [`packaging/arch`](packaging/arch). It installs
-the official 1.0.6 AppImage under `/opt/openbeats`, creates
+the official 1.0.7 AppImage under `/opt/openbeats`, creates
 `/usr/bin/openbeats`, and declares the GTK, GStreamer and PulseAudio runtime it needs.
 
 **Install from this repository now** (works without the AUR):
@@ -96,14 +96,14 @@ ssh -T aur@aur.archlinux.org   # must greet you; needs an AUR SSH key
 git clone ssh://aur@aur.archlinux.org/openbeats-bin.git
 cp packaging/arch/PKGBUILD packaging/arch/.SRCINFO openbeats-bin/
 cd openbeats-bin && git add PKGBUILD .SRCINFO
-git commit -m "openbeats-bin 1.0.6" && git push
+git commit -m "openbeats-bin 1.0.7" && git push
 ```
 
 ### AppImage (portable Linux)
 
 ```bash
 curl -L -o OpenBeats.AppImage \
-  https://github.com/blsphmicwillow/OpenBeats/releases/download/v1.0.6/OpenBeats_1.0.6_amd64.AppImage
+  https://github.com/blsphmicwillow/OpenBeats/releases/download/v1.0.7/OpenBeats_1.0.7_amd64.AppImage
 chmod +x OpenBeats.AppImage
 ./OpenBeats.AppImage
 ```
@@ -118,8 +118,8 @@ and retry; `--appimage-extract-and-run` also bypasses the FUSE mount.
 ### Debian / Ubuntu
 
 ```bash
-curl -L -O https://github.com/blsphmicwillow/OpenBeats/releases/download/v1.0.6/OpenBeats_1.0.6_amd64.deb
-sudo apt install ./OpenBeats_1.0.6_amd64.deb
+curl -L -O https://github.com/blsphmicwillow/OpenBeats/releases/download/v1.0.7/OpenBeats_1.0.7_amd64.deb
+sudo apt install ./OpenBeats_1.0.7_amd64.deb
 openbeats
 ```
 
@@ -130,7 +130,7 @@ should not need to install audio plugins by hand.
 ### Fedora
 
 ```bash
-sudo dnf install ./OpenBeats-1.0.6-1.x86_64.rpm
+sudo dnf install ./OpenBeats-1.0.7-1.x86_64.rpm
 openbeats
 ```
 
@@ -139,7 +139,7 @@ server, so no separate multimedia package list is required.
 
 ### Windows
 
-1. Download `OpenBeats_1.0.6_x64-setup.exe` (or the `.msi`) from the release.
+1. Download `OpenBeats_1.0.7_x64-setup.exe` (or the `.msi`) from the release.
 2. Run it. Current installers use the WebView2 download bootstrapper: if
    WebView2 is missing, setup downloads it once, so allow network access on the
    first install.
@@ -148,7 +148,7 @@ server, so no separate multimedia package list is required.
 
 ### macOS (Apple silicon)
 
-1. Download `OpenBeats_1.0.6_aarch64.dmg` and open it.
+1. Download `OpenBeats_1.0.7_aarch64.dmg` and open it.
 2. Drag **OpenBeats** into **Applications**.
 3. The DMG is not notarised, so on first launch use **Control-click → Open**, or
    run `xattr -dr com.apple.quarantine /Applications/OpenBeats.app`.
@@ -208,7 +208,7 @@ the Projects dialog rather than editing browser-storage files by hand; exports
 are written wherever you choose.
 
 **Is there an Intel Mac build?**
-Not in 1.0.6. Build from source with the steps in
+Not in 1.0.7. Build from source with the steps in
 [docs/BUILDING.md](docs/BUILDING.md).
 
 **How do I update?**
@@ -216,15 +216,15 @@ Download the latest release. The in-app banner and **Help → Check for updates�
 notify you and link to GitHub; silent self-update is not enabled because the
 release is not signed with a Tauri updater key.
 
-**Is OpenBeats really 1.0.6?**
-Yes. 1.0.6 adds named **arrangement markers**: add one at the playhead, drag or
-rename it, jump between markers with Alt+Left/Alt+Right, and loop from a marker
-to the next one. Markers persist in `.obeats` and round-trip through REAPER
-`.rpp` projects. 1.0.6 also adds clip fade handles, a selected-clip inspector,
-one-click crossfades and **mixer volume/pan automation lanes** that render into
-offline bounces. Markers are arrangement data only and do not change the audio
-path. The playlist **audio clips** introduced in 1.0.5 and the new automation
-lanes remain **Web Audio only in the editor**; native CPAL accepts volume lanes and the React bridge now sends them for mixer strips.
+**Is OpenBeats really 1.0.7?**
+Yes. 1.0.7 puts all fourteen mixer insert types in the native Rust/CPAL
+callback, executes per-strip routes and sends there, adds an **Effects** browser
+tab to the mixer, and fixes the Linux master-volume bridge so the knob reaches
+the native output. The arrangement markers, clip fade handles, selected-clip
+inspector, one-click crossfades and **mixer volume/pan automation lanes** from
+1.0.6 remain. Playlist **audio clips**, per-clip effects and pan automation
+remain **Web Audio only in the editor**; native CPAL accepts volume lanes and
+the React bridge now sends them for mixer strips.
 The version is bumped in the app, Tauri bundle and both Rust crates.
 
 ---
@@ -235,7 +235,7 @@ The version is bumped in the app, Tauri bundle and both Rust crates.
 - **Channel Rack** with step sequencer, per-channel instrument, mixer routing, mute/solo and 29 built-in instrument voices, including ten original engines added in 1.0.6 (Anvil, Prism, Sundial, Cordwood, Vector Nine, Acid Well, Dice, Dust Devil, Chatter, Hammer Felt) available in both the Rust/CPAL and Web Audio engines. **Add ▸ Linked** creates a channel together with its own playlist track and mixer strip, sharing one name and colour and routed automatically; **Relink** moves an existing channel to a fresh track and strip while carrying its inserts, sends, gain, pan and group.
 - **Piano roll** with draw, select, resize and velocity editing; scale highlighting.
 - **Playlist** with pattern clips, **audio clips** and **named markers**. Drop a WAV/MP3/OGG/FLAC on a lane for an LOD waveform, gain/pan/fades and loop-aware playback. Add markers with F6, drag or rename them, jump with Alt+Left/Alt+Right, and loop from a marker to the next one. Selected clips expose gain, pan and fade controls, with visible fade handles and a one-click crossfade to the next overlapping clip. Copy, cut and paste clips at the playhead with Ctrl/Cmd+C/X/V, and nudge them with Shift+Arrow keys. Shift/Cmd-click selects several clips; the batch inspector then edits gain and fades and quantises every selected start to the snap grid in one undo step. Track mute/solo, the loop region and the snap grid are unchanged.
-  - **Playlist audio clips: Web Audio only in 1.0.6; native Rust playback pending.**
+  - **Playlist audio clips: Web Audio only in 1.0.7; native Rust playback pending.**
   - Media bytes are cached in the WebView (IndexedDB) with a SHA-256 integrity hash; native app-data persistence is planned for 1.1.
 - **Mixer** with inserts, sends, buses and a master strip; 14 built-in effect types (3-band and 10-band EQ, compressor, limiter, reverb, delay, drive, filter, chorus, phaser, bitcrusher, tremolo, auto pan, ring modulator). The insert rack has **Chain** and **Effects** tabs: browse every effect by category and add it to the selected strip, or edit the loaded chain. All fourteen have native DSP in the CPAL callback. **Web Audio volume/pan automation lanes** have linear, hold and smooth segments and tempo-synced fade-in, tremolo and ducking presets that render into offline bounces. Save a strip's insert chain from the **Chains** menu and recall it on any other strip.
 - **Song / Pattern mode**, metronome, count-in, tempo and swing.

@@ -11,6 +11,35 @@ export interface ChangelogEntry {
  */
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '1.0.7',
+    date: '2026-11-11',
+    headline: 'Native mixer inserts and routing, plus Linux master-volume control.',
+    groups: [
+      {
+        title: 'Native mixer',
+        items: [
+          'All fourteen insert types now run in the Rust/CPAL callback: 3-band and 10-band EQ, compressor, limiter, reverb, delay, drive, filter, chorus, phaser, bitcrusher, tremolo, auto pan and ring modulator.',
+          'The insert rack has Chain and Effects tabs; browse every effect by category and add it to the selected strip.',
+          'Per-strip routes, sends, mute/solo and volume automation execute in the native callback.',
+        ],
+      },
+      {
+        title: 'Linux master volume',
+        items: [
+          'The master volume knob now sends live gain changes to the native CPAL engine instead of only changing the saved project.',
+          'Starting playback adopts the project master gain, so the saved volume is audible immediately.',
+        ],
+      },
+      {
+        title: 'Playlist',
+        items: [
+          'Fade handles remain available on selected pattern and audio clips; drag either handle or use the context-menu crossfade.',
+          'Playlist audio clips, per-clip effects and pan automation remain Web Audio only.',
+        ],
+      },
+    ],
+  },
+  {
     version: '1.0.6',
     date: '2026-11-11',
     headline: 'Arrangement markers for faster song navigation and section loops.',

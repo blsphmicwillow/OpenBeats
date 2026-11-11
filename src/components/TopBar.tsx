@@ -2,6 +2,7 @@ import { useRef, useState } from 'react';
 import { useApp } from '../store';
 import { Knob } from '../ui/Knob';
 import { MasterMeter } from '../ui/Meter';
+import { setNativeMasterGain } from '../lib/nativeAudio';
 import type { MenuItem } from '../model/types';
 import {
   IconCopy,
@@ -427,7 +428,10 @@ export function TopBar() {
           value={project.masterGain}
           min={0}
           max={1.4}
-          onChange={(v) => patchProject((p) => (p.masterGain = v), { coalesce: 'master' })}
+          onChange={(v) => {
+            patchProject((p) => (p.masterGain = v), { coalesce: 'master' });
+            void setNativeMasterGain(v);
+          }}
           label="Master"
           size={28}
           format={(v) => `${Math.round(v * 100)}%`}

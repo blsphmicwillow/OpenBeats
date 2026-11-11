@@ -3,6 +3,28 @@
 The same entries are bundled into the app and shown in the **Changelog** tab, so the notes ship with the build.
 Keep this file and `src/lib/changelog.ts` in sync, and bump `APP_VERSION` in `src/lib/version.ts`.
 
+## 1.0.7 — 2026-11-11
+
+**OpenBeats v1.0.7 — native mixer inserts and routing, plus Linux master-volume control.**
+
+Native installers for Linux, Windows and macOS are built by CI from the `v1.0.7` tag and attached to that GitHub release.
+
+### Native mixer
+
+- All fourteen insert types now run in the Rust/CPAL callback: 3-band and 10-band EQ, compressor, limiter, reverb, delay, drive, filter, chorus, phaser, bitcrusher, tremolo, auto pan and ring modulator.
+- The insert rack has **Chain** and **Effects** tabs; browse every effect by category and add it to the selected strip.
+- Per-strip routes, sends, mute/solo and volume automation execute in the native callback.
+
+### Linux master volume
+
+- The master volume knob now sends live gain changes to the native CPAL engine instead of only changing the saved project.
+- Starting playback adopts the project master gain, so the saved volume is audible immediately.
+
+### Playlist
+
+- Fade handles remain available on selected pattern and audio clips; drag either handle or use the context-menu crossfade.
+- Playlist audio clips, per-clip effects and pan automation remain Web Audio only; native CPAL audio-clip playback is pending.
+
 ## 1.0.6 — 2026-11-11
 
 **OpenBeats v1.0.6 — arrangement markers, section loops and RPP marker interchange.**

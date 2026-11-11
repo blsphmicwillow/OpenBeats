@@ -1,6 +1,6 @@
 [package]
 name = "openbeats"
-version = "1.0.6"
+version = "1.0.7"
 description = "OpenBeats — open-source beatmaking studio"
 authors = ["OpenBeats"]
 edition = "2021"

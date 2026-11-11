@@ -519,6 +519,12 @@ export async function setLowLatency(enabled: boolean): Promise<NativePlaybackSta
   return nativeInvoke<NativePlaybackState>('set_low_latency', { enabled });
 }
 
+/** Level of the native master output (0..2). */
+export async function setNativeMasterGain(gain: number): Promise<void> {
+  if (!isNative()) return;
+  await nativeInvoke<null>('set_master_gain', { gain });
+}
+
 /** Level of the cue bus on outputs 3/4. */
 export async function setCueGain(gain: number): Promise<void> {
   if (!isNative()) return;
