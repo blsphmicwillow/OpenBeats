@@ -1,6 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { patternById, useApp } from '../store';
 import { songLengthSteps } from '../audio/sequencer';
+import {
+  resolveSnapTick,
+  TICKS_PER_STEP,
+  ticksToSteps,
+  type AudioClip,
+} from '../model/audioClip';
+import { dropGhost, playlistSnapContext } from '../playlistDrop';
+import { getSamplePeaks, peakLevelCount } from '../audio/sampleLibrary';
 import { IconGrid, IconPiano, IconPlus, IconTrash } from '../ui/icons';
 import { keepPlayheadVisible } from '../lib/playheadFollow';
 
@@ -11,7 +19,10 @@ type DragState =
   | { kind: 'resize'; id: string; startX: number; origLen: number }
   | { kind: 'loop'; edge: 'start' | 'end'; startX: number; orig: number }
   | { kind: 'loop-move'; startX: number; origStart: number; origEnd: number }
-  | { kind: 'playhead'; startX: number; rulerLeft: number };
+  | { kind: 'playhead'; startX: number; rulerLeft: number }
+  | { kind: 'audio-clip'; id: string; track: number; startX: number; origStartTick: number };
+
+import { AudioClipWave } from './AudioClipWave';
 
 export function Playlist() {
   const project = useApp((s) => s.project);
@@ -29,11 +40,16 @@ export function Playlist() {
   const [dragging, setDragging] = useState<DragState['kind'] | null>(null);
   const [renaming, setRenaming] = useState<number | null>(null);
   const [draft, setDraft] = useState('');
+  const [audioGhost, setAudioGhost] = useState<{ track: number; left: number; width: number } | null>(null);
 
   const {
     addClip,
     updateClip,
     removeClip,
+    addAudioClip,
+    updateAudioClip,
+    removeAudioClip,
+    importAudioClipFiles,
     addTrack,
     updateTrack,
     removeTrack,
@@ -56,6 +72,22 @@ export function Playlist() {
   const width = contentSteps * zoom;
 
   const snapStep = (step: number) => (snap ? Math.round(step / snap) * snap : Math.round(step));
+
+  /** Playhead and clip edges on one track, in ticks, for drop snapping. */
+  const audioEdgesFor = (track: number) => {
+    const edges: number[] = [];
+    project.clips
+      .filter((c) => c.track === track)
+      .forEach((c) => {
+        edges.push(c.start * TICKS_PER_STEP, (c.start + c.len) * TICKS_PER_STEP);
+      });
+    project.audioClips
+      .filter((c) => c.track === track)
+      .forEach((c) => {
+        edges.push(c.start_tick, c.start_tick + c.length_ticks);
+      });
+    return edges;
+  };
 
   // Starts any drag: remembers the scroll offset so auto-scroll keeps the
   // dragged element under the pointer, and sets the visible affordance.
@@ -100,6 +132,23 @@ export function Playlist() {
         updateClip(d.id, { len: Math.max(1, snapStep(d.origLen + deltaSteps)) }, `clip-resize:${d.id}`);
       } else if (d.kind === 'playhead') {
         state.seek(Math.max(0, snapStep((pointer - d.rulerLeft) / zoom)));
+      } else if (d.kind === 'audio-clip') {
+        const rawTick = d.origStartTick + deltaSteps * TICKS_PER_STEP;
+        const edges: number[] = [];
+        state.project.clips
+          .filter((c) => c.track === d.track)
+          .forEach((c) => edges.push(c.start * TICKS_PER_STEP, (c.start + c.len) * TICKS_PER_STEP));
+        state.project.audioClips
+          .filter((c) => c.track === d.track && c.id !== d.id)
+          .forEach((c) => edges.push(c.start_tick, c.start_tick + c.length_ticks));
+        const context = playlistSnapContext({
+          pointerTick: rawTick,
+          playheadTick: state.transport.step * TICKS_PER_STEP,
+          gridSteps: snap,
+          pixelsPerStep: zoom,
+          neighbourTicks: edges,
+        });
+        updateAudioClip(d.id, { start_tick: resolveSnapTick(rawTick, context) }, `audio-clip:${d.id}`);
       } else if (d.kind === 'loop-move') {
         // Keep the loop length and slide the whole window.
         const length = Math.max(1, d.origEnd - d.origStart);
@@ -180,18 +229,27 @@ export function Playlist() {
       autoEdgeRef.current = null;
       document.body.style.cursor = '';
     };
+    // A cancelled drag (Esc, OS gesture, pointer loss) must leave no residue:
+    // put an audio clip back where it started instead of committing the ghost.
+    const cancel = () => {
+      const d = drag.current;
+      if (d && d.kind === 'audio-clip') {
+        useApp.getState().updateAudioClip(d.id, { start_tick: d.origStartTick });
+      }
+      finish();
+    };
     window.addEventListener('pointermove', move);
     window.addEventListener('pointerup', finish);
-    window.addEventListener('pointercancel', finish);
+    window.addEventListener('pointercancel', cancel);
     return () => {
       window.removeEventListener('pointermove', move);
       window.removeEventListener('pointerup', finish);
-      window.removeEventListener('pointercancel', finish);
+      window.removeEventListener('pointercancel', cancel);
       if (frame) cancelAnimationFrame(frame);
       if (autoFrame) cancelAnimationFrame(autoFrame);
       document.body.style.cursor = '';
     };
-  }, [zoom, snap, updateClip, beginDrag]);
+  }, [zoom, snap, updateClip, updateAudioClip, beginDrag]);
 
   // Follow the transport while it rolls: scroll only when the playhead would
   // leave the viewport, so manual scrolling is not fought every step.
@@ -288,6 +346,31 @@ export function Playlist() {
     ]);
   };
 
+  const audioClipMenu = (e: React.MouseEvent, clipId: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const clip = project.audioClips.find((c) => c.id === clipId);
+    if (!clip) return;
+    openMenu(e.clientX, e.clientY, [
+      { label: `${clip.name} — Web Audio clip`, disabled: true },
+      { label: `Gain ${(20 * Math.log10(Math.max(0.001, clip.gain))).toFixed(1)} dB`, disabled: true },
+      { label: 'Gain +1 dB', onClick: () => updateAudioClip(clip.id, { gain: Math.min(4, clip.gain * 1.122) }) },
+      { label: 'Gain −1 dB', onClick: () => updateAudioClip(clip.id, { gain: Math.max(0, clip.gain / 1.122) }) },
+      { label: 'Reset gain', onClick: () => updateAudioClip(clip.id, { gain: 1 }) },
+      { separator: true },
+      { label: 'Pan left', onClick: () => updateAudioClip(clip.id, { pan: Math.max(-1, clip.pan - 0.1) }) },
+      { label: 'Pan right', onClick: () => updateAudioClip(clip.id, { pan: Math.min(1, clip.pan + 0.1) }) },
+      { label: 'Center pan', onClick: () => updateAudioClip(clip.id, { pan: 0 }) },
+      { separator: true },
+      {
+        label: `Loop the file: ${clip.loop_mode === 'loop' ? 'on' : 'off'}`,
+        onClick: () => updateAudioClip(clip.id, { loop_mode: clip.loop_mode === 'loop' ? 'off' : 'loop' }),
+      },
+      { separator: true },
+      { label: 'Delete clip', danger: true, onClick: () => removeAudioClip(clip.id) },
+    ]);
+  };
+
   const trackMenu = (e: React.MouseEvent, index: number) => {
     e.preventDefault();
     const track = project.tracks[index];
@@ -376,6 +459,9 @@ export function Playlist() {
         </button>
         <span className="tiny-note">
           Loop bars {Math.floor(project.loopStart / barSteps) + 1}–{Math.max(1, Math.ceil(project.loopEnd / barSteps))}
+        </span>
+        <span className="tiny-note" title="Which engine plays audio clips">
+          Playlist audio clips: Web Audio (desktop native pending).
         </span>
         <div className="spacer" />
         <button
@@ -541,6 +627,54 @@ export function Playlist() {
                 className="lane"
                 data-track={index}
                 style={{ width, backgroundSize: `${barSteps * zoom}px 100%`, opacity: track.mute ? 0.55 : 1 }}
+                onDragOver={(e) => {
+                  if (!e.dataTransfer.types.includes('Files')) return;
+                  e.preventDefault();
+                  e.stopPropagation();
+                  e.dataTransfer.dropEffect = 'copy';
+                  const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                  const rawTick = ((e.clientX - rect.left) / zoom) * TICKS_PER_STEP;
+                  const ghost = dropGhost(
+                    index,
+                    rawTick,
+                    project.bpm,
+                    5,
+                    playlistSnapContext({
+                      pointerTick: rawTick,
+                      playheadTick: transport.step * TICKS_PER_STEP,
+                      gridSteps: snap,
+                      pixelsPerStep: zoom,
+                      neighbourTicks: audioEdgesFor(index),
+                    }),
+                  );
+                  setAudioGhost({
+                    track: index,
+                    left: ticksToSteps(ghost.startTick) * zoom,
+                    width: Math.max(6, ticksToSteps(ghost.lengthTicks) * zoom),
+                  });
+                }}
+                onDragLeave={(e) => {
+                  if (e.currentTarget === e.target) setAudioGhost(null);
+                }}
+                onDrop={(e) => {
+                  const files = Array.from(e.dataTransfer.files ?? []).filter(
+                    (f) => f.type.startsWith('audio/') || /\.(wav|mp3|ogg|oga|flac|m4a|aiff?|webm)$/i.test(f.name),
+                  );
+                  setAudioGhost(null);
+                  if (!files.length) return;
+                  e.preventDefault();
+                  e.stopPropagation();
+                  const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                  const rawTick = ((e.clientX - rect.left) / zoom) * TICKS_PER_STEP;
+                  const context = playlistSnapContext({
+                    pointerTick: rawTick,
+                    playheadTick: transport.step * TICKS_PER_STEP,
+                    gridSteps: snap,
+                    pixelsPerStep: zoom,
+                    neighbourTicks: audioEdgesFor(index),
+                  });
+                  void importAudioClipFiles(files, index, resolveSnapTick(rawTick, context));
+                }}
                 onClick={(e) => {
                   if (e.target !== e.currentTarget) return;
                   const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
@@ -607,6 +741,54 @@ export function Playlist() {
                       </div>
                     );
                   })}
+                {project.audioClips
+                  .filter((clip) => clip.track === index)
+                  .map((clip) => {
+                    const width = Math.max(6, ticksToSteps(clip.length_ticks) * zoom);
+                    return (
+                      <div
+                        key={clip.id}
+                        className={`clip audio-clip ${selectedClip === clip.id ? 'selected' : ''} ${
+                          dragging === 'audio-clip' && selectedClip === clip.id ? 'dragging' : ''
+                        }`}
+                        style={{
+                          left: ticksToSteps(clip.start_tick) * zoom,
+                          width,
+                          ['--clip-color' as string]: '#4cc9f0',
+                        }}
+                        title={`${clip.name} — Web Audio clip (native playback pending). Drag to move, right-click for gain, pan and loop.`}
+                        onPointerDown={(e) => {
+                          if (e.button !== 0) return;
+                          e.stopPropagation();
+                          setSelectedClip(clip.id);
+                          pushHistory();
+                          beginDrag(e, {
+                            kind: 'audio-clip',
+                            id: clip.id,
+                            track: clip.track,
+                            startX: e.clientX,
+                            origStartTick: clip.start_tick,
+                          });
+                        }}
+                        onContextMenu={(e) => audioClipMenu(e, clip.id)}
+                      >
+                        <div className="clip-label">{clip.name}</div>
+                        <AudioClipWave clip={clip} width={width} />
+                      </div>
+                    );
+                  })}
+                {audioGhost && audioGhost.track === index && (
+                  <div
+                    className="clip audio-clip ghost"
+                    style={{
+                      left: audioGhost.left,
+                      width: audioGhost.width,
+                      opacity: 0.45,
+                      pointerEvents: 'none',
+                      ['--clip-color' as string]: '#4cc9f0',
+                    }}
+                  />
+                )}
               </div>
             </div>
           ))}

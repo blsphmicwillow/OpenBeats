@@ -8,6 +8,8 @@
  *   strips    -> the mixer, with free routing to buses and the master
  */
 
+import type { AudioClip } from './audioClip';
+
 export type PresetId =
   | 'kick'
   | 'snare'
@@ -174,6 +176,12 @@ export interface Project {
   patterns: Pattern[];
   tracks: Track[];
   clips: Clip[];
+  /**
+   * Playlist audio clips. Web Audio only in 1.0.5 — the native Rust sequencer
+   * has pattern clips but no audio-clip voice. Projects saved before 1.0.5 have
+   * no such key and load with an empty list.
+   */
+  audioClips: AudioClip[];
   strips: Strip[];
   currentPattern: string;
   masterGain: number;

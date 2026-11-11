@@ -28,6 +28,11 @@ import {
 } from './model/defaults';
 import { engine, routeIsSafe } from './audio/engine';
 import { SAMPLE_BANK } from './audio/instruments';
+import { advanceAudioClips, startAudioClips, stopAudioClips } from './audio/audioClipTransport';
+import { createAudioClipFromDrop, normalizeAudioClips, type AudioClip } from './model/audioClip';
+import { putSample } from './audio/mediaStore';
+import { buildPeaksOffThread } from './audio/waveformClient';
+import { registerSample } from './audio/sampleLibrary';
 import { analyzeSample } from './lib/tagging';
 import {
   eventsAtPatternStep,
@@ -121,6 +126,8 @@ export function normalizeProject(raw: unknown): Project {
     strips: strips.map((s, i) => ({ ...createStrip(s.id ?? i, s.name ?? 'Insert', s.color ?? '#888'), ...s })),
     tracks: Array.isArray(p.tracks) && p.tracks.length ? p.tracks : base.tracks,
     clips: Array.isArray(p.clips) ? p.clips : [],
+    // Projects written before 1.0.5 have no audioClips key; they load unchanged.
+    audioClips: normalizeAudioClips(p.audioClips),
     currentPattern: patterns.some((x) => x.id === p.currentPattern) ? (p.currentPattern as string) : patterns[0].id,
     selectedChannel: channels.some((c) => c.id === p.selectedChannel) ? (p.selectedChannel as string) : channels[0].id,
     selectedStrip: typeof p.selectedStrip === 'number' ? p.selectedStrip : 0,
@@ -195,6 +202,10 @@ export interface AppState {
   addClip(patternId: string, track: number, start: number, len: number): void;
   updateClip(id: string, patch: Partial<Clip>, coalesce?: string): void;
   removeClip(id: string): void;
+  addAudioClip(clip: AudioClip): void;
+  updateAudioClip(id: string, patch: Partial<AudioClip>, coalesce?: string): void;
+  removeAudioClip(id: string): void;
+  importAudioClipFiles(files: File[], track: number, startTick: number): Promise<number>;
 
   updateStrip(id: number, patch: Partial<Strip>, coalesce?: string): void;
   addStrip(): void;
@@ -410,6 +421,7 @@ export const useApp = create<AppState>((set, get) => ({
       nativeActive = false;
       void import('./lib/nativeAudio').then((mod) => mod.stopNativePlayback());
     }
+    stopAudioClips();
     set((s) => ({ transport: { ...s.transport, playing: false } }));
   },
 
@@ -759,6 +771,86 @@ export const useApp = create<AppState>((set, get) => ({
     get().patchProject((p) => {
       p.clips = p.clips.filter((c) => c.id !== id);
     });
+  },
+
+  addAudioClip(clip) {
+    get().patchProject((p) => {
+      p.audioClips.push(clip);
+    });
+  },
+
+  updateAudioClip(id, patch, coalesce) {
+    get().patchProject(
+      (p) => {
+        const clip = p.audioClips.find((c) => c.id === id);
+        if (clip) Object.assign(clip, patch);
+      },
+      { coalesce },
+    );
+  },
+
+  removeAudioClip(id) {
+    get().patchProject((p) => {
+      p.audioClips = p.audioClips.filter((c) => c.id !== id);
+    });
+  },
+
+  /**
+   * Drop handler for playlist audio clips: decode, hash into the media store,
+   * compute peak LODs off the UI thread, then commit the model clip.
+   * ES/CPAL note: the clip plays through Web Audio only (native pending).
+   */
+  async importAudioClipFiles(files, track, startTick) {
+    await get().initAudio();
+    const ctx = engine.ctx;
+    if (!ctx) {
+      get().toast('Audio could not start — click the studio and try again');
+      return 0;
+    }
+    let cursor = Math.max(0, startTick);
+    let added = 0;
+    for (const file of files) {
+      try {
+        const bytes = await file.arrayBuffer();
+        // decodeAudioData detaches its input, so hand it a copy and keep the
+        // original for hashing into the media store.
+        const buffer = await ctx.decodeAudioData(bytes.slice(0));
+        const ref = await putSample({
+          bytes,
+          name: file.name,
+          mime: file.type || 'audio/wav',
+        });
+        const sampleId = uid('smp');
+        const channels = Array.from({ length: buffer.numberOfChannels }, (_, i) =>
+          buffer.getChannelData(i),
+        );
+        // Peaks are computed on drop, never during the drag (ghost only).
+        const pyramid = await buildPeaksOffThread(sampleId, channels);
+        registerSample(sampleId, buffer, ref, pyramid);
+        const clip = createAudioClipFromDrop({
+          id: uid('ac'),
+          sampleId,
+          mediaRef: ref,
+          name: file.name,
+          bpm: get().project.bpm,
+          durationSec: buffer.duration,
+          track,
+          startTick: cursor,
+        });
+        get().addAudioClip(clip);
+        cursor += clip.length_ticks;
+        added += 1;
+      } catch (err) {
+        console.warn(`Could not import audio clip “${file.name}”`, err);
+        get().toast(`Could not import “${file.name}” as an audio clip`);
+      }
+    }
+    if (added) {
+      get().toast(
+        `${added} audio clip${added === 1 ? '' : 's'} added — Web Audio only in 1.0.5 (native playback pending)`,
+      );
+    }
+    return added;
   },
 
   updateStrip(id, patch, coalesce) {
@@ -1279,6 +1371,10 @@ function tick() {
   let guard = 0;
   while (nextTime < ctx.currentTime + 0.15 && guard < 128) {
     const local = ((nextStep % total) + total) % total;
+    // Playlist audio clips are scheduled by Web Audio only (native pending).
+    // `advanceAudioClips` detects the wrap because `local` moves backwards, and
+    // then queues the next loop pass at the wrapped offset.
+    if (transport.songMode) advanceAudioClips(project, local);
     if (!project.loop && nextStep >= total) {
       state.stop();
       return;
@@ -1390,6 +1486,9 @@ function startWebAudioPlayback(start: number) {
       },
       ui: { ...s.ui, hint: 'Playing — Space to stop, L toggles pattern/song mode.' },
     }));
+    if (engine.ctx && engine.graph) {
+      startAudioClips(engine.ctx, engine.graph.master, useApp.getState().project, nextStep);
+    }
     playTimer = setInterval(() => tick(), 20);
   });
 }

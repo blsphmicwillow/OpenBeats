@@ -156,6 +156,8 @@ export function projectFromExchange(song: ExchangeSong): Project {
       start: 0,
       len: Math.max(16, Math.ceil(t.end / 16) * 16),
     })),
+    // Imported interchange files carry musical data only; no audio clips.
+    audioClips: [],
     strips,
     currentPattern: tracks[0].pattern.id,
     masterGain: 0.85,
