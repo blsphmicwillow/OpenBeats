@@ -22,9 +22,11 @@ pub enum Preset {
     Rim,
     Bass,
     Sub,
+    FmBass,
     Lead,
     Keys,
     Glass,
+    Choir,
     Chords,
     Pluck,
     Pad,
@@ -44,9 +46,11 @@ impl Preset {
             "rim" => Preset::Rim,
             "bass" => Preset::Bass,
             "sub" => Preset::Sub,
+            "fmbass" => Preset::FmBass,
             "lead" => Preset::Lead,
             "keys" => Preset::Keys,
             "glass" => Preset::Glass,
+            "choir" => Preset::Choir,
             "chords" => Preset::Chords,
             "pluck" => Preset::Pluck,
             "pad" => Preset::Pad,
@@ -61,9 +65,11 @@ impl Preset {
             self,
             Preset::Bass
                 | Preset::Sub
+                | Preset::FmBass
                 | Preset::Lead
                 | Preset::Keys
                 | Preset::Glass
+                | Preset::Choir
                 | Preset::Chords
                 | Preset::Pluck
                 | Preset::Pad
@@ -185,6 +191,19 @@ impl Voice {
         match self.preset {
             Preset::Sub | Preset::Kick => (2.0 * PI * p).sin(),
             Preset::Bass => (2.0 * p - 1.0) * 0.7 + (2.0 * PI * p).sin() * 0.3,
+            Preset::FmBass => {
+                let index = 1.8 + self.tone * 3.2;
+                let modulator = (2.0 * PI * p * 2.0).sin() * index;
+                (2.0 * PI * p + modulator).sin() * 0.85
+                    + (2.0 * PI * p * 0.5).sin() * 0.3
+            }
+            Preset::Choir => {
+                (2.0 * PI * p).sin()
+                    + (2.0 * PI * p * 2.0).sin() * 0.42
+                    + (2.0 * PI * p * 3.0).sin() * 0.24
+                    + (2.0 * PI * p * 4.01).sin() * 0.12
+                    + (2.0 * PI * p2 * 2.0).sin() * 0.1
+            }
             Preset::Lead => (2.0 * p - 1.0) * 0.6 + (2.0 * p2 - 1.0) * 0.4,
             Preset::Keys => (2.0 * PI * p).sin() + (2.0 * PI * p * 3.0).sin() * 0.18,
             Preset::Glass => {
@@ -332,14 +351,15 @@ impl VoicePool {
         voice.sample_rate = self.sample_rate;
         voice.noise = Noise::new(self.next_seed);
         voice.adsr = Adsr {
-            attack_sec: if matches!(preset, Preset::Pad) {
+            attack_sec: if matches!(preset, Preset::Pad | Preset::Choir) {
                 attack * 6.0
             } else {
                 attack
             },
             decay_sec: decay,
             sustain: match preset {
-                Preset::Pad => 0.85,
+                Preset::Pad | Preset::Choir => 0.85,
+                Preset::FmBass => 0.55,
                 Preset::Pluck | Preset::Hat | Preset::OpenHat => 0.15,
                 Preset::Kick | Preset::Snare | Preset::Clap | Preset::Rim => 0.0,
                 _ => 0.7,

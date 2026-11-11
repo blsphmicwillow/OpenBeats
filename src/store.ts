@@ -321,6 +321,7 @@ export const useApp = create<AppState>((set, get) => ({
     contextMenu: null,
     settingsOpen: false,
     aboutOpen: false,
+    learnOpen: false,
     tutorialStep: storedSettings.tutorialDone ? null : 0,
     paletteOpen: false,
     fixMixOpen: false,

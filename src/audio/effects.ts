@@ -314,6 +314,91 @@ export function createEffectNode(ctx: BaseAudioContext, effect: Effect): EffectN
         },
       };
     }
+    case 'tremolo': {
+      const amp = ctx.createGain();
+      const lfo = ctx.createOscillator();
+      const depth = ctx.createGain();
+      const amount = clamp(p.depth ?? 0.6, 0, 1);
+      lfo.type = 'sine';
+      lfo.frequency.value = 0.2 + (p.rate ?? 0.35) * 11;
+      depth.gain.value = amount * 0.5;
+      amp.gain.value = 1 - amount * 0.5;
+      lfo.connect(depth).connect(amp.gain);
+      input.connect(amp).connect(output);
+      lfo.start();
+      return {
+        input,
+        output,
+        update(next) {
+          const nextAmount = clamp(next.depth ?? 0.6, 0, 1);
+          lfo.frequency.setTargetAtTime(0.2 + (next.rate ?? 0.35) * 11, ctx.currentTime, 0.03);
+          depth.gain.setTargetAtTime(nextAmount * 0.5, ctx.currentTime, 0.03);
+          amp.gain.setTargetAtTime(1 - nextAmount * 0.5, ctx.currentTime, 0.03);
+        },
+        dispose() {
+          try { lfo.stop(); } catch { /* already stopped */ }
+          [lfo, depth, amp].forEach((node) => node.disconnect());
+        },
+      };
+    }
+    case 'autopan': {
+      const panner = ctx.createStereoPanner();
+      const lfo = ctx.createOscillator();
+      const depth = ctx.createGain();
+      const { dry, wet } = makeDryWet(p.mix ?? 1);
+      lfo.type = 'sine';
+      lfo.frequency.value = 0.05 + (p.rate ?? 0.3) * 3;
+      depth.gain.value = clamp(p.depth ?? 0.7, 0, 1);
+      lfo.connect(depth).connect(panner.pan);
+      input.connect(panner).connect(wet).connect(output);
+      input.connect(dry).connect(output);
+      lfo.start();
+      return {
+        input,
+        output,
+        update(next) {
+          lfo.frequency.setTargetAtTime(0.05 + (next.rate ?? 0.3) * 3, ctx.currentTime, 0.03);
+          depth.gain.setTargetAtTime(clamp(next.depth ?? 0.7, 0, 1), ctx.currentTime, 0.03);
+          const m = next.mix ?? 1;
+          dry.gain.setTargetAtTime(1 - m, ctx.currentTime, 0.02);
+          wet.gain.setTargetAtTime(m, ctx.currentTime, 0.02);
+        },
+        dispose() {
+          try { lfo.stop(); } catch { /* already stopped */ }
+          [lfo, depth, panner, dry, wet].forEach((node) => node.disconnect());
+        },
+      };
+    }
+    case 'ringmod': {
+      const ring = ctx.createGain();
+      ring.gain.value = 0;
+      const carrier = ctx.createOscillator();
+      carrier.type = 'sine';
+      carrier.frequency.value = clamp(p.freq ?? 220, 20, 4000);
+      carrier.connect(ring.gain);
+      const tone = ctx.createBiquadFilter();
+      tone.type = 'lowpass';
+      tone.frequency.value = 1200 + (p.tone ?? 0.6) * 8000;
+      const { dry, wet } = makeDryWet(p.mix ?? 0.6);
+      input.connect(ring).connect(tone).connect(wet).connect(output);
+      input.connect(dry).connect(output);
+      carrier.start();
+      return {
+        input,
+        output,
+        update(next) {
+          carrier.frequency.setTargetAtTime(clamp(next.freq ?? 220, 20, 4000), ctx.currentTime, 0.03);
+          tone.frequency.setTargetAtTime(1200 + (next.tone ?? 0.6) * 8000, ctx.currentTime, 0.02);
+          const m = next.mix ?? 0.6;
+          dry.gain.setTargetAtTime(1 - m, ctx.currentTime, 0.02);
+          wet.gain.setTargetAtTime(m, ctx.currentTime, 0.02);
+        },
+        dispose() {
+          try { carrier.stop(); } catch { /* already stopped */ }
+          [carrier, ring, tone, dry, wet].forEach((node) => node.disconnect());
+        },
+      };
+    }
     case 'bitcrush': {
       const shaper = ctx.createWaveShaper();
       const tone = ctx.createBiquadFilter();

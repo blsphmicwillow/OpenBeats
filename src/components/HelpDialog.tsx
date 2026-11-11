@@ -95,6 +95,9 @@ export function HelpDialog() {
           <>
             <span className="tiny-note">Press Esc to close. The tutorial replays from Help ▸ Tutorial.</span>
             <div className="spacer" />
+            <button className="btn ghost" onClick={() => setUI({ aboutOpen: false, learnOpen: true })}>
+              Learn
+            </button>
             <button className="btn ghost" onClick={() => setSuggestions(true)}>
               Suggestions & Fixes
             </button>
@@ -146,8 +149,9 @@ export function HelpDialog() {
             selected channels send to a shared <b>Reverb FX</b>.
           </p>
           <p>
-            Native effects: 3-band parametric EQ, 10-band graphic EQ with a draggable curve, compressor, limiter, reverb,
-            ping-pong delay, overdrive and a resonant filter. They follow the theme and render into the bounce.
+            Built-in effects: 3-band parametric EQ, 10-band graphic EQ with a draggable curve, compressor, limiter,
+            reverb, ping-pong delay, overdrive, resonant filter, chorus, phaser, bitcrusher, tremolo, auto pan and ring
+            mod. They follow the theme and render into the bounce.
           </p>
 
           <h4>Browser, packs and preview</h4>

@@ -157,6 +157,7 @@ server, so no separate multimedia package list is required.
 3. **Help → Tutorial** walks the Rack → Piano roll → Playlist → Mixer flow.
 4. **File → Projects…** creates or opens songs; **File → Export** bounces a WAV,
    optionally loudness-normalised for a streaming target.
+5. **Help → Learn** walks through every module and a complete first-song path.
 
 ---
 
@@ -228,17 +229,17 @@ The version is bumped in the app, Tauri bundle and both Rust crates.
 ## Features
 
 ### Studio
-- **Channel Rack** with step sequencer, per-channel instrument, mixer routing, mute/solo and 13 procedural instrument engines.
+- **Channel Rack** with step sequencer, per-channel instrument, mixer routing, mute/solo and 15 procedural instrument engines.
 - **Piano roll** with draw, select, resize and velocity editing; scale highlighting.
 - **Playlist** with pattern clips, **audio clips** and **named markers**. Drop a WAV/MP3/OGG/FLAC on a lane for an LOD waveform, gain/pan/fades and loop-aware playback. Add markers with F6, drag or rename them, jump with Alt+Left/Alt+Right, and loop from a marker to the next one. Selected clips expose gain, pan and fade controls, with visible fade handles and a one-click crossfade to the next overlapping clip. Copy, cut and paste clips at the playhead with Ctrl/Cmd+C/X/V, and nudge them with Shift+Arrow keys. Track mute/solo, the loop region and the snap grid are unchanged.
   - **Playlist audio clips: Web Audio only in 1.0.6; native Rust playback pending.**
   - Media bytes are cached in the WebView (IndexedDB) with a SHA-256 integrity hash; native app-data persistence is planned for 1.1.
-- **Mixer** with inserts, sends, buses and a master strip; 11 built-in effect types (3-band and 10-band EQ, compressor, limiter, reverb, delay, drive, filter, chorus, phaser, bitcrusher), plus **Web Audio volume/pan automation lanes** with linear, hold and smooth segments and tempo-synced fade-in, tremolo and ducking presets that render into offline bounces.
+- **Mixer** with inserts, sends, buses and a master strip; 14 built-in effect types (3-band and 10-band EQ, compressor, limiter, reverb, delay, drive, filter, chorus, phaser, bitcrusher, tremolo, auto pan, ring modulator), plus **Web Audio volume/pan automation lanes** with linear, hold and smooth segments and tempo-synced fade-in, tremolo and ducking presets that render into offline bounces.
 - **Song / Pattern mode**, metronome, count-in, tempo and swing.
 - **Bounce** to 16/24-bit WAV at 44.1 or 48 kHz, with optional mastering targets.
 
 ### Native audio engine (Rust)
-- **CPAL output** on the desktop: a sample-accurate sequencer, 17 procedural synth voices, and a master chain of 3-band EQ, compressor and limiter run in Rust instead of the WebView. The browser build keeps the Web Audio fallback.
+- **CPAL output** on the desktop: a sample-accurate sequencer, 19 procedural synth voices, and a master chain of 3-band EQ, compressor and limiter run in Rust instead of the WebView. The browser build keeps the Web Audio fallback.
 - **Transmitter** transient/sustain split with hold and release detection.
 - **Audio Logger** keeps the last 60 seconds of master output and writes it to WAV on demand.
 - **Chord detection**, in-key chord suggestions, **Chord Stamp**, and user key labels.
@@ -248,8 +249,8 @@ The version is bumped in the app, Tauri bundle and both Rust crates.
 - **VST3/CLAP hosting** on Windows and macOS through an out-of-process host with crash recovery. On Linux the plugin browser works and the app reports hosting as unavailable.
 
 ### Engine split (which engine executes what)
-- **Rust native (CPAL):** the transport and sequencer, the 17 procedural voices, and the master chain **EQ → compressor → limiter**. The transmitter meter and audio logger also run natively.
-- **Web Audio only:** reverb, delay, drive, filter, chorus, phaser and bitcrusher inserts, the 10-band graphic EQ, **playlist audio clips**, and **mixer volume/pan automation**. Projects containing automation use the Web Audio transport for playback; native CPAL does not apply those ramps. Offline bounce and Fix My Mix also still render with Web Audio, so **desktop playback and a bounce can diverge** — they are not the same signal path yet.
+- **Rust native (CPAL):** the transport and sequencer, the 19 procedural voices, and the master chain **EQ → compressor → limiter**. The transmitter meter and audio logger also run natively.
+- **Web Audio only:** reverb, delay, drive, filter, chorus, phaser, bitcrusher, tremolo, auto pan and ring modulator inserts, the 10-band graphic EQ, **playlist audio clips**, and **mixer volume/pan automation**. Projects containing automation use the Web Audio transport for playback; native CPAL does not apply those ramps. Offline bounce and Fix My Mix also still render with Web Audio, so **desktop playback and a bounce can diverge** — they are not the same signal path yet.
 - **Implemented and tested in Rust, not wired into the CPAL callback:** mixer routing, automation lanes and the modular effect graph. They are reachable over IPC but the audio thread still runs the fixed EQ → compressor → limiter chain.
 - **Per-clip pan** is applied per note by the Rust engine; the Web Audio fallback keeps using channel pan. The two engines agree on clip gain, pitch, stretch and fades, but their instrument voices are close rather than sample-identical.
 
@@ -282,7 +283,7 @@ The version is bumped in the app, Tauri bundle and both Rust crates.
 
 ### Plugin library
 - **View → Plugin library…** (or the **Plugins** button) lists community VST3/CLAP releases from the GitHub-backed registry in [`plugins/registry.json`](plugins/registry.json), with vendor-style category filtering.
-- Original instruments and effects include **Glass Keys**, a bright inharmonic bell voice available in both engines, and Web Audio **Chorus**, **Phaser** and **Bitcrusher** inserts. The first-party **OpenBeats Gain** proof plugin is built in [`plugins/openbeats-gain`](plugins/openbeats-gain); its release archive contains both `.clap` and `.vst3` bundles.
+- Original instruments and effects include **Glass Keys** (bright inharmonic bell), **Velvet Choir** (additive formant pad) and **FM Bass** (two-operator sine bass), all available in both engines, plus Web Audio **Chorus**, **Phaser**, **Bitcrusher**, **Tremolo**, **Auto Pan** and **Ring Mod** inserts. The first-party **OpenBeats Gain** proof plugin is built in [`plugins/openbeats-gain`](plugins/openbeats-gain); its release archive contains both `.clap` and `.vst3` bundles.
 - Download links open the publisher's GitHub Release. There is no silent install and no fake host: **loading plugins into OpenBeats is still not implemented in 1.0.6**.
 - Community submissions go through [the plugin submission form](.github/ISSUE_TEMPLATE/plugin-submission.yml); `npm run plugins:check` validates the registry.
 
@@ -297,6 +298,7 @@ The version is bumped in the app, Tauri bundle and both Rust crates.
 - Startup splash with a short, synthesized ding; the chime can be switched off in **Settings → Workflow**.
 - Built-in themes, including **Glass (dark)** and **Liquid Glass (light)** glassmorphism styles.
 - **My theme** editor: colour wheel, HEX field and RGB sliders for every token; import/export theme JSON.
+- **OpenBeats Learn** from **Help ▸ Learn**: a lazy-loaded, offline walkthrough of every module (rack, piano roll, playlist, mixer, browser, bounce) plus a first-song path. Per-module progress is stored on the device; there are no accounts or network calls.
 - Command palette, density switch, interface scale, accent override.
 - **Accessibility**: screen-reader labels and states, keyboard-operable knobs and faders, ARIA live hints, a skip link, reduced motion, reduce transparency, high contrast, visible focus rings, scaling and hint toggles.
 - **Updates** tab: opt out of automatic launch checks entirely, or check manually at any time.

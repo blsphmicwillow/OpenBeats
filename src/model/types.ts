@@ -20,9 +20,11 @@ export type PresetId =
   | 'rim'
   | 'bass'
   | 'sub'
+  | 'fmbass'
   | 'lead'
   | 'keys'
   | 'glass'
+  | 'choir'
   | 'chords'
   | 'pluck'
   | 'pad'
@@ -40,7 +42,10 @@ export type EffectType =
   | 'filter'
   | 'chorus'
   | 'phaser'
-  | 'bitcrush';
+  | 'bitcrush'
+  | 'tremolo'
+  | 'autopan'
+  | 'ringmod';
 
 export interface Note {
   id: string;
@@ -353,6 +358,7 @@ export interface UIState {
   contextMenu: { x: number; y: number; items: MenuItem[] } | null;
   settingsOpen: boolean;
   aboutOpen: boolean;
+  learnOpen: boolean;
   tutorialStep: number | null;
   paletteOpen: boolean;
   fixMixOpen: boolean;

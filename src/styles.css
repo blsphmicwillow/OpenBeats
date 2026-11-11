@@ -1989,6 +1989,65 @@ textarea {
   border-top: 1px solid var(--border);
   background: var(--panel2);
 }
+.learn-layout {
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr);
+  gap: 18px;
+  min-height: 430px;
+}
+.learn-side {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+.learn-progress {
+  height: 4px;
+  margin: 0 4px 9px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--border);
+}
+.learn-progress span {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  transition: width 160ms ease;
+}
+.learn-tab {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  width: 100%;
+  padding: 7px 8px;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--dim);
+  text-align: left;
+  cursor: pointer;
+}
+.learn-tab:hover { background: var(--panel2); color: var(--text); }
+.learn-tab.active { background: color-mix(in srgb, var(--accent) 15%, var(--panel2)); border-color: color-mix(in srgb, var(--accent) 45%, var(--border)); color: var(--text); }
+.learn-tab.done .learn-index { color: var(--accent); }
+.learn-index { width: 18px; flex: 0 0 auto; padding-top: 1px; font: 9px ui-monospace, monospace; }
+.learn-tab strong { display: block; font-size: 11.5px; font-weight: 600; }
+.learn-tab small { display: block; margin-top: 2px; font-size: 9.5px; color: var(--dim); }
+.learn-content { min-width: 0; padding: 2px 4px; }
+.learn-eyebrow { color: var(--accent); font-size: 9px; font-weight: 700; letter-spacing: 0.8px; text-transform: uppercase; }
+.learn-content h3 { margin: 4px 0 7px; font-size: 20px; letter-spacing: -0.2px; }
+.learn-summary { margin: 0 0 14px; max-width: 62ch; color: var(--dim); line-height: 1.55; }
+.learn-steps { display: grid; gap: 8px; margin: 0; padding-left: 20px; }
+.learn-steps li { padding-left: 3px; line-height: 1.45; }
+.learn-steps li::marker { color: var(--accent); font-weight: 700; }
+.learn-action { display: flex; align-items: center; gap: 10px; margin-top: 20px; }
+.learn-tip { display: flex; gap: 9px; margin-top: 22px; padding: 10px 11px; border-left: 2px solid var(--accent); background: var(--panel2); color: var(--dim); font-size: 11px; line-height: 1.5; }
+.learn-tip strong { color: var(--text); flex: 0 0 auto; }
+@media (max-width: 700px) {
+  .learn-layout { grid-template-columns: 1fr; }
+  .learn-side { display: grid; grid-template-columns: 1fr 1fr; }
+  .learn-progress { grid-column: 1 / -1; }
+}
 .settings-layout {
   display: flex;
   gap: 14px;

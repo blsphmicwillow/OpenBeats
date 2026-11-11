@@ -20,7 +20,7 @@ pub struct ParsedCommand {
     pub raw: String,
 }
 
-const EFFECTS: [(&str, &str); 8] = [
+const EFFECTS: [(&str, &str); 13] = [
     ("eq", "eq3"),
     ("equaliser", "eq3"),
     ("equalizer", "eq3"),
@@ -29,6 +29,11 @@ const EFFECTS: [(&str, &str); 8] = [
     ("limiter", "limiter"),
     ("reverb", "reverb"),
     ("delay", "delay"),
+    ("bitcrush", "bitcrush"),
+    ("tremolo", "tremolo"),
+    ("auto pan", "autopan"),
+    ("autopan", "autopan"),
+    ("ring mod", "ringmod"),
 ];
 
 const ALIASES: [(&str, &str); 5] = [
@@ -148,8 +153,8 @@ pub fn parse_command(text: &str) -> Option<ParsedCommand> {
     // "add bass" / "add a kick channel"
     if phrase.starts_with("add ") || phrase.starts_with("create ") {
         let preset = [
-            "kick", "snare", "hat", "openhat", "clap", "tom", "rim", "bass", "sub", "lead", "keys",
-            "glass", "chords", "pluck", "pad",
+            "kick", "snare", "hat", "openhat", "clap", "tom", "rim", "bass", "sub", "fmbass",
+            "lead", "keys", "glass", "choir", "chords", "pluck", "pad",
         ]
         .iter()
         .find(|p| phrase.contains(**p));

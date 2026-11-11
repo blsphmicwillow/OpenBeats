@@ -379,6 +379,7 @@ export function Playlist() {
         typing ||
         state.ui.settingsOpen ||
         state.ui.aboutOpen ||
+        state.ui.learnOpen ||
         state.ui.tutorialStep !== null ||
         state.ui.paletteOpen
       ) {

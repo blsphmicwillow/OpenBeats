@@ -18,6 +18,7 @@ import type { KeyAction, WorkspaceTab } from './model/types';
 
 const SettingsDialog = lazy(() => import('./components/SettingsDialog').then((m) => ({ default: m.SettingsDialog })));
 const HelpDialog = lazy(() => import('./components/HelpDialog').then((m) => ({ default: m.HelpDialog })));
+const LearnDialog = lazy(() => import('./components/LearnDialog').then((m) => ({ default: m.LearnDialog })));
 const Tutorial = lazy(() => import('./components/Tutorial').then((m) => ({ default: m.Tutorial })));
 const ContextMenu = lazy(() => import('./components/ContextMenu').then((m) => ({ default: m.ContextMenu })));
 const Changelog = lazy(() => import('./components/Changelog').then((m) => ({ default: m.Changelog })));
@@ -221,7 +222,14 @@ export default function App() {
       // A select keeps focus after a choice; Space/letters must not hijack it,
       // but undo, redo and the command palette above stay global.
       if (target?.tagName === 'SELECT') return;
-      if (state.ui.settingsOpen || state.ui.aboutOpen || state.ui.tutorialStep !== null || state.ui.paletteOpen) return;
+      if (
+        state.ui.settingsOpen ||
+        state.ui.aboutOpen ||
+        state.ui.learnOpen ||
+        state.ui.tutorialStep !== null ||
+        state.ui.paletteOpen
+      )
+        return;
 
       const combo = comboFromEvent(e);
       const action = (Object.keys(state.settings.keymap) as KeyAction[]).find((key) => state.settings.keymap[key] === combo);
@@ -417,6 +425,7 @@ export default function App() {
         {ui.pluginsOpen && <PluginBrowser />}
         {ui.settingsOpen && <SettingsDialog />}
         {ui.aboutOpen && <HelpDialog />}
+        {ui.learnOpen && <LearnDialog />}
         {ui.tutorialStep !== null && <Tutorial />}
       </Suspense>
       {dragging && (

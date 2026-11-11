@@ -37,6 +37,7 @@ export function CommandPalette() {
       { id: 'tab-changelog', section: 'View', label: 'What’s new (Changelog)', run: () => s.setUI({ tab: 'changelog' }) },
       { id: 'mode', section: 'View', label: s.settings.uiMode === 'classic' ? 'Switch to Modern interface' : 'Switch to Classic interface', run: () => s.patchSettings({ uiMode: s.settings.uiMode === 'classic' ? 'modern' : 'classic' }) },
       { id: 'settings', section: 'View', label: 'Open Settings', hint: 'F11', run: () => s.setUI({ settingsOpen: true }) },
+      { id: 'learn', section: 'View', label: 'Learn OpenBeats — modules and first-song path', run: () => s.setUI({ learnOpen: true }) },
       { id: 'browser', section: 'View', label: 'Toggle Browser', hint: 'F10', run: () => s.setUI({ browserOpen: !s.ui.browserOpen }) },
       { id: 'plugins', section: 'View', label: 'Open plugin library', run: () => s.setUI({ pluginsOpen: true }) },
       { id: 'play', section: 'Transport', label: s.transport.playing ? 'Stop' : 'Play', hint: 'Space', run: () => s.togglePlay() },

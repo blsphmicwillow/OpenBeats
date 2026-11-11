@@ -237,6 +237,39 @@ export function playVoice(
       stopAt([osc, sub], t + Math.max(dur + env.release + 0.2, 0.5));
       break;
     }
+    case 'fmbass': {
+      const freq = mtof(pitch + (channel.transpose ?? 0));
+      const carrier = ctx.createOscillator();
+      carrier.type = 'sine';
+      carrier.frequency.value = freq;
+      const mod = ctx.createOscillator();
+      mod.type = 'sine';
+      mod.frequency.value = freq * 2;
+      const modGain = ctx.createGain();
+      const index = 1.6 + env.tone * 5.4;
+      modGain.gain.setValueAtTime(freq * index, t);
+      modGain.gain.exponentialRampToValueAtTime(freq * 0.12, t + 0.1 + env.decay * 0.4);
+      mod.connect(modGain).connect(carrier.frequency);
+      const sub = ctx.createOscillator();
+      sub.type = 'sine';
+      sub.frequency.value = freq * 0.5;
+      const subGain = ctx.createGain();
+      subGain.gain.value = 0.28;
+      const filter = ctx.createBiquadFilter();
+      filter.type = 'lowpass';
+      filter.Q.value = 1.4;
+      filter.frequency.setValueAtTime(280 + env.tone * 1600, t);
+      filter.frequency.exponentialRampToValueAtTime(120 + env.tone * 300, t + 0.14 + env.decay * 0.3);
+      const g = adsr(ctx, vel * 0.9, t, dur, { ...env, decay: Math.max(0.12, env.decay * 0.55), release: Math.max(0.12, env.release) });
+      carrier.connect(filter);
+      sub.connect(subGain).connect(filter);
+      filter.connect(g).connect(out);
+      carrier.start(t);
+      mod.start(t);
+      sub.start(t);
+      stopAt([carrier, mod, sub], t + Math.max(dur + env.release + 0.2, 0.4));
+      break;
+    }
     case 'lead':
     case 'chords':
     case 'pad': {
@@ -335,6 +368,50 @@ export function playVoice(
         oscs.push(osc);
       });
       stopAt(oscs, t + Math.max(dur + env.release + 0.25, 0.5));
+      break;
+    }
+    case 'choir': {
+      const freq = mtof(pitch + (channel.transpose ?? 0));
+      const g = adsr(ctx, vel * 0.4, t, dur, {
+        ...env,
+        attack: Math.max(0.25, env.attack),
+        release: Math.max(0.4, env.release),
+      });
+      g.connect(out);
+      // Three soft formant bands over two detuned saws read as a vowel-ish pad
+      // without sampling anyone else's choir.
+      const formants = [
+        { hz: 620, q: 5.5, level: 0.5 },
+        { hz: 1180, q: 6.5, level: 0.32 },
+        { hz: 2650, q: 8, level: 0.14 },
+      ];
+      const oscs: OscillatorNode[] = [];
+      [-7, 7].forEach((cents) => {
+        const osc = ctx.createOscillator();
+        osc.type = 'sawtooth';
+        osc.frequency.value = freq;
+        osc.detune.value = cents;
+        osc.start(t);
+        oscs.push(osc);
+        formants.forEach((formant) => {
+          const band = ctx.createBiquadFilter();
+          band.type = 'bandpass';
+          band.frequency.value = formant.hz * (0.85 + env.tone * 0.45);
+          band.Q.value = formant.q;
+          const level = ctx.createGain();
+          level.gain.value = formant.level;
+          osc.connect(band).connect(level).connect(g);
+        });
+      });
+      const breath = noiseSource(ctx, t, dur + env.release + 0.2);
+      const air = ctx.createBiquadFilter();
+      air.type = 'bandpass';
+      air.frequency.value = 3000 + env.tone * 2000;
+      air.Q.value = 1.1;
+      const airGain = ctx.createGain();
+      airGain.gain.value = vel * 0.06;
+      breath.connect(air).connect(airGain).connect(out);
+      stopAt(oscs, t + Math.max(dur + env.release + 0.3, 0.6));
       break;
     }
     case 'pluck': {
