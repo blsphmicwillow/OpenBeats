@@ -24,6 +24,7 @@ Keep this file and `src/lib/changelog.ts` in sync, and bump `APP_VERSION` in `sr
 - Split the selected pattern or audio clip at the playhead from the playlist toolbar or clip menu; the split preserves outer fades and media.
 - Reverse and peak-normalize selected audio clips from the inspector or clip menu. ENGINE: **Web Audio only**, applied identically during live playback and offline bounce; native CPAL audio-clip playback remains pending.
 - Audio clips keep a persisted source offset, so splitting a clip makes the right-hand half resume at the cut point instead of replaying the file from the beginning; the waveform follows the same segment.
+- Slip-edit audio clips by Alt-dragging the clip or using the inspector's Slip field, moving the source window without moving the timeline clip. ENGINE: **Web Audio only**.
 - Fixed offline export using pattern-local note steps instead of absolute song steps; later arrangement clips no longer collapse toward the start of the bounce.
 - REAPER `.rpp` export writes the marker list and import reads it back.
 

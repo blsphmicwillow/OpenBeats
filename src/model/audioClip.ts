@@ -100,6 +100,16 @@ export function audioClipEndTick(clip: AudioClip): number {
   return clip.start_tick + clip.length_ticks;
 }
 
+/** Keep a slip offset inside the decoded media, leaving room for the clip. */
+export function clampSourceOffset(
+  offsetTicks: number,
+  clipLengthTicks: number,
+  sourceDurationTicks: number,
+): number {
+  const max = Math.max(0, Math.round(sourceDurationTicks) - Math.max(1, Math.round(clipLengthTicks)));
+  return Math.max(0, Math.min(max, Math.round(offsetTicks)));
+}
+
 export interface SnapContext {
   /** Grid resolution in ticks; 0 disables grid snapping. */
   gridTicks: number;

@@ -3,8 +3,10 @@ import { patternById, useApp } from '../store';
 import { songLengthSteps } from '../audio/sequencer';
 import {
   AUDIO_CLIP_MIME,
+  clampSourceOffset,
   createAudioClipFromDrop,
   resolveSnapTick,
+  secondsToTicks,
   TICKS_PER_STEP,
   ticksToSteps,
   type AudioClip,
@@ -23,6 +25,7 @@ type DragState =
   | { kind: 'loop-move'; startX: number; origStart: number; origEnd: number }
   | { kind: 'playhead'; startX: number; rulerLeft: number }
   | { kind: 'audio-clip'; id: string; track: number; startX: number; origStartTick: number }
+  | { kind: 'audio-slip'; id: string; startX: number; origOffset: number; lengthTicks: number; sourceDurationTicks: number }
   | { kind: 'marker'; id: string; startX: number; origStart: number }
   | { kind: 'fade-in' | 'fade-out'; id: string; audio: boolean; startX: number; orig: number; len: number };
 
@@ -111,7 +114,7 @@ export function Playlist() {
     document.body.style.cursor =
       next.kind === 'playhead'
         ? 'col-resize'
-        : next.kind === 'clip' || next.kind === 'loop-move'
+        : next.kind === 'clip' || next.kind === 'loop-move' || next.kind === 'audio-slip'
           ? 'grabbing'
           : 'ew-resize';
   }, []);
@@ -161,6 +164,13 @@ export function Playlist() {
           neighbourTicks: edges,
         });
         updateAudioClip(d.id, { start_tick: resolveSnapTick(rawTick, context) }, `audio-clip:${d.id}`);
+      } else if (d.kind === 'audio-slip') {
+        const value = clampSourceOffset(
+          d.origOffset + deltaSteps * TICKS_PER_STEP,
+          d.lengthTicks,
+          d.sourceDurationTicks,
+        );
+        updateAudioClip(d.id, { source_offset_ticks: value }, `audio-slip:${d.id}`);
       } else if (d.kind === 'fade-in' || d.kind === 'fade-out') {
         const direction = d.kind === 'fade-in' ? 1 : -1;
         const raw = d.audio
@@ -268,6 +278,8 @@ export function Playlist() {
       const d = drag.current;
       if (d && d.kind === 'audio-clip') {
         useApp.getState().updateAudioClip(d.id, { start_tick: d.origStartTick });
+      } else if (d && d.kind === 'audio-slip') {
+        useApp.getState().updateAudioClip(d.id, { source_offset_ticks: d.origOffset });
       }
       finish();
     };
@@ -443,6 +455,16 @@ export function Playlist() {
         label: `Normalize peak to −1 dBFS: ${clip.normalized ? 'on' : 'off'} (Web Audio only)`,
         onClick: () => updateAudioClip(clip.id, { normalized: !clip.normalized }),
       },
+      { separator: true },
+      {
+        label: `Slip: ${ticksToSteps(clip.source_offset_ticks ?? 0)} steps`,
+        disabled: true,
+      },
+      {
+        label: 'Reset slip to source start',
+        disabled: (clip.source_offset_ticks ?? 0) === 0,
+        onClick: () => updateAudioClip(clip.id, { source_offset_ticks: 0 }),
+      },
       (() => {
         const next = nextAudioOverlap(clip);
         const overlap = next ? clip.start_tick + clip.length_ticks - next.start_tick : 0;
@@ -516,6 +538,19 @@ export function Playlist() {
   const selectedFadeIn = selectedPattern ? (selectedPattern.fadeIn ?? 0) : selectedAudio ? ticksToSteps(selectedAudio.fade_in) : 0;
   const selectedFadeOut = selectedPattern ? (selectedPattern.fadeOut ?? 0) : selectedAudio ? ticksToSteps(selectedAudio.fade_out) : 0;
   const selectedFadeMax = selectedPattern?.len ?? (selectedAudio ? ticksToSteps(selectedAudio.length_ticks) : 0);
+  const sourceDurationTicksFor = (clip: AudioClip) => {
+    const buffer = getSampleBuffer(clip.sample_id);
+    return buffer ? Math.round(secondsToTicks(buffer.duration, project.bpm)) : Number.MAX_SAFE_INTEGER;
+  };
+  const selectedSlip = selectedAudio ? Number((((selectedAudio.source_offset_ticks ?? 0) / TICKS_PER_STEP).toFixed(2))) : 0;
+  const selectedSlipMax = selectedAudio
+    ? ticksToSteps(clampSourceOffset(Number.MAX_SAFE_INTEGER, selectedAudio.length_ticks, sourceDurationTicksFor(selectedAudio)))
+    : 0;
+  const setSelectedSlip = (value: number) => {
+    if (!selectedAudio || !Number.isFinite(value)) return;
+    const offset = clampSourceOffset(value * TICKS_PER_STEP, selectedAudio.length_ticks, sourceDurationTicksFor(selectedAudio));
+    updateAudioClip(selectedAudio.id, { source_offset_ticks: offset }, `inspector:${selectedAudio.id}:slip`);
+  };
   const selectedCanSplit = selectedPattern
     ? transport.step > selectedPattern.start && transport.step < selectedPattern.start + selectedPattern.len
     : selectedAudio
@@ -620,7 +655,7 @@ export function Playlist() {
           Loop bars {Math.floor(project.loopStart / barSteps) + 1}–{Math.max(1, Math.ceil(project.loopEnd / barSteps))}
         </span>
         <span className="tiny-note" title="Which engine plays audio clips">
-          Playlist audio clips: Web Audio (desktop native pending).
+          Playlist audio: Web Audio (desktop native pending). Alt-drag a clip to slip.
         </span>
         <div className="spacer" />
         <button
@@ -656,6 +691,18 @@ export function Playlist() {
           </label>
           {selectedAudio && (
             <>
+              <label>
+                Slip
+                <input
+                  type="number"
+                  min={0}
+                  max={selectedSlipMax}
+                  step={0.01}
+                  value={selectedSlip}
+                  onChange={(e) => setSelectedSlip(Number(e.target.value))}
+                  title="Move the source window without moving the clip"
+                />
+              </label>
               <label className="clip-toggle">
                 <input
                   type="checkbox"
@@ -675,7 +722,7 @@ export function Playlist() {
             </>
           )}
           <span className="tiny-note">
-            Pattern fades: Rust + Web Audio. Audio-clip fades, reverse and normalize: Web Audio only (live and bounce).
+            Pattern fades: Rust + Web Audio. Audio-clip fades, reverse, normalize and slip: Web Audio only (live and bounce). Alt-drag an audio clip to slip its source.
           </span>
         </div>
       )}
@@ -1079,13 +1126,24 @@ export function Playlist() {
                           width,
                           ['--clip-color' as string]: '#4cc9f0',
                         }}
-                        title={`${clip.name} — Web Audio clip (native playback pending). Drag to move; right-click for gain, pan, loop, reverse and normalize.`}
+                        title={`${clip.name} — Web Audio clip (native playback pending). Drag to move, Alt-drag to slip the source; right-click for gain, pan, loop, reverse and normalize.`}
                         onPointerDown={(e) => {
                           if (e.button !== 0) return;
                           e.preventDefault();
                           e.stopPropagation();
                           setSelectedClip(clip.id);
                           pushHistory();
+                          if (e.altKey) {
+                            beginDrag(e, {
+                              kind: 'audio-slip',
+                              id: clip.id,
+                              startX: e.clientX,
+                              origOffset: clip.source_offset_ticks ?? 0,
+                              lengthTicks: clip.length_ticks,
+                              sourceDurationTicks: sourceDurationTicksFor(clip),
+                            });
+                            return;
+                          }
                           beginDrag(e, {
                             kind: 'audio-clip',
                             id: clip.id,

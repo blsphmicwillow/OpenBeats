@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { scheduleWindows } from './audio/audioClipScheduler';
-import type { AudioClip } from './model/audioClip';
+import { clampSourceOffset, type AudioClip } from './model/audioClip';
 import {
   NORMALIZE_CEILING,
   normalizationGain,
@@ -55,6 +55,12 @@ describe('audio clip processing', () => {
     // 10 - (1 + 4) = 5 s in the reversed buffer.
     expect(sourceOffsetForWindow(clip(true, 2), 10, 1.5, 4, 0.5)).toBe(5.5);
     expect(sourceOffsetForWindow(clip(true, 2), 10, 2.5, 4, 0.5)).toBe(6.5);
+  });
+
+  it('clamps a slip offset inside the source media', () => {
+    expect(clampSourceOffset(-20, 100, 1000)).toBe(0);
+    expect(clampSourceOffset(450, 100, 1000)).toBe(450);
+    expect(clampSourceOffset(950, 100, 1000)).toBe(900);
   });
 
   it('schedules a split half from its media offset', () => {
