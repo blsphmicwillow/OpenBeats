@@ -31,7 +31,7 @@ build at 1440×900.
 
 ## Result
 
-**19 passed, 3 failed** of 22 combinations.
+**22 passed, 0 failed** of 22 combinations.
 
 Worst case overall: **mint / classic** at 3.51:1 (accent button text).
 
@@ -46,11 +46,11 @@ Worst case overall: **mint / classic** at 3.51:1 (accent button text).
 | Vaporwave (`vapor`) | classic | n/a — no image feature | 5.34:1 (dim on top bar) | Pass | [vapor-classic.png](../artifacts/qa-1.0.5/vapor-classic.png) | — |
 | Vaporwave (`vapor`) | modern | n/a — no image feature | 5.48:1 (dim on top bar) | Pass | [vapor-modern.png](../artifacts/qa-1.0.5/vapor-modern.png) | — |
 | Mint Studio (`mint`) | classic | n/a — no image feature | 3.51:1 (accent button text) | Pass | [mint-classic.png](../artifacts/qa-1.0.5/mint-classic.png) | — |
-| Mint Studio (`mint`) | modern | n/a — no image feature | 4.28:1 (dim on browser panel) | **Fail** | [mint-modern.png](../artifacts/qa-1.0.5/mint-modern.png) | Raise `--dim` toward `--text` until it reaches 4.5:1 on that surface. |
+| Mint Studio (`mint`) | modern | n/a — no image feature | 3.51:1 (accent button text) | Pass | [mint-modern.png](../artifacts/qa-1.0.5/mint-modern.png) | — |
 | Blueprint Paper (`paper`) | classic | n/a — no image feature | 4.96:1 (dim on top bar) | Pass | [paper-classic.png](../artifacts/qa-1.0.5/paper-classic.png) | — |
 | Blueprint Paper (`paper`) | modern | n/a — no image feature | 4.66:1 (dim on browser panel) | Pass | [paper-modern.png](../artifacts/qa-1.0.5/paper-modern.png) | — |
-| Studio 2006 (`studio2006`) | classic | n/a — no image feature | 4.24:1 (dim on top bar) | **Fail** | [studio2006-classic.png](../artifacts/qa-1.0.5/studio2006-classic.png) | Raise `--dim` toward `--text` until it reaches 4.5:1 on that surface. |
-| Studio 2006 (`studio2006`) | modern | n/a — no image feature | 4.42:1 (dim on top bar) | **Fail** | [studio2006-modern.png](../artifacts/qa-1.0.5/studio2006-modern.png) | Raise `--dim` toward `--text` until it reaches 4.5:1 on that surface. |
+| Studio 2006 (`studio2006`) | classic | n/a — no image feature | 5.18:1 (dim on top bar) | Pass | [studio2006-classic.png](../artifacts/qa-1.0.5/studio2006-classic.png) | — |
+| Studio 2006 (`studio2006`) | modern | n/a — no image feature | 5.41:1 (dim on top bar) | Pass | [studio2006-modern.png](../artifacts/qa-1.0.5/studio2006-modern.png) | — |
 | Glass (dark) (`glass-dark`) | classic | n/a — no image feature | 4.23:1 (accent button text) | Pass | [glass-dark-classic.png](../artifacts/qa-1.0.5/glass-dark-classic.png) | — |
 | Glass (dark) (`glass-dark`) | modern | n/a — no image feature | 4.23:1 (accent button text) | Pass | [glass-dark-modern.png](../artifacts/qa-1.0.5/glass-dark-modern.png) | — |
 | Liquid Glass (light) (`liquid-light`) | classic | n/a — no image feature | 5.17:1 (accent button text) | Pass | [liquid-light-classic.png](../artifacts/qa-1.0.5/liquid-light-classic.png) | — |
@@ -62,24 +62,7 @@ Worst case overall: **mint / classic** at 3.51:1 (accent button text).
 
 ## Failing combinations
 
-### Mint Studio / modern
-
-- `dim on browser panel`: **4.28:1** (needs 4.5:1)
-- `dim on hint bar`: **4.28:1** (needs 4.5:1)
-- Proposed fix: Raise `--dim` toward `--text` until it reaches 4.5:1 on that surface.
-
-### Studio 2006 / classic
-
-- `dim on browser panel`: **4.30:1** (needs 4.5:1)
-- `dim on top bar`: **4.24:1** (needs 4.5:1)
-- `dim on hint bar`: **4.30:1** (needs 4.5:1)
-- Proposed fix: Raise `--dim` toward `--text` until it reaches 4.5:1 on that surface.
-
-### Studio 2006 / modern
-
-- `dim on top bar`: **4.42:1** (needs 4.5:1)
-- Proposed fix: Raise `--dim` toward `--text` until it reaches 4.5:1 on that surface.
-
+None.
 ## Limitations
 
 - Background patches are four fixed points; a text element sitting on an unusual
