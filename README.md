@@ -3,7 +3,7 @@
 **An open-source beatmaking studio for the desktop.** Channel Rack, step sequencer, piano roll, playlist and mixer — built with a Rust/Tauri desktop shell, a native Rust/CPAL audio engine and a React/Web Audio front end. Linux, Windows and macOS.
 
 [![Latest release](https://img.shields.io/github/v/release/blsphmicwillow/OpenBeats?label=release&color=ffa31a)](https://github.com/blsphmicwillow/OpenBeats/releases/latest)
-[![Release build](https://github.com/blsphmicwillow/OpenBeats/actions/workflows/release.yml/badge.svg)](https://github.com/blsphmicwillow/OpenBeats/actions/workflows/release.yml)
+[![Release build](https://github.com/blsphmicwillow/OpenBeats/actions/workflows/release.yml/badge.svg?branch=v1.0.6)](https://github.com/blsphmicwillow/OpenBeats/actions/workflows/release.yml)
 [![License: GPL-3.0-or-later](https://img.shields.io/badge/license-GPL--3.0--or--later-blue)](LICENSE)
 [![Platforms](https://img.shields.io/badge/platform-linux%20%7C%20windows%20%7C%20macOS-lightgrey)](#install-openbeats-106)
 
