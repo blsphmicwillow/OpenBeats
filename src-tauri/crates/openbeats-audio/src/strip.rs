@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::automation::AutomationLane;
 use crate::dsp::{Compressor, Eq3, TruePeakLimiter};
+use crate::insert_fx::{AutoPan, Bitcrush, Chorus, Delay, Eq10, Phaser, Reverb, RingMod, Tremolo};
 
 /// One insert on a channel strip.
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
@@ -43,6 +44,51 @@ pub enum Insert {
     Drive {
         amount: f32,
     },
+    Eq10 {
+        gains: [f32; 10],
+    },
+    Reverb {
+        size: f32,
+        decay: f32,
+        damp: f32,
+        mix: f32,
+    },
+    Delay {
+        time: f32,
+        feedback: f32,
+        tone: f32,
+        mix: f32,
+    },
+    Chorus {
+        rate: f32,
+        depth: f32,
+        mix: f32,
+    },
+    Phaser {
+        rate: f32,
+        depth: f32,
+        feedback: f32,
+        mix: f32,
+    },
+    Tremolo {
+        rate: f32,
+        depth: f32,
+    },
+    AutoPan {
+        rate: f32,
+        depth: f32,
+        mix: f32,
+    },
+    RingMod {
+        freq: f32,
+        tone: f32,
+        mix: f32,
+    },
+    Bitcrush {
+        bits: f32,
+        tone: f32,
+        mix: f32,
+    },
 }
 
 impl Insert {
@@ -59,11 +105,21 @@ enum Stage {
     Lowpass { state: [f32; 2], coef: f32 },
     Highpass { state: [f32; 2], coef: f32 },
     Drive(f32),
+    Eq10(Eq10),
+    Reverb(Reverb),
+    Delay(Delay),
+    Chorus(Chorus),
+    Phaser(Phaser),
+    Tremolo(Tremolo),
+    AutoPan(AutoPan),
+    RingMod(RingMod),
+    Bitcrush(Bitcrush),
 }
 
 /// A channel strip's insert chain. Empty chains pass audio through.
 pub struct StripProcessor {
     stages: Vec<Stage>,
+    sample_rate: f32,
 }
 
 impl StripProcessor {
@@ -116,9 +172,44 @@ impl StripProcessor {
                     coef: one_pole(sample_rate, cutoff_hz),
                 },
                 Insert::Drive { amount } => Stage::Drive(1.0 + amount.max(0.0) * 12.0),
+                Insert::Eq10 { gains } => Stage::Eq10(Eq10::new(sample_rate, &gains)),
+                Insert::Reverb {
+                    size,
+                    decay,
+                    damp,
+                    mix,
+                } => Stage::Reverb(Reverb::new(sample_rate, size, decay, damp, mix)),
+                Insert::Delay {
+                    time,
+                    feedback,
+                    tone,
+                    mix,
+                } => Stage::Delay(Delay::new(sample_rate, time, feedback, tone, mix)),
+                Insert::Chorus { rate, depth, mix } => {
+                    Stage::Chorus(Chorus::new(sample_rate, rate, depth, mix))
+                }
+                Insert::Phaser {
+                    rate,
+                    depth,
+                    feedback,
+                    mix,
+                } => Stage::Phaser(Phaser::new(rate, depth, feedback, mix)),
+                Insert::Tremolo { rate, depth } => Stage::Tremolo(Tremolo::new(rate, depth)),
+                Insert::AutoPan { rate, depth, mix } => {
+                    Stage::AutoPan(AutoPan::new(rate, depth, mix))
+                }
+                Insert::RingMod { freq, tone, mix } => {
+                    Stage::RingMod(RingMod::new(freq, tone, mix))
+                }
+                Insert::Bitcrush { bits, tone, mix } => {
+                    Stage::Bitcrush(Bitcrush::new(bits, tone, mix))
+                }
             })
             .collect();
-        Self { stages }
+        Self {
+            stages,
+            sample_rate,
+        }
     }
 
     pub fn is_empty(&self) -> bool {
@@ -159,6 +250,33 @@ impl StripProcessor {
                     let norm = drive.tanh().max(1e-6);
                     left = (left * *drive).tanh() / norm;
                     right = (right * *drive).tanh() / norm;
+                }
+                Stage::Eq10(eq) => {
+                    (left, right) = eq.process((left, right));
+                }
+                Stage::Reverb(fx) => {
+                    (left, right) = fx.process((left, right));
+                }
+                Stage::Delay(fx) => {
+                    (left, right) = fx.process((left, right));
+                }
+                Stage::Chorus(fx) => {
+                    (left, right) = fx.process((left, right), self.sample_rate);
+                }
+                Stage::Phaser(fx) => {
+                    (left, right) = fx.process((left, right), self.sample_rate);
+                }
+                Stage::Tremolo(fx) => {
+                    (left, right) = fx.process((left, right), self.sample_rate);
+                }
+                Stage::AutoPan(fx) => {
+                    (left, right) = fx.process((left, right), self.sample_rate);
+                }
+                Stage::RingMod(fx) => {
+                    (left, right) = fx.process((left, right), self.sample_rate);
+                }
+                Stage::Bitcrush(fx) => {
+                    (left, right) = fx.process((left, right));
                 }
             }
         }

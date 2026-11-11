@@ -337,6 +337,7 @@ export function Mixer() {
   const [renaming, setRenaming] = useState<number | null>(null);
   const [draft, setDraft] = useState('');
   const [automationTarget, setAutomationTarget] = useState<AutomationTarget>('volume');
+  const [fxView, setFxView] = useState<'chain' | 'effects'>('chain');
   const {
     updateStrip,
     setAutomation,
@@ -358,6 +359,7 @@ export function Mixer() {
   } = useApp.getState();
 
   const selected = project.strips.find((s) => s.id === project.selectedStrip) ?? project.strips[0];
+  const fxCategories = Array.from(new Set(Object.values(EFFECT_DEFS).map((d) => d.category)));
   const channelsOnStrip = (stripId: number) => project.channels.filter((c) => c.mixer === stripId);
   const colorFor = (strip: Strip) => (strip.id === 0 ? 'var(--accent)' : strip.color);
 
@@ -608,8 +610,26 @@ export function Mixer() {
       <div className="fx-rack">
         <div className="fx-rack-head">
           <span className="fx-rack-title">
-            {selected.id === 0 ? 'Master' : `${selected.id}. ${selected.name}`} — insert chain
+            {selected.id === 0 ? 'Master' : `${selected.id}. ${selected.name}`} — inserts
           </span>
+          <div className="automation-tabs" role="tablist" aria-label="Effects view">
+            <button
+              className={`tbtn small flat ${fxView === 'chain' ? 'active' : ''}`}
+              role="tab"
+              aria-selected={fxView === 'chain'}
+              onClick={() => setFxView('chain')}
+            >
+              Chain
+            </button>
+            <button
+              className={`tbtn small flat ${fxView === 'effects' ? 'active' : ''}`}
+              role="tab"
+              aria-selected={fxView === 'effects'}
+              onClick={() => setFxView('effects')}
+            >
+              Effects
+            </button>
+          </div>
           <button className="tbtn small" onClick={(e) => insertMenu(e, selected)}>
             <IconPlus size={10} /> Effect
           </button>
@@ -676,7 +696,40 @@ export function Mixer() {
           </div>
         )}
 
-        {selected.effects.length === 0 ? (
+        {fxView === 'effects' ? (
+          <div style={{ display: 'grid', gap: 10 }}>
+            <span className="tiny-note">
+              Add a native insert to {selected.id === 0 ? 'Master' : selected.name || `Insert ${selected.id}`}. The same chain renders in the desktop engine and the WAV bounce.
+            </span>
+            {fxCategories.map((category) => (
+              <div key={category}>
+                <div className="lbl" style={{ marginBottom: 4 }}>{category}</div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(210px, 1fr))', gap: 6 }}>
+                  {Object.values(EFFECT_DEFS)
+                    .filter((def) => def.category === category)
+                    .map((def) => (
+                      <button
+                        key={def.type}
+                        className="fx-card"
+                        style={{ textAlign: 'left', cursor: 'pointer' }}
+                        onClick={() => {
+                          addEffect(selected.id, def.type as EffectType);
+                          setFxView('chain');
+                        }}
+                        title={`Add ${def.name} to ${selected.id === 0 ? 'Master' : selected.name}`}
+                      >
+                        <div className="fx-card-head">
+                          <strong>{def.name}</strong>
+                          <span className="tiny-note">{def.category}</span>
+                        </div>
+                        <span className="tiny-note">{def.blurb}</span>
+                      </button>
+                    ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : selected.effects.length === 0 ? (
           <div className="tiny-note">
             No inserts yet — add an EQ, compressor, delay or reverb. Effects are native to OpenBeats, follow your theme and render into the WAV bounce.
           </div>

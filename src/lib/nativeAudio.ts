@@ -33,7 +33,16 @@ export type NativeInsertSnapshot =
   | { kind: 'limiter'; ceiling_db: number; attack_ms: number; release_ms: number }
   | { kind: 'lowpass'; cutoff_hz: number }
   | { kind: 'highpass'; cutoff_hz: number }
-  | { kind: 'drive'; amount: number };
+  | { kind: 'drive'; amount: number }
+  | { kind: 'eq10'; gains: number[] }
+  | { kind: 'reverb'; size: number; decay: number; damp: number; mix: number }
+  | { kind: 'delay'; time: number; feedback: number; tone: number; mix: number }
+  | { kind: 'chorus'; rate: number; depth: number; mix: number }
+  | { kind: 'phaser'; rate: number; depth: number; feedback: number; mix: number }
+  | { kind: 'tremolo'; rate: number; depth: number }
+  | { kind: 'autopan'; rate: number; depth: number; mix: number }
+  | { kind: 'ringmod'; freq: number; tone: number; mix: number }
+  | { kind: 'bitcrush'; bits: number; tone: number; mix: number };
 
 export interface NativeAutomationPointSnapshot {
   time: number;
@@ -260,8 +269,75 @@ function nativeInserts(project: Project, mixer: number): NativeInsertSnapshot[] 
           cutoff_hz: 80 * Math.pow(150, p.cutoff ?? 0.8),
         });
         break;
+      case 'eq10':
+        inserts.push({
+          kind: 'eq10',
+          gains: Array.from({ length: 10 }, (_, index) => p[`g${index}`] ?? 0),
+        });
+        break;
+      case 'reverb':
+        inserts.push({
+          kind: 'reverb',
+          size: p.size ?? 0.5,
+          decay: p.decay ?? 0.55,
+          damp: p.damp ?? 0.45,
+          mix: p.mix ?? 0.25,
+        });
+        break;
+      case 'delay':
+        inserts.push({
+          kind: 'delay',
+          time: p.time ?? 0.32,
+          feedback: p.feedback ?? 0.35,
+          tone: p.tone ?? 0.5,
+          mix: p.mix ?? 0.25,
+        });
+        break;
+      case 'chorus':
+        inserts.push({
+          kind: 'chorus',
+          rate: p.rate ?? 0.3,
+          depth: p.depth ?? 0.4,
+          mix: p.mix ?? 0.35,
+        });
+        break;
+      case 'phaser':
+        inserts.push({
+          kind: 'phaser',
+          rate: p.rate ?? 0.28,
+          depth: p.depth ?? 0.5,
+          feedback: p.feedback ?? 0.25,
+          mix: p.mix ?? 0.5,
+        });
+        break;
+      case 'tremolo':
+        inserts.push({ kind: 'tremolo', rate: p.rate ?? 0.35, depth: p.depth ?? 0.6 });
+        break;
+      case 'autopan':
+        inserts.push({
+          kind: 'autopan',
+          rate: p.rate ?? 0.3,
+          depth: p.depth ?? 0.7,
+          mix: p.mix ?? 1,
+        });
+        break;
+      case 'ringmod':
+        inserts.push({
+          kind: 'ringmod',
+          freq: p.freq ?? 220,
+          tone: p.tone ?? 0.6,
+          mix: p.mix ?? 0.6,
+        });
+        break;
+      case 'bitcrush':
+        inserts.push({
+          kind: 'bitcrush',
+          bits: p.bits ?? 8,
+          tone: p.tone ?? 0.55,
+          mix: p.mix ?? 0.8,
+        });
+        break;
       default:
-        // eq10, reverb and delay have no native implementation yet.
         break;
     }
   }

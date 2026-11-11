@@ -165,26 +165,27 @@ point exists on any platform, so a loaded plugin still cannot affect playback.
 
 ## 5. Prompt 2 status: wiring existing tools
 
-**Partial, with measured per-strip and routing audio.** The per-channel voice
-pools, insert chain, volume automation, routing and sends are implemented and
-unit-tested. What remains is not a small wiring patch:
+**Implemented for per-strip inserts, routing, sends, volume automation and the
+insert browser.** The per-channel voice pools, all fourteen native insert
+kinds, volume automation, routing and sends are implemented and unit-tested.
+What remains is genuinely separate:
 
 - Sidechain ducking and the modular `effect_graph` are still offline-only.
 - Plugin inserts are not routed on any platform.
-- The React snapshot maps only effects that already have native processors;
-  `eq10`, reverb, delay, chorus, phaser, bitcrusher, tremolo, auto-pan and
-  ring-mod remain Web Audio-only. Pan automation is not mapped.
-- Reverb and delay are Web Audio only; adding them to Rust would be a new
-  effect, not wiring an existing one.
+- Playlist **audio clips** and per-audio-clip effects are still Web Audio-only;
+  the new Effects tab adds inserts to the selected mixer strip, not to an
+  individual playlist clip. Pan automation is not mapped.
+- The insert browser is a tab in the mixer rack (`Chain` / `Effects`), not a
+  separate workspace tab.
 
 ## 6. Verification performed
 
 - `npm run docs:check` — passed.
 - `npm run typecheck` — passed.
 - `npm test` — 42/42 passed.
-- `cargo test -p openbeats-audio --lib` — 264/264 passed, including the
-  per-strip -6 dB isolation, volume-ramp, low-pass, routing/send isolation and
-  old-snapshot-defaults tests.
+- `cargo test -p openbeats-audio --lib` — 265/265 passed, including the
+  per-strip -6 dB isolation, volume-ramp, low-pass, all-native-effects,
+  routing/send isolation and old-snapshot-defaults tests.
 - `cargo check -p openbeats-clap-helper` — passed.
 - `cargo build -p openbeats-clap-helper` — passed.
 - `cargo check -p openbeats-clap-helper` — passed.

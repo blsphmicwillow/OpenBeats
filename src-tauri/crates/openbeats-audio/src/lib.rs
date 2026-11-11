@@ -27,6 +27,7 @@ pub mod dsp;
 pub mod effect_graph;
 pub mod export;
 pub mod granular;
+pub mod insert_fx;
 pub mod logger;
 pub mod melody;
 pub mod mixer;
