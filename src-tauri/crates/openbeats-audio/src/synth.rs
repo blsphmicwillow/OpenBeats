@@ -227,8 +227,7 @@ impl Voice {
             Preset::FmBass => {
                 let index = 1.8 + self.tone * 3.2;
                 let modulator = (2.0 * PI * p * 2.0).sin() * index;
-                (2.0 * PI * p + modulator).sin() * 0.85
-                    + (2.0 * PI * p * 0.5).sin() * 0.3
+                (2.0 * PI * p + modulator).sin() * 0.85 + (2.0 * PI * p * 0.5).sin() * 0.3
             }
             Preset::Choir => {
                 (2.0 * PI * p).sin()
@@ -541,6 +540,8 @@ mod tests {
             decay: 0.2,
             release: 0.2,
             tone: 0.8,
+            inserts: Vec::new(),
+            automation: Vec::new(),
         }
     }
 

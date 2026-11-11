@@ -180,6 +180,8 @@ pub fn play_test_note(
         decay: decay.unwrap_or(0.35),
         release: release.unwrap_or(0.25),
         tone: tone.unwrap_or(0.5),
+        inserts: Vec::new(),
+        automation: Vec::new(),
     };
     guard
         .as_ref()

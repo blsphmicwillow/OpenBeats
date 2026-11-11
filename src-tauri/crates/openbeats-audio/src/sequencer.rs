@@ -6,7 +6,9 @@
 
 use serde::{Deserialize, Serialize};
 
+use crate::automation::AutomationLane;
 use crate::clips::{expand_clip, PlaybackClip, PlaybackPattern};
+use crate::strip::Insert;
 
 /// One mixer channel as the native engine needs it.
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -31,6 +33,12 @@ pub struct PlaybackChannel {
     pub release: f32,
     #[serde(default = "half")]
     pub tone: f32,
+    /// Native inserts applied after the voice and before the master chain.
+    #[serde(default)]
+    pub inserts: Vec<Insert>,
+    /// Volume and other lane data evaluated by the native callback.
+    #[serde(default)]
+    pub automation: Vec<AutomationLane>,
 }
 
 fn unity() -> f32 {
@@ -213,6 +221,11 @@ impl Sequencer {
         self.step
     }
 
+    /// Playhead position in 16th-note steps, including the current frame.
+    pub fn position_steps(&self) -> f32 {
+        self.step as f32 + (self.frame_in_step / self.samples_per_step) as f32
+    }
+
     pub fn is_playing(&self) -> bool {
         self.playing
     }
@@ -339,6 +352,8 @@ mod tests {
                     decay: 0.2,
                     release: 0.1,
                     tone: 0.6,
+                    inserts: Vec::new(),
+                    automation: Vec::new(),
                 },
                 PlaybackChannel {
                     id: "snare".into(),
@@ -352,6 +367,8 @@ mod tests {
                     decay: 0.2,
                     release: 0.1,
                     tone: 0.6,
+                    inserts: Vec::new(),
+                    automation: Vec::new(),
                 },
             ],
             notes: vec![
@@ -385,6 +402,16 @@ mod tests {
         let parsed = PlaybackProject::from_json(&json).expect("parsed");
         assert_eq!(parsed.channels.len(), 2);
         assert_eq!(parsed.steps_per_second(), 8.0);
+    }
+
+    #[test]
+    fn old_snapshots_default_to_no_strip_inserts_or_automation() {
+        let parsed = PlaybackProject::from_json(
+            "{\"bpm\":120,\"steps\":16,\"channels\":[{\"id\":\"kick\",\"preset\":\"kick\"}]}",
+        )
+        .expect("old snapshot");
+        assert!(parsed.channels[0].inserts.is_empty());
+        assert!(parsed.channels[0].automation.is_empty());
     }
 
     #[test]

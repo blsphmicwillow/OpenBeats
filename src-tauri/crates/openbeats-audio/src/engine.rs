@@ -23,10 +23,12 @@ use std::time::Duration;
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use cpal::{FromSample, SampleFormat, SizedSample, SupportedBufferSize};
 
+use crate::automation::AutomationLane;
 use crate::devices::{self, AudioDevices, Candidate, DeviceInfo};
 use crate::dsp::{Compressor, Eq3, Transmitter, TruePeakLimiter};
 use crate::logger::AudioLogger;
 use crate::sequencer::{PlaybackChannel, PlaybackProject, Sequencer, Trigger};
+use crate::strip::{gain_at, StripProcessor};
 use crate::synth::VoicePool;
 use crate::DEFAULT_SAMPLE_RATE;
 
@@ -129,6 +131,9 @@ struct CallbackState {
     sample_rate: f32,
     sequencer: Option<Sequencer>,
     voice_pool: VoicePool,
+    strip_pools: Vec<VoicePool>,
+    strip_processors: Vec<StripProcessor>,
+    strip_automation: Vec<Vec<AutomationLane>>,
     eq: [Eq3; 2],
     compressor: [Compressor; 2],
     limiter: TruePeakLimiter,
@@ -164,6 +169,9 @@ impl CallbackState {
             sample_rate,
             sequencer: None,
             voice_pool: VoicePool::new(sample_rate, 64),
+            strip_pools: Vec::new(),
+            strip_processors: Vec::new(),
+            strip_automation: Vec::new(),
             eq,
             compressor,
             limiter,
@@ -205,6 +213,7 @@ impl CallbackState {
             let Self {
                 sequencer,
                 voice_pool,
+                strip_pools,
                 triggers,
                 ..
             } = self;
@@ -212,14 +221,25 @@ impl CallbackState {
                 seq.tick_into(triggers);
                 for trigger in triggers.iter() {
                     if let Some(channel) = seq.project().channels.get(trigger.channel_index) {
-                        voice_pool.trigger_panned(
-                            channel,
-                            trigger.pitch,
-                            trigger.velocity,
-                            trigger.duration_sec,
-                            trigger.gain,
-                            trigger.pan,
-                        );
+                        if let Some(pool) = strip_pools.get_mut(trigger.channel_index) {
+                            pool.trigger_panned(
+                                channel,
+                                trigger.pitch,
+                                trigger.velocity,
+                                trigger.duration_sec,
+                                trigger.gain,
+                                trigger.pan,
+                            );
+                        } else {
+                            voice_pool.trigger_panned(
+                                channel,
+                                trigger.pitch,
+                                trigger.velocity,
+                                trigger.duration_sec,
+                                trigger.gain,
+                                trigger.pan,
+                            );
+                        }
                     }
                 }
                 if seq.project().metronome {
@@ -234,7 +254,37 @@ impl CallbackState {
         if let Some(accent) = click {
             self.trigger_click(accent);
         }
-        let (voice_l, voice_r) = self.voice_pool.next_frame();
+        let (voice_l, voice_r) = if self.strip_pools.is_empty() {
+            self.voice_pool.next_frame()
+        } else {
+            let Self {
+                strip_pools,
+                strip_processors,
+                strip_automation,
+                sequencer,
+                ..
+            } = self;
+            let time = sequencer
+                .as_ref()
+                .map(|seq| seq.position_steps())
+                .unwrap_or(0.0);
+            let mut out_l = 0.0;
+            let mut out_r = 0.0;
+            for (index, pool) in strip_pools.iter_mut().enumerate() {
+                let (l, r) = pool.next_frame();
+                let gain = strip_automation
+                    .get(index)
+                    .map(|lanes| gain_at(lanes, time))
+                    .unwrap_or(1.0);
+                let (l, r) = match strip_processors.get_mut(index) {
+                    Some(processor) => processor.process(l * gain, r * gain),
+                    None => (l * gain, r * gain),
+                };
+                out_l += l;
+                out_r += r;
+            }
+            (out_l, out_r)
+        };
         left += voice_l;
         right += voice_r;
 
@@ -668,6 +718,21 @@ fn apply_command(state: &mut CallbackState, shared: &Arc<Shared>, command: Engin
     match command {
         EngineCommand::Play(project) => {
             state.voice_pool.all_notes_off();
+            state.strip_pools = project
+                .channels
+                .iter()
+                .map(|_| VoicePool::new(state.sample_rate, 64))
+                .collect();
+            state.strip_processors = project
+                .channels
+                .iter()
+                .map(|channel| StripProcessor::new(state.sample_rate, &channel.inserts))
+                .collect();
+            state.strip_automation = project
+                .channels
+                .iter()
+                .map(|channel| channel.automation.clone())
+                .collect();
             state.sequencer = Some(Sequencer::new(project, state.sample_rate));
             shared.playing.store(1, Ordering::Relaxed);
         }
@@ -676,6 +741,9 @@ fn apply_command(state: &mut CallbackState, shared: &Arc<Shared>, command: Engin
                 seq.stop();
             }
             state.voice_pool.all_notes_off();
+            for pool in &mut state.strip_pools {
+                pool.all_notes_off();
+            }
             shared.playing.store(0, Ordering::Relaxed);
         }
         EngineCommand::SetMasterGain(gain) => state.master_gain = gain.clamp(0.0, 2.0),
@@ -699,6 +767,9 @@ fn apply_command(state: &mut CallbackState, shared: &Arc<Shared>, command: Engin
         EngineCommand::Click(accent) => state.trigger_click(accent),
         EngineCommand::Seek(step) => {
             state.voice_pool.all_notes_off();
+            for pool in &mut state.strip_pools {
+                pool.all_notes_off();
+            }
             if let Some(seq) = state.sequencer.as_mut() {
                 seq.seek(step);
             }
@@ -843,9 +914,11 @@ fn render<T>(
     store_f32(&shared.meter_left, peak_left);
     store_f32(&shared.meter_right, peak_right);
     store_f32(&shared.transient, peak_transient);
-    shared
-        .voices
-        .store(guard.voice_pool.active_voices() as u32, Ordering::Relaxed);
+    let strip_voices: usize = guard.strip_pools.iter().map(VoicePool::active_voices).sum();
+    shared.voices.store(
+        (guard.voice_pool.active_voices() + strip_voices) as u32,
+        Ordering::Relaxed,
+    );
     let step = guard.sequencer.as_ref().map(|s| s.step()).unwrap_or(0);
     shared.step.store(step, Ordering::Relaxed);
     let playing = guard

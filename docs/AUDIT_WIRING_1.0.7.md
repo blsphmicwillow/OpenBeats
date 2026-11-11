@@ -104,33 +104,38 @@ callback.
 
 | Module | Capability | Why it is not in the callback |
 | --- | --- | --- |
-| `mixer.rs` | `MixerGraph` with routing, sends, solo/mute, sidechain, cycle refusal; `render()` takes `&[(f32, f32)]` | The callback has one summed input, not one input per strip. `render()` is an offline helper. |
-| `automation.rs` | `AutomationLane`/`AutomationSet` with linear, hold and curved segments; `value()`/`sample()` | Nothing in `CallbackState` owns an `AutomationSet`, and no command updates one while the stream is running. |
-| `effect_graph.rs` | Mono modular graph (gain, low-pass, high-pass, drive) with cycle refusal | `ModularGraph::process()` is called by a Tauri command, not by `next_frame`; it is mono, while the callback is stereo. |
-| `plugins` | `PluginHost` scan/open/process/recover on Windows/macOS; Linux stub | No frontend caller; no mixer insert point; no Linux platform layer. |
-| `dsp/*` | EQ3, compressor, limiter, true-peak, dynamic EQ, mid/side, transmitter | Only EQ3, compressor and limiter are wired into `next_frame`. |
+| `mixer.rs` | `MixerGraph` with routing, sends, solo/mute, sidechain, cycle refusal; `render()` takes `&[(f32, f32)]` | Still offline: the callback now has per-strip frames, but routing/sends are not evaluated there. |
+| `automation.rs` | `AutomationLane`/`AutomationSet` with linear, hold and curved segments | Gain lanes on `PlaybackChannel` are now evaluated per frame; `AutomationSet` and arbitrary targets are still offline. |
+| `effect_graph.rs` | Mono modular graph (gain, low-pass, high-pass, drive) with cycle refusal | Still a Tauri command, not the callback; the per-strip chain uses its own stereo processors. |
+| `plugins` | `PluginHost` scan/open/process/recover on Windows/macOS; Linux stub | No frontend caller and no insert slot; Linux has a separate CLAP sidecar. |
+| `dsp/*` | EQ3, compressor, limiter, true-peak, dynamic EQ, mid/side, transmitter | EQ3, compressor and limiter are now available in the per-strip insert chain; the master chain is unchanged. |
 
-## 3. Exact architectural blocker
+## 3. Per-strip status
 
-**Per-strip mixer inserts cannot be wired in the current callback.**
+**Per-strip gain inserts and gain automation are wired; routing/sends and
+plugin inserts are not.**
 
-`src-tauri/crates/openbeats-audio/src/sequencer.rs:76` defines
-`PlaybackProject` with `channels`, `notes`, `clips` and `patterns`. It has no
-`strips`, `inserts`, `sends` or `automation` fields.
+`PlaybackChannel` now carries `inserts` and `automation` with serde defaults,
+so old `.obeats` snapshots still parse. `CallbackState` owns one `VoicePool`
+per channel, one `StripProcessor` per channel and that channel's lanes. The
+callback renders each pool, applies its gain lane, runs its inserts, sums the
+strips, then runs the original master EQ -> compressor -> limiter chain.
 
-`src-tauri/crates/openbeats-audio/src/synth.rs:510` shows
-`VoicePool::next_frame()` returning a single `(f32, f32)`. The voice pool does
-not expose per-channel frames or channel IDs to the callback.
+`strip.rs` implements seven native insert kinds: Gain, Eq3, Compressor,
+Limiter, Lowpass, Highpass and Drive. Reverb and delay do not exist in the Rust
+DSP, so they were not invented for this pass. `MixerGraph` routing/sends and
+plugin inserts are still not in the callback. The frontend snapshot does not
+send the new `inserts`/`automation` fields yet; Rust tests construct them
+directly.
 
-`src-tauri/crates/openbeats-audio/src/engine.rs:197` sums the voice output and
-runs the fixed master chain. There is no point where a strip-specific buffer
-exists, so `MixerGraph::render` cannot be called per strip without changing the
-voice pool and the project snapshot.
+Measured tests now cover:
 
-A master-only insert would be possible by adding a master effect slot to
-`CallbackState`, but that would not satisfy the requested per-track inserts,
-routing, sends or automation. It would also create a second mixer model next to
-the existing offline `MixerGraph`.
+- a -6.0206 dB gain insert on strip 0 only: strip 0 becomes 0.5, strip 1
+  remains 1.0;
+- a volume lane from 0 to 1 over eight steps: 0.0 at step 0, 0.5 at step 4,
+  1.0 at step 8;
+- a low-pass insert attenuating a Nyquist-rate signal;
+- old project JSON defaulting to empty inserts and automation.
 
 ## 4. Prompt 1 status: Linux CLAP hosting
 
@@ -152,30 +157,27 @@ point exists on any platform, so a loaded plugin still cannot affect playback.
 
 ## 5. Prompt 2 status: wiring existing tools
 
-The audit found two honest options:
+**Partial, with measured per-strip audio.** The per-channel voice pools,
+insert chain and one gain-automation path are implemented and unit-tested.
+What remains is not a small wiring patch:
 
-1. **Implement a master insert/automation path first** (smaller, but not the
-   requested per-track mixer graph). This would add a master effect slot to
-   `CallbackState`, extend `PlaybackProject` with master automation, and map a
-   UI control to it. It would still leave `MixerGraph` offline.
-2. **Redesign the native voice path for per-strip buses** (correct, larger):
-   - `VoicePool` renders per-channel stereo buffers or exposes a bus index;
-   - `PlaybackProject` carries strips, inserts, sends and automation;
-   - `CallbackState` owns a `MixerGraph` and per-strip processors;
-   - the callback renders each strip, then mixes through `MixerGraph`;
-   - the frontend snapshot sends the same mixer model the UI edits;
-   - tests compare a -6 dB insert and a volume ramp against known buffers.
-
-The second option is required for the prompt as written. It is a mixer/voice
-engine change, not a wiring patch, so work stopped here as instructed instead
-of inventing a routing API.
+- `MixerGraph` free routing, sends and sidechain are still offline-only.
+- Plugin inserts are not routed on any platform.
+- The React snapshot does not populate `inserts` or `automation` yet, so the
+  running app cannot exercise these fields without a native-snapshot change.
+- Reverb and delay are Web Audio only; adding them to Rust would be a new
+  effect, not wiring an existing one.
 
 ## 6. Verification performed
 
 - `npm run docs:check` — passed.
 - `npm run typecheck` — passed.
 - `npm test` — 42/42 passed.
-- `cargo test -p openbeats-audio --lib` — 256/256 passed.
+- `cargo test -p openbeats-audio --lib` — 261/261 passed, including the
+  per-strip -6 dB isolation, volume-ramp, low-pass and old-snapshot-defaults
+  tests.
+- `cargo check -p openbeats-clap-helper` — passed.
+- `cargo build -p openbeats-clap-helper` — passed.
 - `cargo check -p openbeats-clap-helper` — passed.
 - `cargo build -p openbeats-clap-helper` — passed.
 - Sidecar acceptance probe — SCAN found `studio.openbeats.gain`, LOAD returned
@@ -203,9 +205,10 @@ Do not add a half-wired plugin button. The next reviewable change should be:
 
 1. ~~A `clack-host` Linux probe that scans and processes `OpenBeatsGain.clap`.~~
    Completed; the helper also has Tauri commands, a bundle entry and UI scan/load.
-2. A per-strip bus change in `VoicePool` and `PlaybackProject`, with unit tests
-   proving a -6 dB insert and a volume ramp.
-3. Only then wire the plugin insert slot on all platforms and validate the Tauri
+2. ~~A per-strip bus change, with tests proving a -6 dB insert and a volume
+   ramp.~~ Completed for gain inserts and gain automation; routing/sends and
+   plugin inserts remain.
+3. Wire the routing graph and plugin insert slot, then validate the Tauri
    desktop compile plus the Linux AppImage launch.
 
 Each step can be green on its own; combining them without the bus change would

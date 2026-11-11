@@ -224,7 +224,7 @@ to the next one. Markers persist in `.obeats` and round-trip through REAPER
 one-click crossfades and **mixer volume/pan automation lanes** that render into
 offline bounces. Markers are arrangement data only and do not change the audio
 path. The playlist **audio clips** introduced in 1.0.5 and the new automation
-lanes remain **Web Audio only**; native Rust playback is still pending for both.
+lanes remain **Web Audio only in the editor**; native CPAL accepts gain lanes, but the React bridge does not send them yet.
 The version is bumped in the app, Tauri bundle and both Rust crates.
 
 ---
@@ -253,8 +253,8 @@ The version is bumped in the app, Tauri bundle and both Rust crates.
 
 ### Engine split (which engine executes what)
 - **Rust native (CPAL):** the transport and sequencer, all 29 procedural voices (including Anvil, Prism, Sundial, Cordwood, Vector Nine, Acid Well, Dice, Dust Devil, Chatter and Hammer Felt), and the master chain **EQ → compressor → limiter**. The transmitter meter and audio logger also run natively.
-- **Web Audio only:** reverb, delay, drive, filter, chorus, phaser, bitcrusher, tremolo, auto pan and ring modulator inserts, the 10-band graphic EQ, **playlist audio clips**, and **mixer volume/pan automation**. The ten 1.0.6 instruments are not in this list: both engines implement them, with equivalent oscillator/noise/envelope designs rather than sample-identical output. Projects containing automation use the Web Audio transport for playback; native CPAL does not apply those ramps. Offline bounce and Fix My Mix also still render with Web Audio, so **desktop playback and a bounce can diverge** — they are not the same signal path yet.
-- **Implemented and tested in Rust, not wired into the CPAL callback:** mixer routing, automation lanes and the modular effect graph. They are reachable over IPC but the audio thread still runs the fixed EQ → compressor → limiter chain.
+- **Web Audio only:** reverb, delay, chorus, phaser, bitcrusher, tremolo, auto pan and ring modulator inserts, the 10-band graphic EQ, **playlist audio clips**, and the full Web Audio volume/pan automation editor. Native per-strip inserts cover gain, 3-band EQ, compressor, limiter, drive, low-pass and high-pass; native CPAL applies channel gain lanes supplied in its snapshot, but the React bridge does not send the editor's lanes yet. Offline bounce and Fix My Mix also still render with Web Audio, so **desktop playback and a bounce can diverge** — they are not the same signal path yet.
+- **Native per-strip progress:** the CPAL callback now renders one voice pool per channel, applies each channel's gain automation and native insert chain, then sums into the unchanged master EQ → compressor → limiter. Seven insert kinds (gain, 3-band EQ, compressor, limiter, low-pass, high-pass, drive) process audio on a strip; a -6 dB gain insert is covered by a unit test. Mixer routing/sends, the modular effect graph and plugin inserts are still offline-only, and the React snapshot does not send the new insert/automation fields yet.
 - **Per-clip pan** is applied per note by the Rust engine; the Web Audio fallback keeps using channel pan. The two engines agree on clip gain, pitch, stretch and fades, but their instrument voices are close rather than sample-identical.
 
 ### Writing & mixing assistants (local DSP — no cloud, no accounts)
@@ -382,8 +382,8 @@ scripts/        icon generation and plugin validation/fetching
 - Installers are produced by CI. Building them requires the platform SDKs (Xcode on macOS, MSVC on Windows); cross-building installers is not supported.
 - CI builds the Linux packages on Ubuntu 22.04 (glibc 2.35), so they run on 22.04 and newer. A local build follows the host's glibc and may not start on older distributions.
 - The update checker **notifies** and links to the release. Silent in-app installation is prepared but needs a signed Tauri updater key pair (`TAURI_SIGNING_PRIVATE_KEY`, `plugins.updater.pubkey`) — see the build guide.
-- The desktop build plays through the **native Rust engine**; the browser build uses Web Audio. The two are not sample-identical yet, and the new mixer/automation graph is not wired into the audio callback.
-- **VST3/CLAP hosting** runs out of process on Windows and macOS. Linux has a separate CLAP-only sidecar that scans and loads plugins. On every platform, inserts are still not routed into the CPAL callback, so loading a plugin does not yet change playback.
+- The desktop build plays through the **native Rust engine**; the browser build uses Web Audio. The two are not sample-identical yet. Per-strip gain inserts and gain automation are wired into the native callback; mixer routing/sends, the modular graph and plugin inserts are still not.
+- **VST3/CLAP hosting** runs out of process on Windows and macOS. Linux has a separate CLAP-only sidecar that scans and loads plugins. On every platform, **plugin inserts** are still not routed into the CPAL callback, so loading a plugin does not yet change playback.
 - The assistants are deterministic local DSP, not a hosted language model. Nothing is uploaded.
 - Not implemented yet: stem separation, a WASM wavetable synth, mixer folders, track freeze, PDC, per-clip effects, project snapshots, dockable panels, a spectral editor and a live-performance mode. See [ROADMAP.md](ROADMAP.md).
 
