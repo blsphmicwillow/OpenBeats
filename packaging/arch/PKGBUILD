@@ -30,7 +30,7 @@ provides=('openbeats')
 conflicts=('openbeats' 'openbeats-git')
 options=('!strip')
 source=("openbeats-${pkgver}.AppImage::https://github.com/blsphmicwillow/OpenBeats/releases/download/v${pkgver}/OpenBeats_${pkgver}_amd64.AppImage")
-sha256sums=('7c613b16986a9ed9ab084776057e0c6799d0978454ec7f7afe4c056c9d233cde')
+sha256sums=('70ca900ddc0f16f01e3eefba2e8e51018d5131b639906f6b3f3c988a0271ac57')
 
 prepare() {
   cd "$srcdir"
