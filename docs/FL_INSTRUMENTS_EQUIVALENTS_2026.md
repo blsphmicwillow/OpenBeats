@@ -12,9 +12,11 @@ record, not a claim of sonic identity.
 
 ## Engine note
 
-The ten instruments marked **new** below are **Web Audio only** in 1.0.6. The Rust/CPAL pool still has
-its 19 native voices, so on desktop these presets play the closest native voice (see
-`src/lib/nativeVoices.ts`); offline bounces and the browser build use the full Web Audio voice.
+The ten instruments marked **new** below are implemented in **both** engines in 1.0.6. The Rust/CPAL
+voice pool now recognises all ten preset ids and renders dedicated procedural voices
+(`src-tauri/crates/openbeats-audio/src/synth.rs`); the Web Audio voices live in
+`src/audio/instruments.ts`. The engines share the design and the Tone/Decay/Attack/Release controls
+but are not sample-identical. Offline bounces and the browser build use Web Audio.
 The 2026 originals that already existed (Glass Keys, Velvet Choir, FM Bass, chorus/phaser/bitcrusher,
 tremolo/auto pan/ring mod) keep their existing engine coverage.
 
@@ -70,9 +72,9 @@ tremolo/auto pan/ring mod) keep their existing engine coverage.
 - **Wave Traveller**: no spline scratch editor; any scratch sample can be loaded in the Sampler.
 - **Slicer / Slicex / Granulizer slice editing**: Playlist split and clip editing exist; there is no
   transient-detection or slice-map editor.
-- **Native voices**: the ten new engines are Web Audio only, with a closest-voice fallback on desktop.
-  Native CPAL voices for them are pending because the Rust toolchain is not available in this
-  environment, so they could not be built or tested.
+- **Native voices**: the ten new engines now have Rust/CPAL voices. The Rust toolchain is not
+  available in this environment, so the native code could not be compiled or tested here; the
+  Web Audio side and the TypeScript checks are green.
 
 ## Why many synths share a counterpart
 

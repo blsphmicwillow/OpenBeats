@@ -154,7 +154,9 @@ pub fn parse_command(text: &str) -> Option<ParsedCommand> {
     if phrase.starts_with("add ") || phrase.starts_with("create ") {
         let preset = [
             "kick", "snare", "hat", "openhat", "clap", "tom", "rim", "bass", "sub", "fmbass",
-            "lead", "keys", "glass", "choir", "chords", "pluck", "pad",
+            "lead", "keys", "glass", "choir", "chords", "pluck", "pad", "anvil", "prism",
+            "sundial", "cordwood", "vector9", "acidwell", "dice", "dustdevil", "chatter",
+            "hammerfelt",
         ]
         .iter()
         .find(|p| phrase.contains(**p));

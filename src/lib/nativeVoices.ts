@@ -1,21 +1,10 @@
 /**
- * The Rust/CPAL voice pool predates the 2026 instrument wave, so the desktop
- * engine plays the closest native voice for Web Audio-only instruments instead
- * of falling through to its sample/noise default. Keep this in sync with
- * `Preset::from_id` in src-tauri/crates/openbeats-audio/src/synth.rs.
+ * The Rust/CPAL voice pool implements every preset id, including the ten 2026
+ * instruments, so the UI preset is sent to the native engine unchanged. The
+ * helper stays as the single place to add a redirect if a future preset has no
+ * native voice yet.
  */
-export const NATIVE_VOICE_APPROX: Record<string, string> = {
-  anvil: 'kick',
-  prism: 'glass',
-  sundial: 'lead',
-  cordwood: 'pluck',
-  vector9: 'keys',
-  acidwell: 'bass',
-  dice: 'lead',
-  dustdevil: 'sample',
-  chatter: 'choir',
-  hammerfelt: 'keys',
-};
+export const NATIVE_VOICE_APPROX: Record<string, string> = {};
 
 /** The id sent to the native engine for a UI preset. */
 export function nativeVoiceId(preset: string): string {

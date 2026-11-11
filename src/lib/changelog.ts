@@ -39,7 +39,7 @@ export const CHANGELOG: ChangelogEntry[] = [
           'Relink an existing channel to a fresh playlist track and mixer strip from the rack menu; inserts, sends, gain, pan and group move with it.',
           'Save any strip insert chain as a template from the mixer Chains menu and recall it on any other strip, including the master.',
           'Named workspace layouts in Settings store panel widths, browser visibility, the active view and collapsed mixer groups, and restore them with one click; saved layouts are also listed in the View menu, with a tick on the active one.',
-          'Added ten original Web Audio instruments: Anvil (modelled drum), Prism (additive), Sundial (analog poly), Cordwood (physical string), Vector Nine (FM hybrid), Acid Well (resonant bass), Dice (generative), Dust Devil (granular), Chatter (formant voice) and Hammer Felt (felted piano). Desktop CPAL plays the closest native voice for these.',
+          'Added ten original Web Audio instruments: Anvil (modelled drum), Prism (additive), Sundial (analog poly), Cordwood (physical string), Vector Nine (FM hybrid), Acid Well (resonant bass), Dice (generative), Dust Devil (granular), Chatter (formant voice) and Hammer Felt (felted piano). Each preset has both a native Rust/CPAL voice and a Web Audio voice.',
           'Added a one-by-one purpose map for the 39 instruments on FL Studio editions: original OpenBeats engines and names, no copied names or DSP.',
           'Added Glass Keys, an original inharmonic bell instrument implemented in both the Rust/CPAL and Web Audio engines.',
           'Added Velvet Choir (additive formant pad) and FM Bass (two-operator sine bass), both in the Rust/CPAL and Web Audio engines.',

@@ -2,28 +2,6 @@ import { describe, expect, it } from 'vitest';
 import { PRESETS } from './model/defaults';
 import { NATIVE_VOICE_APPROX, nativeVoiceId } from './lib/nativeVoices';
 
-const NATIVE_PRESETS = new Set([
-  'kick',
-  'snare',
-  'hat',
-  'openhat',
-  'clap',
-  'tom',
-  'rim',
-  'bass',
-  'sub',
-  'fmbass',
-  'lead',
-  'keys',
-  'glass',
-  'choir',
-  'chords',
-  'pluck',
-  'pad',
-  'fx',
-  'sample',
-]);
-
 describe('instrument catalog', () => {
   it('keeps preset ids and display names unique', () => {
     const ids = PRESETS.map((preset) => preset.id);
@@ -39,16 +17,8 @@ describe('instrument catalog', () => {
     );
   });
 
-  it('routes every Web Audio-only instrument to a real native voice', () => {
-    const ids = new Set(PRESETS.map((preset) => preset.id));
-    Object.entries(NATIVE_VOICE_APPROX).forEach(([preset, native]) => {
-      expect(ids.has(preset as (typeof PRESETS)[number]['id'])).toBe(true);
-      expect(NATIVE_PRESETS.has(native)).toBe(true);
-    });
-  });
-
-  it('leaves native presets untouched', () => {
-    NATIVE_PRESETS.forEach((preset) => expect(nativeVoiceId(preset)).toBe(preset));
-    expect(nativeVoiceId('anvil')).toBe('kick');
+  it('sends every preset to its own native voice', () => {
+    PRESETS.forEach((preset) => expect(nativeVoiceId(preset.id)).toBe(preset.id));
+    expect(NATIVE_VOICE_APPROX).toEqual({});
   });
 });

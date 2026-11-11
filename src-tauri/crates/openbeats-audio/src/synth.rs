@@ -32,6 +32,16 @@ pub enum Preset {
     Pad,
     Fx,
     Sample,
+    Anvil,
+    Prism,
+    Sundial,
+    Cordwood,
+    VectorNine,
+    AcidWell,
+    Dice,
+    DustDevil,
+    Chatter,
+    HammerFelt,
 }
 
 impl Preset {
@@ -55,6 +65,16 @@ impl Preset {
             "pluck" => Preset::Pluck,
             "pad" => Preset::Pad,
             "fx" => Preset::Fx,
+            "anvil" => Preset::Anvil,
+            "prism" => Preset::Prism,
+            "sundial" => Preset::Sundial,
+            "cordwood" => Preset::Cordwood,
+            "vector9" => Preset::VectorNine,
+            "acidwell" => Preset::AcidWell,
+            "dice" => Preset::Dice,
+            "dustdevil" => Preset::DustDevil,
+            "chatter" => Preset::Chatter,
+            "hammerfelt" => Preset::HammerFelt,
             _ => Preset::Sample,
         }
     }
@@ -75,6 +95,16 @@ impl Preset {
                 | Preset::Pad
                 | Preset::Kick
                 | Preset::Tom
+                | Preset::Anvil
+                | Preset::Prism
+                | Preset::Sundial
+                | Preset::Cordwood
+                | Preset::VectorNine
+                | Preset::AcidWell
+                | Preset::Dice
+                | Preset::DustDevil
+                | Preset::Chatter
+                | Preset::HammerFelt
         )
     }
 }
@@ -150,6 +180,8 @@ pub struct Voice {
     adsr: Adsr,
     noise: Noise,
     filter: f32,
+    /// Stable per-channel seed for the generative Dice voice.
+    variant: u32,
     sample_rate: f32,
     active: bool,
 }
@@ -176,6 +208,7 @@ impl Voice {
             },
             noise: Noise::new(1),
             filter: 0.0,
+            variant: 0,
             sample_rate: 48_000.0,
             active: false,
         }
@@ -218,6 +251,89 @@ impl Voice {
             Preset::Pad => (2.0 * p - 1.0) * 0.35 + (2.0 * p2 - 1.0) * 0.35,
             Preset::Tom => (2.0 * PI * p).sin(),
             Preset::Fx => self.noise.next() * 0.5 + (2.0 * PI * p).sin() * 0.5,
+            Preset::Anvil => {
+                let ring = (2.0 * PI * p * 2.7).sin() * 0.22
+                    + (2.0 * PI * p * 4.13).sin() * 0.14
+                    + (2.0 * PI * p * 5.9).sin() * 0.08;
+                (2.0 * PI * p).sin() + ring * (0.3 + self.tone * 0.7)
+            }
+            Preset::Prism => {
+                let ratios = [1.0, 2.01, 3.02, 4.05, 5.12, 7.06, 9.1];
+                let mut sum = 0.0;
+                for (i, ratio) in ratios.iter().enumerate() {
+                    let level = 0.55 / (i as f32 + 1.4);
+                    sum += (2.0 * PI * p * ratio + i as f32 * 0.4).sin() * level;
+                }
+                sum * (0.7 + self.tone * 0.8)
+            }
+            Preset::Sundial => {
+                (2.0 * p - 1.0) * 0.45
+                    + (2.0 * p2 - 1.0) * 0.3
+                    + (2.0 * PI * p * 0.5).sin() * 0.2
+                    + (2.0 * PI * p * 1.5).sin() * 0.12
+            }
+            Preset::Cordwood => {
+                let life = 1.0
+                    - (self.adsr.elapsed / (self.adsr.held_for + self.adsr.release_sec + 0.25))
+                        .clamp(0.0, 1.0);
+                let exciter = if self.adsr.elapsed < 0.04 {
+                    self.noise.next() * 0.5
+                } else {
+                    0.0
+                };
+                ((2.0 * p - 1.0) * 0.5
+                    + (2.0 * PI * p * 2.0).sin() * 0.25
+                    + (2.0 * PI * p * 3.01).sin() * 0.15
+                    + exciter)
+                    * (0.25 + life * 0.75)
+            }
+            Preset::VectorNine => {
+                let index = 1.0 + self.tone * 4.0;
+                let mod_a = (2.0 * PI * p * 2.0).sin() * index;
+                let mod_b = (2.0 * PI * p * 3.01).sin() * index * 0.4;
+                (2.0 * PI * p + mod_a + mod_b).sin() * 0.7 + (2.0 * p - 1.0) * 0.2
+            }
+            Preset::AcidWell => {
+                let saw = 2.0 * p - 1.0;
+                let square = if p < 0.5 { 1.0 } else { -1.0 };
+                ((saw * 0.7 + square * 0.3) * (1.0 + self.tone * 2.0)).tanh() * 0.8
+            }
+            Preset::Dice => {
+                let wave = match self.variant % 3 {
+                    0 => 2.0 * p - 1.0,
+                    1 => (2.0 * PI * p).sin(),
+                    _ => {
+                        if p < 0.5 {
+                            1.0
+                        } else {
+                            -1.0
+                        }
+                    }
+                };
+                let detune = 1.0 + ((self.variant >> 8) & 0xff) as f32 / 2550.0 - 0.05;
+                wave * 0.55
+                    + (2.0 * PI * p * detune).sin() * 0.25
+                    + (2.0 * PI * p * 0.5).sin() * 0.2
+            }
+            Preset::DustDevil => {
+                let cloud = (2.0 * PI * p * 0.25).sin().abs();
+                self.noise.next() * (0.4 + cloud * 0.35) + (2.0 * PI * p).sin() * 0.2
+            }
+            Preset::Chatter => {
+                let vowel = 0.8 + self.tone * 0.6;
+                (2.0 * PI * p).sin() * 0.45
+                    + (2.0 * PI * p * 3.0).sin() * 0.22 * vowel
+                    + (2.0 * PI * p * 5.0).sin() * 0.12 * vowel
+                    + self.noise.next() * 0.05
+            }
+            Preset::HammerFelt => {
+                let ratios = [1.0, 2.0, 3.0, 4.02, 5.05, 6.08, 7.16];
+                let mut sum = 0.0;
+                for (i, ratio) in ratios.iter().enumerate() {
+                    sum += (2.0 * PI * p * ratio).sin() / (i as f32 + 1.0).powf(1.35);
+                }
+                sum * 0.75 + self.noise.next() * 0.03
+            }
             _ => self.noise.next(),
         }
     }
@@ -248,8 +364,8 @@ impl Voice {
         self.filter = sample * (1.0 - coef) + self.filter * coef;
         sample = self.filter;
 
-        // Percussive pitch drop for the kick and tom.
-        if matches!(self.preset, Preset::Kick) {
+        // Percussive pitch drop for the kick and the modelled drum shell.
+        if matches!(self.preset, Preset::Kick | Preset::Anvil) {
             self.frequency = (self.frequency * 0.9995).max(45.0);
         }
 
@@ -333,12 +449,18 @@ impl VoicePool {
         let decay = channel.decay.clamp(0.0, 1.0) * 0.6 + 0.05;
         let release = channel.release.clamp(0.0, 1.0) * 0.8 + 0.02;
 
+        let mut variant: u32 = 2_166_136_261;
+        for byte in channel.id.bytes() {
+            variant ^= byte as u32;
+            variant = variant.wrapping_mul(16_777_619);
+        }
+
         let mut voice = Voice::silent();
         voice.preset = preset;
-        voice.frequency = if matches!(preset, Preset::Kick) {
-            frequency * 3.0
-        } else {
-            frequency
+        voice.frequency = match preset {
+            Preset::Kick => frequency * 3.0,
+            Preset::Anvil => frequency * 2.2,
+            _ => frequency,
         };
         voice.velocity = velocity.clamp(0.0, 1.0);
         voice.gain = (channel.gain.max(0.0) * gain).clamp(0.0, 2.0);
@@ -348,6 +470,7 @@ impl VoicePool {
         voice.phase = 0.0;
         voice.phase2 = 0.25;
         voice.filter = 0.0;
+        voice.variant = variant;
         voice.sample_rate = self.sample_rate;
         voice.noise = Noise::new(self.next_seed);
         voice.adsr = Adsr {
@@ -361,7 +484,14 @@ impl VoicePool {
                 Preset::Pad | Preset::Choir => 0.85,
                 Preset::FmBass => 0.55,
                 Preset::Pluck | Preset::Hat | Preset::OpenHat => 0.15,
-                Preset::Kick | Preset::Snare | Preset::Clap | Preset::Rim => 0.0,
+                Preset::Kick | Preset::Snare | Preset::Clap | Preset::Rim | Preset::Anvil => 0.0,
+                Preset::Prism => 0.55,
+                Preset::Cordwood => 0.2,
+                Preset::VectorNine => 0.65,
+                Preset::AcidWell => 0.6,
+                Preset::DustDevil => 0.5,
+                Preset::Chatter => 0.65,
+                Preset::HammerFelt => 0.4,
                 _ => 0.7,
             },
             release_sec: match preset {
@@ -472,6 +602,53 @@ mod tests {
             r += b.abs();
         }
         assert!(r > l * 1.5, "clip pan was ignored: {l} vs {r}");
+    }
+
+    #[test]
+    fn every_new_preset_has_its_own_native_voice() {
+        for id in [
+            "anvil",
+            "prism",
+            "sundial",
+            "cordwood",
+            "vector9",
+            "acidwell",
+            "dice",
+            "dustdevil",
+            "chatter",
+            "hammerfelt",
+        ] {
+            assert_ne!(
+                Preset::from_id(id),
+                Preset::Sample,
+                "{id} still falls back to the sample voice"
+            );
+        }
+    }
+
+    #[test]
+    fn every_new_voice_produces_sound() {
+        for id in [
+            "anvil",
+            "prism",
+            "sundial",
+            "cordwood",
+            "vector9",
+            "acidwell",
+            "dice",
+            "dustdevil",
+            "chatter",
+            "hammerfelt",
+        ] {
+            let mut pool = VoicePool::new(48_000.0, 4);
+            pool.trigger(&channel(id), 60, 1.0, 0.08, 1.0);
+            let mut peak = 0.0f32;
+            for _ in 0..12_000 {
+                let (l, r) = pool.next_frame();
+                peak = peak.max(l.abs()).max(r.abs());
+            }
+            assert!(peak > 0.005, "{id} was silent: {peak}");
+        }
     }
 
     #[test]
