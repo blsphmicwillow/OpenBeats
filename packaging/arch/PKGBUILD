@@ -1,6 +1,6 @@
 # Maintainer: OpenBeats maintainers <blsphmicwillow@users.noreply.github.com>
 pkgname=openbeats-bin
-pkgver=1.0.5
+pkgver=1.0.8
 pkgrel=1
 pkgdesc='Open-source beatmaking studio (native Tauri build)'
 arch=('x86_64')
@@ -30,7 +30,7 @@ provides=('openbeats')
 conflicts=('openbeats' 'openbeats-git')
 options=('!strip')
 source=("openbeats-${pkgver}.AppImage::https://github.com/blsphmicwillow/OpenBeats/releases/download/v${pkgver}/OpenBeats_${pkgver}_amd64.AppImage")
-sha256sums=('70ca900ddc0f16f01e3eefba2e8e51018d5131b639906f6b3f3c988a0271ac57')
+sha256sums=('c189a465b7ddd83827905be36fb45957be86a1f5257dbe1f505e6173d68e3dce')
 
 prepare() {
   cd "$srcdir"
