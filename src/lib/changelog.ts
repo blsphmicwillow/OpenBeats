@@ -26,6 +26,8 @@ export const CHANGELOG: ChangelogEntry[] = [
           'Right-click an overlapping clip to create a one-click crossfade with the next clip.',
           'Browser samples can be dragged straight onto a playlist lane, and pointer drags no longer select surrounding UI text.',
           'Offline export now includes playlist audio clips and rehydrates their media when a saved project is bounced in a fresh session.',
+          'Mixer volume and pan automation lanes with linear points, editing in the mixer and offline-bounce support.',
+          'Automation is Web Audio only: native CPAL playback ignores it, so projects with automation points use the Web Audio transport and the mixer labels that limit.',
         ],
       },
       {

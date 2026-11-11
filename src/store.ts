@@ -4,6 +4,8 @@ import type {
   Clip,
   EffectType,
   KeyAction,
+  AutomationPoint,
+  AutomationTarget,
   Marker,
   MenuItem,
   Note,
@@ -32,6 +34,7 @@ import { SAMPLE_BANK } from './audio/instruments';
 import { advanceAudioClips, startAudioClips, stopAudioClips } from './audio/audioClipTransport';
 import { createAudioClipFromDrop, normalizeAudioClips, type AudioClip } from './model/audioClip';
 import { markerLoopRange, nextMarker, normalizeMarkers, previousMarker } from './model/markers';
+import { normalizeAutomation, projectHasAutomation } from './model/automation';
 import { putSample } from './audio/mediaStore';
 import { buildPeaksOffThread } from './audio/waveformClient';
 import { registerSample } from './audio/sampleLibrary';
@@ -125,7 +128,11 @@ export function normalizeProject(raw: unknown): Project {
     version: 1,
     channels: channels.map((c) => ({ ...createChannel({ preset: c.preset ?? 'kick' }), ...c })),
     patterns: patterns.map((pat) => ({ ...createPattern('Pattern', '#888', 2), ...pat, notes: pat.notes ?? {} })),
-    strips: strips.map((s, i) => ({ ...createStrip(s.id ?? i, s.name ?? 'Insert', s.color ?? '#888'), ...s })),
+    strips: strips.map((s, i) => ({
+      ...createStrip(s.id ?? i, s.name ?? 'Insert', s.color ?? '#888'),
+      ...s,
+      automation: normalizeAutomation(s.automation),
+    })),
     tracks: Array.isArray(p.tracks) && p.tracks.length ? p.tracks : base.tracks,
     clips: Array.isArray(p.clips) ? p.clips : [],
     markers: normalizeMarkers(p.markers),
@@ -216,6 +223,7 @@ export interface AppState {
   importAudioClipFiles(files: File[], track: number, startTick: number): Promise<number>;
 
   updateStrip(id: number, patch: Partial<Strip>, coalesce?: string): void;
+  setAutomation(stripId: number, target: AutomationTarget, points: AutomationPoint[], coalesce?: string): void;
   addStrip(): void;
   removeStrip(id: number): void;
   selectStrip(id: number): void;
@@ -407,7 +415,7 @@ export const useApp = create<AppState>((set, get) => ({
 
   play(fromStep) {
     const start = Math.max(0, fromStep ?? get().transport.step);
-    if (nativeShell()) {
+    if (nativeShell() && !projectHasAutomation(get().project)) {
       void startNativeFromSnapshot(start).then((ok) => {
         if (!ok) startWebAudioPlayback(start);
       });
@@ -430,6 +438,7 @@ export const useApp = create<AppState>((set, get) => ({
       void import('./lib/nativeAudio').then((mod) => mod.stopNativePlayback());
     }
     stopAudioClips();
+    engine.clearAutomation(get().project);
     set((s) => ({ transport: { ...s.transport, playing: false } }));
   },
 
@@ -443,6 +452,9 @@ export const useApp = create<AppState>((set, get) => ({
     const elapsed = Math.max(0, engine.now - transport.anchorTime);
     const step = Math.floor(transport.anchorStep + elapsed / stepSec) % Math.max(1, total);
     if (step !== transport.step) {
+      if (step < transport.step && projectHasAutomation(project)) {
+        engine.scheduleAutomation(project, step, engine.now);
+      }
       set((s) => ({ transport: { ...s.transport, step } }));
     }
   },
@@ -921,6 +933,20 @@ export const useApp = create<AppState>((set, get) => ({
       (p) => {
         const strip = p.strips.find((s) => s.id === id);
         if (strip) Object.assign(strip, patch);
+      },
+      { coalesce },
+    );
+  },
+
+  setAutomation(stripId, target, points, coalesce) {
+    get().patchProject(
+      (p) => {
+        const strip = p.strips.find((s) => s.id === stripId);
+        if (!strip) return;
+        strip.automation = normalizeAutomation([
+          ...strip.automation.filter((lane) => lane.target !== target),
+          { target, points },
+        ]);
       },
       { coalesce },
     );
@@ -1549,8 +1575,10 @@ function startWebAudioPlayback(start: number) {
       },
       ui: { ...s.ui, hint: 'Playing — Space to stop, L toggles pattern/song mode.' },
     }));
+    const project = useApp.getState().project;
     if (engine.ctx && engine.graph) {
-      startAudioClips(engine.ctx, engine.graph.master, useApp.getState().project, nextStep);
+      startAudioClips(engine.ctx, engine.graph.master, project, nextStep);
+      if (projectHasAutomation(project)) engine.scheduleAutomation(project, nextStep, nextTime);
     }
     playTimer = setInterval(() => tick(), 20);
   });

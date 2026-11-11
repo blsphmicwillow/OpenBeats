@@ -17,6 +17,8 @@ Keep this file and `src/lib/changelog.ts` in sync, and bump `APP_VERSION` in `sr
 - Right-clicking an overlapping clip offers a one-click crossfade with the next clip.
 - Browser samples can be dragged onto playlist lanes, and playlist drags no longer select surrounding interface text.
 - Offline export now includes playlist audio clips and reloads their media for saved projects before rendering.
+- Mixer **volume and pan automation lanes** with linear points. Click to add points, drag to edit, right-click to remove, and clear a lane from the mixer.
+- Automation is **Web Audio only**. Projects with automation points use the Web Audio transport for playback, and the same ramps are applied during offline bounce; native CPAL playback ignores automation.
 - REAPER `.rpp` export writes the marker list and import reads it back.
 
 Markers are arrangement data only and do not change which engine plays audio. Pattern clips keep the Rust/Web Audio split; playlist audio clips remain **Web Audio only** with native playback pending.

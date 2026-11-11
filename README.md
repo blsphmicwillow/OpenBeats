@@ -216,10 +216,12 @@ release is not signed with a Tauri updater key.
 Yes. 1.0.6 adds named **arrangement markers**: add one at the playhead, drag or
 rename it, jump between markers with Alt+Left/Alt+Right, and loop from a marker
 to the next one. Markers persist in `.obeats` and round-trip through REAPER
-`.rpp` projects. Markers are arrangement data only and do not change the audio
-path. The playlist **audio clips** introduced in 1.0.5 remain **Web Audio only**;
-native Rust playback is still pending. The version is bumped in the app, Tauri
-bundle and both Rust crates.
+`.rpp` projects. 1.0.6 also adds clip fade handles, a selected-clip inspector,
+one-click crossfades and **mixer volume/pan automation lanes** that render into
+offline bounces. Markers are arrangement data only and do not change the audio
+path. The playlist **audio clips** introduced in 1.0.5 and the new automation
+lanes remain **Web Audio only**; native Rust playback is still pending for both.
+The version is bumped in the app, Tauri bundle and both Rust crates.
 
 ---
 
@@ -231,7 +233,7 @@ bundle and both Rust crates.
 - **Playlist** with pattern clips, **audio clips** and **named markers**. Drop a WAV/MP3/OGG/FLAC on a lane for an LOD waveform, gain/pan/fades and loop-aware playback. Add markers with F6, drag or rename them, jump with Alt+Left/Alt+Right, and loop from a marker to the next one. Selected clips expose gain, pan and fade controls, with visible fade handles and a one-click crossfade to the next overlapping clip. Track mute/solo, the loop region and the snap grid are unchanged.
   - **Playlist audio clips: Web Audio only in 1.0.6; native Rust playback pending.**
   - Media bytes are cached in the WebView (IndexedDB) with a SHA-256 integrity hash; native app-data persistence is planned for 1.1.
-- **Mixer** with inserts, sends, buses and a master strip; 8 native effect types (3-band and 10-band EQ, compressor, limiter, reverb, delay, drive, filter).
+- **Mixer** with inserts, sends, buses and a master strip; 8 native effect types (3-band and 10-band EQ, compressor, limiter, reverb, delay, drive, filter), plus **Web Audio volume/pan automation lanes** that render into offline bounces.
 - **Song / Pattern mode**, metronome, count-in, tempo and swing.
 - **Bounce** to 16/24-bit WAV at 44.1 or 48 kHz, with optional mastering targets.
 
@@ -247,7 +249,7 @@ bundle and both Rust crates.
 
 ### Engine split (which engine executes what)
 - **Rust native (CPAL):** the transport and sequencer, the 16 procedural voices, and the master chain **EQ → compressor → limiter**. The transmitter meter and audio logger also run natively.
-- **Web Audio only:** reverb, delay, drive and filter inserts, the 10-band graphic EQ, and **playlist audio clips**. Offline bounce and Fix My Mix also still render with Web Audio, so **desktop playback and a bounce can diverge** — they are not the same signal path yet.
+- **Web Audio only:** reverb, delay, drive and filter inserts, the 10-band graphic EQ, **playlist audio clips**, and **mixer volume/pan automation**. Projects containing automation use the Web Audio transport for playback; native CPAL does not apply those ramps. Offline bounce and Fix My Mix also still render with Web Audio, so **desktop playback and a bounce can diverge** — they are not the same signal path yet.
 - **Implemented and tested in Rust, not wired into the CPAL callback:** mixer routing, automation lanes and the modular effect graph. They are reachable over IPC but the audio thread still runs the fixed EQ → compressor → limiter chain.
 - **Per-clip pan** is applied per note by the Rust engine; the Web Audio fallback keeps using channel pan. The two engines agree on clip gain, pitch, stretch and fades, but their instrument voices are close rather than sample-identical.
 

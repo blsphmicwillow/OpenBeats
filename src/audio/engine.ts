@@ -2,6 +2,9 @@ import type { BaseAudioContext } from './audio-context-types';
 import type { Channel, Project } from '../model/types';
 import { createEffectNode, type EffectNode } from './effects';
 import { playClick, playVoice } from './instruments';
+import { scheduleMixerAutomation } from './automation';
+import { laneFor } from '../model/automation';
+import { stepsToSeconds } from './sequencer';
 
 export interface StripNodes {
   id: number;
@@ -127,6 +130,7 @@ export class AudioEngine {
   graph: Graph | null = null;
   private project: Project | null = null;
   private key = '';
+  private automationActive = false;
   error: string | null = null;
 
   /**
@@ -221,8 +225,10 @@ export class AudioEngine {
       const node = this.graph.strips.get(strip.id);
       if (!node) continue;
       const audible = !strip.mute && (!anySolo || strip.solo || strip.id === 0);
-      node.fader.gain.setTargetAtTime(Math.pow(strip.gain, 1.5), now, 0.01);
-      node.panner.pan.setTargetAtTime(strip.pan, now, 0.01);
+      const volumeAutomated = this.automationActive && laneFor(strip, 'volume').points.length > 0;
+      const panAutomated = this.automationActive && laneFor(strip, 'pan').points.length > 0;
+      if (!volumeAutomated) node.fader.gain.setTargetAtTime(Math.pow(strip.gain, 1.5), now, 0.01);
+      if (!panAutomated) node.panner.pan.setTargetAtTime(strip.pan, now, 0.01);
       node.mute.gain.setTargetAtTime(audible ? 1 : 0, now, 0.008);
       strip.sends.forEach((send, i) => {
         const g = node.sends[i];
@@ -234,6 +240,31 @@ export class AudioEngine {
       });
     }
     this.graph.master.gain.setTargetAtTime(project.masterGain, now, 0.02);
+  }
+
+  /** Starts Web Audio automation for the arrangement pass beginning at `fromStep`. */
+  scheduleAutomation(project: Project, fromStep: number, startAtSec: number) {
+    if (!this.ctx || !this.graph) return;
+    scheduleMixerAutomation(this.graph, project, {
+      fromStep,
+      startAtSec,
+      stepSec: stepsToSeconds(1, project.bpm),
+    });
+    this.automationActive = true;
+  }
+
+  /** Cancels scheduled ramps and restores the static mixer values. */
+  clearAutomation(project: Project) {
+    if (!this.ctx || !this.graph) return;
+    const now = this.ctx.currentTime;
+    for (const strip of project.strips) {
+      const node = this.graph.strips.get(strip.id);
+      if (!node) continue;
+      if (laneFor(strip, 'volume').points.length) node.fader.gain.cancelScheduledValues(now);
+      if (laneFor(strip, 'pan').points.length) node.panner.pan.cancelScheduledValues(now);
+    }
+    this.automationActive = false;
+    this.sync(project);
   }
 
   setMasterGain(value: number) {

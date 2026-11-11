@@ -154,6 +154,21 @@ export interface Send {
   amount: number;
 }
 
+export type AutomationTarget = 'volume' | 'pan';
+
+export interface AutomationPoint {
+  id: string;
+  /** Arrangement position in 16th steps. */
+  step: number;
+  /** Volume 0..1.25, pan -1..1. */
+  value: number;
+}
+
+export interface AutomationLane {
+  target: AutomationTarget;
+  points: AutomationPoint[];
+}
+
 export interface Strip {
   id: number;
   name: string;
@@ -169,6 +184,8 @@ export interface Strip {
   /** Optional group label used by the mixer's collapse feature. */
   group: string;
   collapsed: boolean;
+  /** Web Audio-only strip automation. Native CPAL does not apply these lanes. */
+  automation: AutomationLane[];
 }
 
 export interface Project {

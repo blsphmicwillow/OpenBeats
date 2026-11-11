@@ -3,9 +3,18 @@ import { useApp } from '../store';
 import { Knob } from '../ui/Knob';
 import { Fader } from '../ui/Fader';
 import { Meter } from '../ui/Meter';
-import { EFFECT_DEFS, effectLabel } from '../model/defaults';
+import { EFFECT_DEFS, effectLabel, uid } from '../model/defaults';
 import { IconPlus, IconPower, IconTrash } from '../ui/icons';
-import type { Effect, EffectType, MenuItem, Strip } from '../model/types';
+import type {
+  AutomationPoint,
+  AutomationTarget,
+  Effect,
+  EffectType,
+  MenuItem,
+  Strip,
+} from '../model/types';
+import { automationValueAt, laneFor } from '../model/automation';
+import { songLengthSteps } from '../audio/sequencer';
 
 function EqCurve({ effect, onChange }: { effect: Effect; onChange: (index: number, gain: number) => void }) {
   const ref = useRef<SVGSVGElement>(null);
@@ -121,12 +130,131 @@ function EffectCard({ strip, effect }: { strip: Strip; effect: Effect }) {
   );
 }
 
+const AUTO_W = 1000;
+const AUTO_H = 92;
+const AUTO_PAD = 8;
+
+function AutomationEditor({
+  value,
+  target,
+  length,
+  fallback,
+  onChange,
+}: {
+  value: AutomationPoint[];
+  target: AutomationTarget;
+  length: number;
+  fallback: number;
+  onChange: (points: AutomationPoint[]) => void;
+}) {
+  const ref = useRef<SVGSVGElement>(null);
+  const dragId = useRef<string | null>(null);
+  const min = target === 'pan' ? -1 : 0;
+  const max = target === 'pan' ? 1 : 1.25;
+  const toX = (step: number) => (Math.max(0, Math.min(length, step)) / Math.max(1, length)) * (AUTO_W - AUTO_PAD * 2) + AUTO_PAD;
+  const toY = (raw: number) => {
+    const v = Math.max(min, Math.min(max, raw));
+    return AUTO_PAD + ((max - v) / (max - min || 1)) * (AUTO_H - AUTO_PAD * 2);
+  };
+  const fromPointer = (e: React.PointerEvent<SVGSVGElement>) => {
+    const rect = ref.current?.getBoundingClientRect();
+    if (!rect) return null;
+    const x = Math.max(0, Math.min(AUTO_W, ((e.clientX - rect.left) / rect.width) * AUTO_W));
+    const y = Math.max(0, Math.min(AUTO_H, ((e.clientY - rect.top) / rect.height) * AUTO_H));
+    const step = Math.max(0, Math.min(length, Math.round(((x - AUTO_PAD) / (AUTO_W - AUTO_PAD * 2)) * length)));
+    const raw = max - ((y - AUTO_PAD) / (AUTO_H - AUTO_PAD * 2)) * (max - min);
+    return { step, value: Math.max(min, Math.min(max, raw)) };
+  };
+  const points = [...value].sort((a, b) => a.step - b.step);
+  const line = points.length
+    ? points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${toX(p.step)} ${toY(p.value)}`).join(' ')
+    : '';
+  const readout = points.length
+    ? `${points.length} point${points.length === 1 ? '' : 's'} · ${target === 'pan' ? 'L/R' : '0–125%'}`
+    : 'Click the lane to add a point';
+
+  return (
+    <div className="automation-editor">
+      <svg
+        ref={ref}
+        className="automation-lane"
+        viewBox={`0 0 ${AUTO_W} ${AUTO_H}`}
+        preserveAspectRatio="none"
+        role="application"
+        aria-label={`${target === 'pan' ? 'Pan' : 'Volume'} automation lane`}
+        onPointerDown={(e) => {
+          if (e.button !== 0) return;
+          e.preventDefault();
+          const next = fromPointer(e);
+          if (!next) return;
+          onChange([...points, { id: uid('ap'), step: next.step, value: next.value }]);
+        }}
+        onPointerMove={(e) => {
+          if (!dragId.current) return;
+          const next = fromPointer(e);
+          if (!next) return;
+          onChange(points.map((p) => (p.id === dragId.current ? { ...p, step: next.step, value: next.value } : p)));
+        }}
+        onPointerUp={() => {
+          dragId.current = null;
+        }}
+        onPointerCancel={() => {
+          dragId.current = null;
+        }}
+      >
+        <line x1={AUTO_PAD} y1={toY(fallback)} x2={AUTO_W - AUTO_PAD} y2={toY(fallback)} stroke="var(--border)" strokeDasharray="3 4" />
+        {points.length > 0 && (
+          <>
+            <path d={`${line} L ${toX(points[points.length - 1].step)} ${AUTO_H - AUTO_PAD} L ${toX(points[0].step)} ${AUTO_H - AUTO_PAD} Z`} fill="var(--accent)" opacity="0.12" />
+            <path d={line} fill="none" stroke="var(--accent)" strokeWidth="2" vectorEffect="non-scaling-stroke" />
+          </>
+        )}
+        {points.map((point) => (
+          <g key={point.id}>
+            <circle
+              cx={toX(point.step)}
+              cy={toY(point.value)}
+              r="7"
+              fill="var(--accent)"
+              stroke="var(--bg)"
+              strokeWidth="2"
+              vectorEffect="non-scaling-stroke"
+              style={{ cursor: 'grab' }}
+              onPointerDown={(e) => {
+                if (e.button !== 0) return;
+                e.preventDefault();
+                e.stopPropagation();
+                dragId.current = point.id;
+                (e.currentTarget as SVGCircleElement).setPointerCapture(e.pointerId);
+              }}
+              onContextMenu={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                onChange(points.filter((p) => p.id !== point.id));
+              }}
+            >
+              <title>{`${Math.round(point.value * 100)} · step ${point.step} · right-click to remove`}</title>
+            </circle>
+          </g>
+        ))}
+        <text x={AUTO_PAD} y={AUTO_H - 2} fill="var(--dim)" fontSize="9">1</text>
+        <text x={AUTO_W - AUTO_PAD} y={AUTO_H - 2} fill="var(--dim)" fontSize="9" textAnchor="end">
+          {length}
+        </text>
+      </svg>
+      <span className="tiny-note">{readout} · linear interpolation</span>
+    </div>
+  );
+}
+
 export function Mixer() {
   const project = useApp((s) => s.project);
   const [renaming, setRenaming] = useState<number | null>(null);
   const [draft, setDraft] = useState('');
+  const [automationTarget, setAutomationTarget] = useState<AutomationTarget>('volume');
   const {
     updateStrip,
+    setAutomation,
     selectStrip,
     addStrip,
     removeStrip,
@@ -446,6 +574,44 @@ export function Mixer() {
             ))}
           </div>
         )}
+      </div>
+
+      <div className="automation-rack" aria-label="Mixer automation">
+        <div className="automation-head">
+          <strong>Automation</strong>
+          <span className="tiny-note">{selected.id === 0 ? 'Master' : `${selected.id}. ${selected.name}`}</span>
+          <div className="automation-tabs" role="tablist" aria-label="Automation target">
+            {(['volume', 'pan'] as const).map((target) => (
+              <button
+                key={target}
+                className={`tbtn small flat ${automationTarget === target ? 'active' : ''}`}
+                role="tab"
+                aria-selected={automationTarget === target}
+                onClick={() => setAutomationTarget(target)}
+              >
+                {target}
+              </button>
+            ))}
+          </div>
+          <span className="automation-badge">Web Audio only</span>
+          <button
+            className="tbtn small flat"
+            disabled={laneFor(selected, automationTarget).points.length === 0}
+            onClick={() => setAutomation(selected.id, automationTarget, [], `auto:${selected.id}:${automationTarget}`)}
+          >
+            Clear lane
+          </button>
+        </div>
+        <AutomationEditor
+          value={laneFor(selected, automationTarget).points}
+          target={automationTarget}
+          length={Math.max(16, songLengthSteps(project))}
+          fallback={automationTarget === 'pan' ? selected.pan : selected.gain}
+          onChange={(points) => setAutomation(selected.id, automationTarget, points, `auto:${selected.id}:${automationTarget}`)}
+        />
+        <span className="tiny-note">
+          Volume/pan ramps are applied by Web Audio during playback and offline export. Native CPAL ignores them, so playback uses Web Audio while this project has automation points.
+        </span>
       </div>
     </div>
   );

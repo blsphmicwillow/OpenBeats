@@ -8,6 +8,7 @@ import { ticksToSteps, type AudioClip } from '../model/audioClip';
 import { applyClipGain, scheduleWindows } from './audioClipScheduler';
 import { buffersForClips, registerSample } from './sampleLibrary';
 import { getSample } from './mediaStore';
+import { scheduleMixerAutomation } from './automation';
 
 function encodeWav(buffer: AudioBuffer): Blob {
   const numCh = buffer.numberOfChannels;
@@ -147,6 +148,9 @@ export async function renderSongToBuffer(
     (window as unknown as { webkitOfflineAudioContext: typeof OfflineAudioContext }).webkitOfflineAudioContext;
   const ctx = new OfflineCtor(2, Math.ceil(duration * sampleRate), sampleRate);
   const graph = buildGraph(ctx as unknown as BaseAudioContext, project);
+  // ENGINE: Web Audio only — the same automation used by live playback is
+  // scheduled into the offline graph, so fader/pan moves are bounced.
+  scheduleMixerAutomation(graph, project, { fromStep: 0, startAtSec: 0, stepSec });
 
   for (const event of songEvents(project)) {
     const channel = project.channels.find((c) => c.id === event.channelId);

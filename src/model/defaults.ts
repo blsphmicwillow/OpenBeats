@@ -232,6 +232,10 @@ export function createStrip(id: number, name: string, color: string): Strip {
     effects: [],
     group: '',
     collapsed: false,
+    automation: [
+      { target: 'volume', points: [] },
+      { target: 'pan', points: [] },
+    ],
   };
 }
 
