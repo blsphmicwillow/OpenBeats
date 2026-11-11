@@ -32,30 +32,30 @@ Eleven built-in themes, Classic and Modern chrome, and an editable **My theme** 
 
 ---
 
-## Install OpenBeats 1.0.4
+## Install OpenBeats 1.0.5
 
 Every package is built by GitHub Actions and attached to the
-[1.0.4 release](https://github.com/blsphmicwillow/OpenBeats/releases/tag/v1.0.4).
+[1.0.5 release](https://github.com/blsphmicwillow/OpenBeats/releases/tag/v1.0.5).
 No account is required.
 
 | Platform | Release file | Install |
 | --- | --- | --- |
 | Arch Linux | `openbeats-bin` (in this repo) | `cd packaging/arch && yay -Bi .` — see below |
-| Linux (any) | `OpenBeats_1.0.4_amd64.AppImage` | `chmod +x`, then run it |
-| Debian / Ubuntu | `OpenBeats_1.0.4_amd64.deb` | `sudo apt install ./OpenBeats_1.0.4_amd64.deb` |
-| Fedora / RPM | `OpenBeats-1.0.4-1.x86_64.rpm` | `sudo dnf install ./OpenBeats-1.0.4-1.x86_64.rpm` |
-| Windows 10/11 | `OpenBeats_1.0.4_x64-setup.exe` | Run the installer (or use the `.msi`) |
-| macOS (Apple silicon) | `OpenBeats_1.0.4_aarch64.dmg` | Open the DMG and drag OpenBeats to Applications |
+| Linux (any) | `OpenBeats_1.0.5_amd64.AppImage` | `chmod +x`, then run it |
+| Debian / Ubuntu | `OpenBeats_1.0.5_amd64.deb` | `sudo apt install ./OpenBeats_1.0.5_amd64.deb` |
+| Fedora / RPM | `OpenBeats-1.0.5-1.x86_64.rpm` | `sudo dnf install ./OpenBeats-1.0.5-1.x86_64.rpm` |
+| Windows 10/11 | `OpenBeats_1.0.5_x64-setup.exe` | Run the installer (or use the `.msi`) |
+| macOS (Apple silicon) | `OpenBeats_1.0.5_aarch64.dmg` | Open the DMG and drag OpenBeats to Applications |
 | Source | `git clone` | [docs/BUILDING.md](docs/BUILDING.md) |
 
-There is no separate Intel-Mac DMG in 1.0.4; Intel Macs can build from source.
+There is no separate Intel-Mac DMG in 1.0.5; Intel Macs can build from source.
 Full per-platform commands, dependencies and troubleshooting are in
 [docs/INSTALL.md](docs/INSTALL.md).
 
 ### Arch Linux with `yay`
 
 The AUR-ready package lives in [`packaging/arch`](packaging/arch). It installs
-the official 1.0.0 AppImage under `/opt/openbeats`, creates
+the official 1.0.5 AppImage under `/opt/openbeats`, creates
 `/usr/bin/openbeats`, and declares the GTK, GStreamer and PulseAudio runtime it needs.
 
 **Install from this repository now** (works without the AUR):
@@ -93,14 +93,14 @@ ssh -T aur@aur.archlinux.org   # must greet you; needs an AUR SSH key
 git clone ssh://aur@aur.archlinux.org/openbeats-bin.git
 cp packaging/arch/PKGBUILD packaging/arch/.SRCINFO openbeats-bin/
 cd openbeats-bin && git add PKGBUILD .SRCINFO
-git commit -m "openbeats-bin 1.0.0" && git push
+git commit -m "openbeats-bin 1.0.5" && git push
 ```
 
 ### AppImage (portable Linux)
 
 ```bash
 curl -L -o OpenBeats.AppImage \
-  https://github.com/blsphmicwillow/OpenBeats/releases/download/v1.0.4/OpenBeats_1.0.4_amd64.AppImage
+  https://github.com/blsphmicwillow/OpenBeats/releases/download/v1.0.5/OpenBeats_1.0.5_amd64.AppImage
 chmod +x OpenBeats.AppImage
 ./OpenBeats.AppImage
 ```
@@ -115,8 +115,8 @@ and retry; `--appimage-extract-and-run` also bypasses the FUSE mount.
 ### Debian / Ubuntu
 
 ```bash
-curl -L -O https://github.com/blsphmicwillow/OpenBeats/releases/download/v1.0.4/OpenBeats_1.0.4_amd64.deb
-sudo apt install ./OpenBeats_1.0.4_amd64.deb
+curl -L -O https://github.com/blsphmicwillow/OpenBeats/releases/download/v1.0.5/OpenBeats_1.0.5_amd64.deb
+sudo apt install ./OpenBeats_1.0.5_amd64.deb
 openbeats
 ```
 
@@ -127,7 +127,7 @@ should not need to install audio plugins by hand.
 ### Fedora
 
 ```bash
-sudo dnf install ./OpenBeats-1.0.4-1.x86_64.rpm
+sudo dnf install ./OpenBeats-1.0.5-1.x86_64.rpm
 openbeats
 ```
 
@@ -136,7 +136,7 @@ server, so no separate multimedia package list is required.
 
 ### Windows
 
-1. Download `OpenBeats_1.0.4_x64-setup.exe` (or the `.msi`) from the release.
+1. Download `OpenBeats_1.0.5_x64-setup.exe` (or the `.msi`) from the release.
 2. Run it. Current installers embed the WebView2 offline runtime, so the app
    does not depend on a separate WebView2 download.
 3. SmartScreen may warn because the build is not code-signed: **More info →
@@ -144,7 +144,7 @@ server, so no separate multimedia package list is required.
 
 ### macOS (Apple silicon)
 
-1. Download `OpenBeats_1.0.4_aarch64.dmg` and open it.
+1. Download `OpenBeats_1.0.5_aarch64.dmg` and open it.
 2. Drag **OpenBeats** into **Applications**.
 3. The DMG is not notarised, so on first launch use **Control-click → Open**, or
    run `xattr -dr com.apple.quarantine /Applications/OpenBeats.app`.
@@ -182,11 +182,15 @@ and the GStreamer runtime itself; the one thing an AppImage cannot provide is
 the system audio server, so PipeWire-Pulse or PulseAudio must be running.
 
 **Can I use VST3, AU or CLAP plugins?**
-OpenBeats 1.0.4 includes a **plugin library** for browsing and downloading native
-VST3/CLAP releases, but it does **not host** them in the mixer yet. Hosting needs
-a native plugin host and audio bridge; the honest status and plan are in
-[docs/PLUGINS.md](docs/PLUGINS.md). The first-party **OpenBeats Gain** proof
-plugin and community registry are included.
+Hosting is available on Windows/macOS (out-of-process). Loading plugins into
+OpenBeats is still not implemented: the `openbeats-plugins` crate can scan, host
+and process VST3/CLAP inside the `plughost-helper` sidecar, but inserts are not
+routed into the CPAL audio callback yet, so a plugin cannot sit on a mixer strip.
+On Linux hosting is disabled because plughost 0.2.1 has no Linux platform layer,
+and the app says so instead of failing silently. **View → Plugin library…** still
+browses and downloads releases, and the first-party **OpenBeats Gain** proof
+plugin is included. The honest status and plan are in
+[docs/PLUGINS.md](docs/PLUGINS.md).
 
 **Does it need an account or the internet?**
 No. Projects, samples and exports stay local. The only network request is the
@@ -199,7 +203,7 @@ the Projects dialog rather than editing browser-storage files by hand; exports
 are written wherever you choose.
 
 **Is there an Intel Mac build?**
-Not in 1.0.4. Build from source with the steps in
+Not in 1.0.5. Build from source with the steps in
 [docs/BUILDING.md](docs/BUILDING.md).
 
 **How do I update?**
@@ -207,11 +211,13 @@ Download the latest release. The in-app banner and **Help → Check for updates�
 notify you and link to GitHub; silent self-update is not enabled because the
 release is not signed with a Tauri updater key.
 
-**Is OpenBeats really 1.0.4?**
-Yes. 1.0.4 fixes microphone input on Windows and macOS: WASAPI-first host
-selection, native sample formats and channel counts, macOS microphone usage
-description, CoreAudio input, and privacy-aware errors. The version is bumped
-in the app, Tauri bundle and both Rust crates.
+**Is OpenBeats really 1.0.5?**
+Yes. 1.0.5 adds playlist **audio clips** — drop an audio file on a lane, get a
+waveform, gain/pan/fades and loop-aware scheduling — executed by **Web Audio
+only**; native Rust playback is pending. It also corrects the 1.0.5 release
+documentation, moves the Rust crates into one workspace so
+`cargo test -p openbeats` runs from the repository root, and adds a Vitest suite.
+The version is bumped in the app, Tauri bundle and both Rust crates.
 
 ---
 
@@ -220,7 +226,9 @@ in the app, Tauri bundle and both Rust crates.
 ### Studio
 - **Channel Rack** with step sequencer, per-channel instrument, mixer routing, mute/solo and 12 procedural instrument engines.
 - **Piano roll** with draw, select, resize and velocity editing; scale highlighting.
-- **Playlist** with pattern and audio clips, track mute/solo, loop region and a snap grid.
+- **Playlist** with pattern clips and **audio clips**: drop a WAV/MP3/OGG/FLAC on a lane, get an LOD waveform, gain/pan/fades, and playback that follows the loop region. Track mute/solo, loop region and a snap grid are unchanged.
+  - **Playlist audio clips: Web Audio only in 1.0.5; native Rust playback pending.**
+  - Media bytes are cached in the WebView (IndexedDB) with a SHA-256 integrity hash; native app-data persistence is planned for 1.1.
 - **Mixer** with inserts, sends, buses and a master strip; 8 native effect types (3-band and 10-band EQ, compressor, limiter, reverb, delay, drive, filter).
 - **Song / Pattern mode**, metronome, count-in, tempo and swing.
 - **Bounce** to 16/24-bit WAV at 44.1 or 48 kHz, with optional mastering targets.
@@ -234,6 +242,12 @@ in the app, Tauri bundle and both Rust crates.
 - **Mixer routing in Rust**: free routing, multiple and pre-fader sends, mute/solo, sidechain ducking, with cycles refused.
 - **Editing tools** in Rust: strum, arpeggiate, flam, twelve scales, clip slice/chop/quantize/trim/duplicate, and a modular effect graph.
 - **VST3/CLAP hosting** on Windows and macOS through an out-of-process host with crash recovery. On Linux the plugin browser works and the app reports hosting as unavailable.
+
+### Engine split (which engine executes what)
+- **Rust native (CPAL):** the transport and sequencer, the 16 procedural voices, and the master chain **EQ → compressor → limiter**. The transmitter meter and audio logger also run natively.
+- **Web Audio only:** reverb, delay, drive and filter inserts, the 10-band graphic EQ, and **playlist audio clips**. Offline bounce and Fix My Mix also still render with Web Audio, so **desktop playback and a bounce can diverge** — they are not the same signal path yet.
+- **Implemented and tested in Rust, not wired into the CPAL callback:** mixer routing, automation lanes and the modular effect graph. They are reachable over IPC but the audio thread still runs the fixed EQ → compressor → limiter chain.
+- **Per-clip pan** is applied per note by the Rust engine; the Web Audio fallback keeps using channel pan. The two engines agree on clip gain, pitch, stretch and fades, but their instrument voices are close rather than sample-identical.
 
 ### Writing & mixing assistants (local DSP — no cloud, no accounts)
 - **Fix My Mix** — renders the master, measures peak / loudness / crest / stereo width and seven frequency bands, then explains what is fighting for space and applies corrective EQ, compression and a limiter as ordinary effects. A/B compares the corrected chain with the original.
@@ -265,7 +279,7 @@ in the app, Tauri bundle and both Rust crates.
 ### Plugin library
 - **View → Plugin library…** (or the **Plugins** button) lists community VST3/CLAP releases from the GitHub-backed registry in [`plugins/registry.json`](plugins/registry.json), with vendor-style category filtering.
 - The first-party **OpenBeats Gain** proof plugin is built in [`plugins/openbeats-gain`](plugins/openbeats-gain); its release archive contains both `.clap` and `.vst3` bundles.
-- Download links open the publisher's GitHub Release. There is no silent install and no fake host: **loading plugins into OpenBeats is still not implemented in 1.0.4**.
+- Download links open the publisher's GitHub Release. There is no silent install and no fake host: **loading plugins into OpenBeats is still not implemented in 1.0.5**.
 - Community submissions go through [the plugin submission form](.github/ISSUE_TEMPLATE/plugin-submission.yml); `npm run plugins:check` validates the registry.
 
 ### Desktop integration

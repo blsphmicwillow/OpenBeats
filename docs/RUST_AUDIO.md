@@ -5,6 +5,22 @@ fallback.** The engine is a workspace crate (`src-tauri/crates/openbeats-audio`)
 with its own tests, and the desktop app plays through CPAL. The React UI is
 unchanged — it was never ported, and that was deliberate.
 
+## 1.0.5 engine split (read this before trusting a comparison)
+
+- **Runs in Rust native (CPAL):** transport and sample-accurate sequencing, the
+  16 procedural voices, and the master chain **EQ → compressor → limiter**.
+- **Web Audio only:** reverb, delay, drive, filter and the 10-band graphic EQ,
+  plus playlist **audio clips**. Offline bounce and Fix My Mix still render with
+  Web Audio, so **desktop playback and offline bounce can diverge**.
+- **Tested in Rust but not wired into the CPAL callback:** mixer routing,
+  automation lanes and the modular effect graph. They answer over IPC; the audio
+  thread still runs the fixed EQ → compressor → limiter chain.
+- **Per-clip pan** is applied per note by Rust (`clips::expand_clip` →
+  `VoicePool::trigger_panned`); the Web Audio fallback uses channel pan. Clip
+  gain, pitch, stretch and fades agree between the two engines.
+- **Playlist audio clips have no native implementation**, so a desktop project
+  that uses them is played by the WebView engine. The UI says so.
+
 ## What is native now
 
 | Piece | Location | Verified by |

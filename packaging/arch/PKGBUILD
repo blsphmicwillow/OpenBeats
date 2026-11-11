@@ -1,6 +1,6 @@
 # Maintainer: OpenBeats maintainers <blsphmicwillow@users.noreply.github.com>
 pkgname=openbeats-bin
-pkgver=1.0.4
+pkgver=1.0.5
 pkgrel=1
 pkgdesc='Open-source beatmaking studio (native Tauri build)'
 arch=('x86_64')
@@ -30,7 +30,9 @@ provides=('openbeats')
 conflicts=('openbeats' 'openbeats-git')
 options=('!strip')
 source=("openbeats-${pkgver}.AppImage::https://github.com/blsphmicwillow/OpenBeats/releases/download/v${pkgver}/OpenBeats_${pkgver}_amd64.AppImage")
-sha256sums=('262d2af39131e96215ad93d5096573983a441d9073ebd80524f2515b9e51b25e')
+# The v1.0.5 AppImage is attached by CI after the tag is built; replace SKIP
+# with its sha256 before publishing to the AUR.
+sha256sums=('SKIP')
 
 prepare() {
   cd "$srcdir"

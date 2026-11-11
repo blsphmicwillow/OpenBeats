@@ -41,7 +41,7 @@ cd openbeats-bin
 cp /path/to/OpenBeats/packaging/arch/PKGBUILD .
 cp /path/to/OpenBeats/packaging/arch/.SRCINFO .
 git add PKGBUILD .SRCINFO
-git commit -m "openbeats-bin 1.0.4"
+git commit -m "openbeats-bin 1.0.5"
 git push
 ```
 
@@ -63,7 +63,7 @@ openbeats
 ```
 
 Run `openbeats` as your normal user, not with `sudo`. If an older 1.0.0
-package is installed, rebuild so the package becomes 1.0.4-1:
+package is installed, rebuild so the package becomes 1.0.5-1:
 
 ```bash
 cd OpenBeats/packaging/arch
