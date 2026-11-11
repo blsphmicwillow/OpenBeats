@@ -22,6 +22,7 @@ Keep this file and `src/lib/changelog.ts` in sync, and bump `APP_VERSION` in `sr
 - Automation is **Web Audio only**. Projects with automation points use the Web Audio transport for playback, and the same ramps are applied during offline bounce; native CPAL playback ignores automation.
 - The tutorial welcome title and the native splash document now read the package version, so they cannot drift from the release.
 - Split the selected pattern or audio clip at the playhead from the playlist toolbar or clip menu; the split preserves outer fades and media.
+- Reverse and peak-normalize selected audio clips from the inspector or clip menu. ENGINE: **Web Audio only**, applied identically during live playback and offline bounce; native CPAL audio-clip playback remains pending.
 - Fixed offline export using pattern-local note steps instead of absolute song steps; later arrangement clips no longer collapse toward the start of the bounce.
 - REAPER `.rpp` export writes the marker list and import reads it back.
 

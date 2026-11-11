@@ -6,6 +6,7 @@ import { masterBuffer, masterProfile, type MasterTarget } from '../lib/mastering
 import type { Project } from '../model/types';
 import { ticksToSteps, type AudioClip } from '../model/audioClip';
 import { applyClipGain, scheduleWindows } from './audioClipScheduler';
+import { audioClipLevel, playbackBuffer } from './audioClipProcessing';
 import { buffersForClips, registerSample } from './sampleLibrary';
 import { getSample } from './mediaStore';
 import { scheduleMixerAutomation } from './automation';
@@ -98,15 +99,16 @@ function scheduleAudioClipWindows(
     const buffer = buffers.get(window.clipId);
     if (!clip || !buffer) continue;
     try {
+      const sourceBuffer = playbackBuffer(ctx, clip, buffer);
       const source = ctx.createBufferSource();
-      source.buffer = buffer;
+      source.buffer = sourceBuffer;
       if (window.loopWithinSource) {
         source.loop = true;
         source.loopStart = 0;
-        source.loopEnd = buffer.duration;
+        source.loopEnd = sourceBuffer.duration;
       }
       const gain = ctx.createGain();
-      applyClipGain(gain, clip, buffer.duration, window.whenSec);
+      applyClipGain(gain, clip, buffer.duration, window.whenSec, audioClipLevel(clip, buffer));
       let tail: AudioNode = gain;
       if (typeof ctx.createStereoPanner === 'function' && clip.pan !== 0) {
         const panner = ctx.createStereoPanner();

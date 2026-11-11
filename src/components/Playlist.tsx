@@ -435,6 +435,14 @@ export function Playlist() {
         label: `Loop the file: ${clip.loop_mode === 'loop' ? 'on' : 'off'}`,
         onClick: () => updateAudioClip(clip.id, { loop_mode: clip.loop_mode === 'loop' ? 'off' : 'loop' }),
       },
+      {
+        label: `Reverse playback: ${clip.reversed ? 'on' : 'off'} (Web Audio only)`,
+        onClick: () => updateAudioClip(clip.id, { reversed: !clip.reversed }),
+      },
+      {
+        label: `Normalize peak to −1 dBFS: ${clip.normalized ? 'on' : 'off'} (Web Audio only)`,
+        onClick: () => updateAudioClip(clip.id, { normalized: !clip.normalized }),
+      },
       (() => {
         const next = nextAudioOverlap(clip);
         const overlap = next ? clip.start_tick + clip.length_ticks - next.start_tick : 0;
@@ -646,7 +654,29 @@ export function Playlist() {
             Fade out
             <input type="number" min={0} max={selectedFadeMax} step={1} value={selectedFadeOut} onChange={(e) => setSelectedFade('out', Math.max(0, Math.min(selectedFadeMax, Number(e.target.value))))} />
           </label>
-          <span className="tiny-note">Pattern fades: Rust + Web Audio. Audio-clip fades: Web Audio only.</span>
+          {selectedAudio && (
+            <>
+              <label className="clip-toggle">
+                <input
+                  type="checkbox"
+                  checked={selectedAudio.reversed === true}
+                  onChange={() => updateAudioClip(selectedAudio.id, { reversed: !selectedAudio.reversed })}
+                />
+                Reverse
+              </label>
+              <label className="clip-toggle">
+                <input
+                  type="checkbox"
+                  checked={selectedAudio.normalized === true}
+                  onChange={() => updateAudioClip(selectedAudio.id, { normalized: !selectedAudio.normalized })}
+                />
+                Normalize
+              </label>
+            </>
+          )}
+          <span className="tiny-note">
+            Pattern fades: Rust + Web Audio. Audio-clip fades, reverse and normalize: Web Audio only (live and bounce).
+          </span>
         </div>
       )}
 
@@ -1049,7 +1079,7 @@ export function Playlist() {
                           width,
                           ['--clip-color' as string]: '#4cc9f0',
                         }}
-                        title={`${clip.name} — Web Audio clip (native playback pending). Drag to move, right-click for gain, pan and loop.`}
+                        title={`${clip.name} — Web Audio clip (native playback pending). Drag to move; right-click for gain, pan, loop, reverse and normalize.`}
                         onPointerDown={(e) => {
                           if (e.button !== 0) return;
                           e.preventDefault();
@@ -1066,7 +1096,11 @@ export function Playlist() {
                         }}
                         onContextMenu={(e) => audioClipMenu(e, clip.id)}
                       >
-                        <div className="clip-label">{clip.name}</div>
+                        <div className="clip-label">
+                          {clip.name}
+                          {clip.reversed ? ' · REV' : ''}
+                          {clip.normalized ? ' · NORM' : ''}
+                        </div>
                         {clip.fade_in > 0 && (
                           <div className="clip-fade clip-fade-in" style={{ width: Math.min(width, ticksToSteps(clip.fade_in) * zoom) }} />
                         )}

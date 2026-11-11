@@ -43,8 +43,9 @@ export function AudioClipWave({ clip, width }: { clip: AudioClip; width: number 
 
     g.fillStyle = 'rgba(255, 255, 255, 0.62)';
     for (let x = 0; x < width; x += 1) {
-      const from = Math.floor((x / width) * buckets);
-      const to = Math.max(from + 1, Math.floor(((x + 1) / width) * buckets));
+      const sourceX = clip.reversed ? width - 1 - x : x;
+      const from = Math.floor((sourceX / width) * buckets);
+      const to = Math.max(from + 1, Math.floor(((sourceX + 1) / width) * buckets));
       let min = 0;
       let max = 0;
       for (let b = from; b < to && b < buckets; b += 1) {
@@ -55,7 +56,7 @@ export function AudioClipWave({ clip, width }: { clip: AudioClip; width: number 
       const bottom = HEIGHT / 2 - min * (HEIGHT / 2);
       g.fillRect(x, top, 1, Math.max(1, bottom - top));
     }
-  }, [clip.sample_id, clip.length_ticks, width]);
+  }, [clip.sample_id, clip.length_ticks, clip.reversed, width]);
 
   return (
     <canvas

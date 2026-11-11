@@ -19,6 +19,7 @@
 
 import type { AudioClip } from '../model/audioClip';
 import { TICKS_PER_BEAT } from '../model/audioClip';
+import { audioClipLevel, playbackBuffer } from './audioClipProcessing';
 
 export interface TransportWindow {
   bpm: number;
@@ -247,15 +248,22 @@ export class AudioClipPlayer {
       const clip = byId.get(window.clipId);
       if (!buffer || !clip) continue;
       try {
+        const sourceBuffer = playbackBuffer(this.ctx, clip, buffer);
         const source = this.ctx.createBufferSource();
-        source.buffer = buffer;
+        source.buffer = sourceBuffer;
         if (window.loopWithinSource) {
           source.loop = true;
           source.loopStart = 0;
-          source.loopEnd = buffer.duration;
+          source.loopEnd = sourceBuffer.duration;
         }
         const gain = this.ctx.createGain();
-        applyClipGain(gain, clip, buffer.duration, this.ctx.currentTime + window.whenSec);
+        applyClipGain(
+          gain,
+          clip,
+          buffer.duration,
+          this.ctx.currentTime + window.whenSec,
+          audioClipLevel(clip, buffer),
+        );
         let panner: StereoPannerNode | null = null;
         if (typeof this.ctx.createStereoPanner === 'function' && clip.pan !== 0) {
           panner = this.ctx.createStereoPanner();
@@ -297,9 +305,9 @@ export function applyClipGain(
   clip: AudioClip,
   bufferDuration: number,
   startAtSec: number,
+  level = Math.max(0, clip.gain),
 ): void {
   const param = gain.gain;
-  const level = Math.max(0, clip.gain);
   const fadeInSec = ticksToSecSafe(clip.fade_in, clip.length_ticks, bufferDuration);
   const fadeOutSec = ticksToSecSafe(clip.fade_out, clip.length_ticks, bufferDuration);
   const durationSec = ticksToSecSafe(clip.length_ticks, clip.length_ticks, bufferDuration);

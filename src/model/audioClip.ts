@@ -56,6 +56,10 @@ export interface AudioClip {
   /** Fade lengths in ticks. */
   fade_in: number;
   fade_out: number;
+  /** Reverse playback. ENGINE: Web Audio only; the native path has no audio-clip voice. */
+  reversed?: boolean;
+  /** Peak-normalize to -1 dBFS. ENGINE: Web Audio only. */
+  normalized?: boolean;
   loop_mode: LoopMode;
   /** Display name (file name by default). */
   name: string;
@@ -156,6 +160,8 @@ export function createAudioClipFromDrop(input: CreateAudioClipInput): AudioClip 
     stretch_ratio: 1,
     fade_in: 0,
     fade_out: 0,
+    reversed: false,
+    normalized: false,
     loop_mode: 'off',
     name: input.name,
     track: Math.max(0, Math.floor(input.track)),
@@ -213,6 +219,8 @@ export function normalizeAudioClips(raw: unknown): AudioClip[] {
         stretch_ratio: typeof c.stretch_ratio === 'number' ? c.stretch_ratio : 1,
         fade_in: typeof c.fade_in === 'number' ? c.fade_in : 0,
         fade_out: typeof c.fade_out === 'number' ? c.fade_out : 0,
+        reversed: c.reversed === true,
+        normalized: c.normalized === true,
         loop_mode: LOOP_MODES.includes(c.loop_mode as LoopMode) ? (c.loop_mode as LoopMode) : 'off',
         name: typeof c.name === 'string' ? c.name : 'audio',
         track: typeof c.track === 'number' ? c.track : 0,
