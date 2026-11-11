@@ -300,7 +300,7 @@ The version is bumped in the app, Tauri bundle and both Rust crates.
 - **My theme** editor: colour wheel, HEX field and RGB sliders for every token; import/export theme JSON.
 - **OpenBeats Learn** from **Help ▸ Learn**: a lazy-loaded, offline walkthrough of every module (rack, piano roll, playlist, mixer, browser, bounce) plus a first-song path. Per-module progress is stored on the device; there are no accounts or network calls.
 - Command palette, density switch, interface scale, accent override.
-- **Named workspace layouts** in **Settings → Appearance**: save panel widths, browser visibility, the active view and collapsed mixer groups, then recall them with one click.
+- **Named workspace layouts** in **Settings → Appearance**: save panel widths, browser visibility, the active view and collapsed mixer groups, then recall them with one click. Saved layouts also appear in the **View** menu.
 - **Accessibility**: screen-reader labels and states, keyboard-operable knobs and faders, ARIA live hints, a skip link, reduced motion, reduce transparency, high contrast, visible focus rings, scaling and hint toggles.
 - **Updates** tab: opt out of automatic launch checks entirely, or check manually at any time.
 - Optional *Studio 2006* throwback theme.

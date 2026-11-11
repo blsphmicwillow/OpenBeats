@@ -38,7 +38,7 @@ export const CHANGELOG: ChangelogEntry[] = [
           'Linked channel creation builds the instrument channel, playlist track and mixer strip together with shared naming and automatic routing.',
           'Relink an existing channel to a fresh playlist track and mixer strip from the rack menu; inserts, sends, gain, pan and group move with it.',
           'Save any strip insert chain as a template from the mixer Chains menu and recall it on any other strip, including the master.',
-          'Named workspace layouts in Settings store panel widths, browser visibility, the active view and collapsed mixer groups, and restore them with one click.',
+          'Named workspace layouts in Settings store panel widths, browser visibility, the active view and collapsed mixer groups, and restore them with one click; saved layouts are also listed in the View menu.',
           'Added Glass Keys, an original inharmonic bell instrument implemented in both the Rust/CPAL and Web Audio engines.',
           'Added Velvet Choir (additive formant pad) and FM Bass (two-operator sine bass), both in the Rust/CPAL and Web Audio engines.',
           'Added original chorus, phaser and bitcrusher inserts. Web Audio only, and included in offline bounces.',

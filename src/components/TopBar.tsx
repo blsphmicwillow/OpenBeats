@@ -25,6 +25,7 @@ export function TopBar() {
   const project = useApp((s) => s.project);
   const transport = useApp((s) => s.transport);
   const ui = useApp((s) => s.ui);
+  const layouts = useApp((s) => s.settings.layouts);
   const history = useApp((s) => s.history);
   const {
     patchProject,
@@ -54,6 +55,7 @@ export function TopBar() {
     resetAll,
     toggleMetronome,
     checkUpdates,
+    applyWorkspaceLayout,
   } = useApp.getState();
 
   const [openName, setOpenName] = useState<string | null>(null);
@@ -105,6 +107,18 @@ export function TopBar() {
       : []),
   ];
 
+  const layoutMenu: MenuItem[] = [
+    { separator: true },
+    { label: 'Workspace layouts', disabled: true },
+    ...(layouts.length
+      ? layouts.map((layout) => ({
+          label: layout.name,
+          onClick: () => applyWorkspaceLayout(layout.id),
+        }))
+      : [{ label: 'No saved layouts yet', disabled: true } as MenuItem]),
+    { label: 'Save current layout…', onClick: () => setUI({ settingsOpen: true }) },
+  ];
+
   const viewMenu: MenuItem[] = [
     { label: 'Playlist', shortcut: 'F5', checked: ui.tab === 'playlist', onClick: () => setUI({ tab: 'playlist' }) },
     { label: 'Piano roll', shortcut: 'F7', checked: ui.tab === 'pianoroll', onClick: () => setUI({ tab: 'pianoroll' }) },
@@ -118,6 +132,7 @@ export function TopBar() {
         window.dispatchEvent(new Event('openbeats:show-packs'));
       },
     },
+    ...layoutMenu,
     { label: 'Plugin library…', checked: ui.pluginsOpen, onClick: () => setUI({ pluginsOpen: true }) },
     { label: 'Settings…', shortcut: 'F11', onClick: () => setUI({ settingsOpen: true }) },
   ];
@@ -204,6 +219,7 @@ export function TopBar() {
         window.dispatchEvent(new Event('openbeats:show-packs'));
       },
     },
+    ...layoutMenu,
     { label: 'Plugin library…', onClick: () => setUI({ pluginsOpen: true }) },
     { separator: true },
     { label: 'Tutorial', onClick: () => setUI({ tutorialStep: 0 }) },

@@ -30,7 +30,7 @@ Keep this file and `src/lib/changelog.ts` in sync, and bump `APP_VERSION` in `sr
 - **Linked channel creation**: the Channel Rack's Linked menu creates an instrument channel, a playlist track and a mixer strip together, with a shared name and colour and automatic routing to the master.
 - **Relink existing channels**: relink any channel from its rack menu to move it onto a fresh playlist track and mixer strip, carrying its inserts, sends, gain, pan and group. The previous strip is retired only when no other channel feeds it, and routes or sends that pointed at it follow the channel.
 - **Saved FX-chain templates**: save a strip's insert chain from the mixer's **Chains** menu and recall it on any other strip, including the master. Templates store the complete chain and are kept with your settings on the device.
-- **Named workspace layouts**: save panel widths, browser visibility, the active view and collapsed mixer groups in **Settings → Appearance**, then restore the whole workspace with one click.
+- **Named workspace layouts**: save panel widths, browser visibility, the active view and collapsed mixer groups in **Settings → Appearance**, then restore the whole workspace with one click. Saved layouts also appear in the **View** menu for recall without opening Settings.
 - Added original **Glass Keys**, an inharmonic bell instrument implemented in both the Rust/CPAL voice pool and Web Audio.
 - Added original **Velvet Choir** (additive formant pad) and **FM Bass** (two-operator sine bass), both implemented in the Rust/CPAL voice pool and Web Audio.
 - Added original chorus, phaser and bitcrusher inserts. They are Web Audio effects and render into the offline bounce alongside the existing inserts.
