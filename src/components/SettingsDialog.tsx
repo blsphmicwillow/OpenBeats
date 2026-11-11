@@ -43,9 +43,19 @@ export function SettingsDialog() {
   const updateChecking = useApp((s) => s.ui.updateChecking);
   const lastSaved = useApp((s) => s.lastSaved);
   const [tab, setTab] = useState<Tab>('appearance');
+  const [layoutName, setLayoutName] = useState('');
   const [capturing, setCapturing] = useState<KeyAction | null>(null);
   const importRef = useRef<HTMLInputElement>(null);
-  const { setUI, patchSettings, setKey, autosaveNow, toast } = useApp.getState();
+  const {
+    setUI,
+    patchSettings,
+    setKey,
+    autosaveNow,
+    toast,
+    saveWorkspaceLayout,
+    applyWorkspaceLayout,
+    removeWorkspaceLayout,
+  } = useApp.getState();
 
   useEffect(() => {
     if (!capturing) return;
@@ -276,6 +286,65 @@ export function SettingsDialog() {
                   </button>
                 </div>
               </div>
+
+              <h3 style={{ marginTop: 18 }}>Workspace layouts</h3>
+              <p className="hinttext">
+                Store panel widths, browser visibility, the active view and collapsed mixer groups under a name, then
+                recall the whole workspace in one click. Layouts are saved with your settings on this device.
+              </p>
+              <div className="field">
+                <div className="field-label">
+                  Layout name
+                  <small>For example “Arrangement”, “Mixing” or “Sound design”.</small>
+                </div>
+                <div className="field-control">
+                  <input
+                    className="text-input"
+                    value={layoutName}
+                    onChange={(e) => setLayoutName(e.target.value)}
+                    placeholder="Mixing"
+                    aria-label="Workspace layout name"
+                  />
+                  <button
+                    className="btn"
+                    onClick={() => {
+                      saveWorkspaceLayout(layoutName);
+                      setLayoutName('');
+                    }}
+                  >
+                    Save current
+                  </button>
+                </div>
+              </div>
+              {settings.layouts.length > 0 && (
+                <div className="field">
+                  <div className="field-label">
+                    Saved layouts
+                    <small>{settings.layouts.length} saved · applying one never changes your project audio.</small>
+                  </div>
+                  <div className="field-control" style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                    {settings.layouts.map((layout) => (
+                      <span key={layout.id} style={{ display: 'inline-flex', gap: 4, alignItems: 'center' }}>
+                        <button
+                          className="btn ghost"
+                          onClick={() => applyWorkspaceLayout(layout.id)}
+                          title={`${layout.rackWidth}px rack · ${layout.browserWidth}px browser · ${layout.tab}`}
+                        >
+                          {layout.name}
+                        </button>
+                        <button
+                          className="btn ghost"
+                          onClick={() => removeWorkspaceLayout(layout.id)}
+                          aria-label={`Delete layout ${layout.name}`}
+                          title="Delete layout"
+                        >
+                          ×
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
             </>
           )}
 

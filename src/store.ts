@@ -119,6 +119,8 @@ export function normalizeSettings(raw: Partial<Settings> | null): Settings {
     autosaveMinutes: minutes,
     keymap: { ...DEFAULT_KEYMAP, ...(raw.keymap ?? {}) },
     customTheme: { ...base.customTheme, ...(raw.customTheme ?? {}) },
+    fxChains: Array.isArray(raw.fxChains) ? raw.fxChains : [],
+    layouts: Array.isArray(raw.layouts) ? raw.layouts : [],
   };
 }
 
@@ -201,6 +203,8 @@ export interface AppState {
   updateChannel(id: string, patch: Partial<Channel>, coalesce?: string): void;
   removeChannel(id: string): void;
   duplicateChannel(id: string): void;
+  /** Moves an existing channel onto a fresh playlist track and mixer strip. */
+  relinkChannel(channelId: string): void;
   toggleStep(channelId: string, step: number): void;
   clearChannelSteps(channelId: string): void;
 
@@ -250,10 +254,16 @@ export interface AppState {
   addEffectWithParams(stripId: number, type: EffectType, params: Record<string, number>): string;
   removeEffect(stripId: number, effectId: string): void;
   updateEffect(stripId: number, effectId: string, params: Record<string, number>, coalesce?: string): void;
+  saveFxChain(stripId: number): void;
+  applyFxChain(stripId: number, chainId: string): void;
+  removeFxChain(chainId: string): void;
   setRoute(stripId: number, target: number): void;
   addSend(stripId: number, to: number): void;
   updateSend(stripId: number, index: number, amount: number): void;
   removeSend(stripId: number, index: number): void;
+  saveWorkspaceLayout(name: string): void;
+  applyWorkspaceLayout(id: string): void;
+  removeWorkspaceLayout(id: string): void;
 
   newProject(kind: 'blank' | 'demo'): void;
   saveCurrentProject(name?: string): void;
@@ -685,6 +695,55 @@ export const useApp = create<AppState>((set, get) => ({
       p.selectedChannel = clone.id;
     });
     get().toast('Channel cloned');
+  },
+
+  relinkChannel(channelId) {
+    let label = 'Channel';
+    get().patchProject((p) => {
+      const channel = p.channels.find((c) => c.id === channelId);
+      if (!channel) return;
+      label = channel.name;
+      const oldId = channel.mixer;
+      const oldStrip = p.strips.find((s) => s.id === oldId);
+      const stripId = Math.max(0, ...p.strips.map((s) => s.id)) + 1;
+      const strip = createStrip(stripId, channel.name, channel.color);
+      strip.route = 0;
+      // Preserve the processing the channel already had, so relinking does not
+      // silently drop a mix. Effect ids are regenerated for the new strip.
+      if (oldStrip) {
+        strip.effects = oldStrip.effects.map((fx) => ({ ...fx, id: uid('fx'), params: { ...fx.params } }));
+        strip.sends = oldStrip.sends.map((send) => ({ ...send }));
+        strip.group = oldStrip.group;
+        strip.gain = oldStrip.gain;
+        strip.pan = oldStrip.pan;
+      }
+      p.strips.push(strip);
+      channel.mixer = stripId;
+      p.tracks.push({
+        id: uid('tr'),
+        name: channel.name,
+        color: channel.color,
+        mute: false,
+        solo: false,
+        height: 92,
+      });
+      // The previous strip is removed only when nothing else feeds it; routes and
+      // sends that pointed at it move to the replacement.
+      const oldUsed = p.channels.some((c) => c.id !== channelId && c.mixer === oldId);
+      if (oldStrip && oldId !== 0 && !oldUsed) {
+        p.strips = p.strips.filter((s) => s.id !== oldId);
+        p.strips.forEach((s) => {
+          if (s.route === oldId) s.route = stripId;
+          s.sends.forEach((send) => {
+            if (send.to === oldId) send.to = stripId;
+          });
+        });
+        if (p.selectedStrip === oldId) p.selectedStrip = stripId;
+      }
+      p.selectedChannel = channelId;
+      p.selectedStrip = stripId;
+    });
+    get().toast(`Relinked “${label}” to a new playlist track and mixer strip`);
   },
 
   toggleStep(channelId, step) {
@@ -1181,6 +1240,48 @@ export const useApp = create<AppState>((set, get) => ({
     });
   },
 
+  saveFxChain(stripId) {
+    const strip = get().project.strips.find((s) => s.id === stripId);
+    if (!strip) return;
+    if (!strip.effects.length) {
+      get().toast('Add an effect before saving a chain');
+      return;
+    }
+    const base = strip.id === 0 ? 'Master' : strip.name.trim() || `Insert ${strip.id}`;
+    const existing = get().settings.fxChains;
+    const used = new Set(existing.map((chain) => chain.name));
+    let name = `${base} chain`;
+    let suffix = 2;
+    while (used.has(name)) {
+      name = `${base} chain ${suffix}`;
+      suffix += 1;
+    }
+    const chain = {
+      id: uid('chain'),
+      name,
+      effects: strip.effects.map((fx) => ({ ...fx, id: uid('fx'), params: { ...fx.params } })),
+    };
+    get().patchSettings({ fxChains: [...existing, chain] });
+    get().toast(`Saved “${name}” (${chain.effects.length} fx)`);
+  },
+
+  applyFxChain(stripId, chainId) {
+    const chain = get().settings.fxChains.find((item) => item.id === chainId);
+    if (!chain) return;
+    get().patchProject((p) => {
+      const strip = p.strips.find((s) => s.id === stripId);
+      if (!strip) return;
+      strip.effects = chain.effects.map((fx) => ({ ...fx, id: uid('fx'), params: { ...fx.params } }));
+    });
+    get().toast(`Loaded “${chain.name}” (${chain.effects.length} fx)`);
+  },
+
+  removeFxChain(chainId) {
+    get().patchSettings({
+      fxChains: get().settings.fxChains.filter((chain) => chain.id !== chainId),
+    });
+  },
+
   updateEffect(stripId, effectId, params, coalesce) {
     get().patchProject(
       (p) => {
@@ -1228,6 +1329,55 @@ export const useApp = create<AppState>((set, get) => ({
       const strip = p.strips.find((s) => s.id === stripId);
       if (strip) strip.sends.splice(index, 1);
     });
+  },
+
+  saveWorkspaceLayout(name) {
+    const trimmed = name.trim();
+    if (!trimmed) {
+      get().toast('Name the layout first');
+      return;
+    }
+    const { ui, project, settings } = get();
+    const layout = {
+      id: uid('lay'),
+      name: trimmed,
+      rackWidth: ui.rackWidth,
+      browserWidth: ui.browserWidth,
+      lowerHeight: ui.lowerHeight,
+      browserOpen: ui.browserOpen,
+      tab: ui.tab,
+      collapsedGroups: project.strips.filter((s) => s.collapsed && s.group).map((s) => s.group),
+    };
+    get().patchSettings({
+      layouts: [...settings.layouts.filter((item) => item.name !== trimmed), layout],
+    });
+    get().toast(`Layout “${trimmed}” saved`);
+  },
+
+  applyWorkspaceLayout(id) {
+    const layout = get().settings.layouts.find((item) => item.id === id);
+    if (!layout) return;
+    get().setUI({
+      rackWidth: layout.rackWidth,
+      browserWidth: layout.browserWidth,
+      lowerHeight: layout.lowerHeight,
+      browserOpen: layout.browserOpen,
+      tab: layout.tab,
+    });
+    const groups = new Set(layout.collapsedGroups);
+    get().patchProject(
+      (p) => {
+        p.strips.forEach((strip) => {
+          if (strip.group) strip.collapsed = groups.has(strip.group);
+        });
+      },
+      { history: false },
+    );
+    get().toast(`Layout “${layout.name}” applied`);
+  },
+
+  removeWorkspaceLayout(id) {
+    get().patchSettings({ layouts: get().settings.layouts.filter((layout) => layout.id !== id) });
   },
 
   newProject(kind) {

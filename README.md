@@ -229,12 +229,12 @@ The version is bumped in the app, Tauri bundle and both Rust crates.
 ## Features
 
 ### Studio
-- **Channel Rack** with step sequencer, per-channel instrument, mixer routing, mute/solo and 15 procedural instrument engines. **Add ▸ Linked** creates a channel together with its own playlist track and mixer strip, sharing one name and colour and routed automatically.
+- **Channel Rack** with step sequencer, per-channel instrument, mixer routing, mute/solo and 15 procedural instrument engines. **Add ▸ Linked** creates a channel together with its own playlist track and mixer strip, sharing one name and colour and routed automatically; **Relink** moves an existing channel to a fresh track and strip while carrying its inserts, sends, gain, pan and group.
 - **Piano roll** with draw, select, resize and velocity editing; scale highlighting.
 - **Playlist** with pattern clips, **audio clips** and **named markers**. Drop a WAV/MP3/OGG/FLAC on a lane for an LOD waveform, gain/pan/fades and loop-aware playback. Add markers with F6, drag or rename them, jump with Alt+Left/Alt+Right, and loop from a marker to the next one. Selected clips expose gain, pan and fade controls, with visible fade handles and a one-click crossfade to the next overlapping clip. Copy, cut and paste clips at the playhead with Ctrl/Cmd+C/X/V, and nudge them with Shift+Arrow keys. Shift/Cmd-click selects several clips; the batch inspector then edits gain and fades and quantises every selected start to the snap grid in one undo step. Track mute/solo, the loop region and the snap grid are unchanged.
   - **Playlist audio clips: Web Audio only in 1.0.6; native Rust playback pending.**
   - Media bytes are cached in the WebView (IndexedDB) with a SHA-256 integrity hash; native app-data persistence is planned for 1.1.
-- **Mixer** with inserts, sends, buses and a master strip; 14 built-in effect types (3-band and 10-band EQ, compressor, limiter, reverb, delay, drive, filter, chorus, phaser, bitcrusher, tremolo, auto pan, ring modulator), plus **Web Audio volume/pan automation lanes** with linear, hold and smooth segments and tempo-synced fade-in, tremolo and ducking presets that render into offline bounces.
+- **Mixer** with inserts, sends, buses and a master strip; 14 built-in effect types (3-band and 10-band EQ, compressor, limiter, reverb, delay, drive, filter, chorus, phaser, bitcrusher, tremolo, auto pan, ring modulator), plus **Web Audio volume/pan automation lanes** with linear, hold and smooth segments and tempo-synced fade-in, tremolo and ducking presets that render into offline bounces. Save a strip's insert chain from the **Chains** menu and recall it on any other strip.
 - **Song / Pattern mode**, metronome, count-in, tempo and swing.
 - **Bounce** to 16/24-bit WAV at 44.1 or 48 kHz, with optional mastering targets.
 
@@ -300,6 +300,7 @@ The version is bumped in the app, Tauri bundle and both Rust crates.
 - **My theme** editor: colour wheel, HEX field and RGB sliders for every token; import/export theme JSON.
 - **OpenBeats Learn** from **Help ▸ Learn**: a lazy-loaded, offline walkthrough of every module (rack, piano roll, playlist, mixer, browser, bounce) plus a first-song path. Per-module progress is stored on the device; there are no accounts or network calls.
 - Command palette, density switch, interface scale, accent override.
+- **Named workspace layouts** in **Settings → Appearance**: save panel widths, browser visibility, the active view and collapsed mixer groups, then recall them with one click.
 - **Accessibility**: screen-reader labels and states, keyboard-operable knobs and faders, ARIA live hints, a skip link, reduced motion, reduce transparency, high contrast, visible focus rings, scaling and hint toggles.
 - **Updates** tab: opt out of automatic launch checks entirely, or check manually at any time.
 - Optional *Studio 2006* throwback theme.

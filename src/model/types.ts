@@ -277,6 +277,26 @@ export type KeyAction =
 export type UiMode = 'classic' | 'modern';
 export type MasterTarget = 'none' | 'spotify' | 'club' | 'soundcloud' | 'youtube';
 
+/** A saved insert chain, reusable on any mixer strip. */
+export interface FxChainTemplate {
+  id: string;
+  name: string;
+  effects: Effect[];
+}
+
+/** A named workspace: panel sizes, visibility, active view and collapsed groups. */
+export interface WorkspaceLayout {
+  id: string;
+  name: string;
+  rackWidth: number;
+  browserWidth: number;
+  lowerHeight: number;
+  browserOpen: boolean;
+  tab: WorkspaceTab;
+  /** Mixer group labels whose strips were collapsed when the layout was saved. */
+  collapsedGroups: string[];
+}
+
 export interface Settings {
   themeId: string;
   /** Classic FL-style chrome or the modernised vector skin. Themes apply to both. */
@@ -318,6 +338,10 @@ export interface Settings {
   keymap: Record<KeyAction, string>;
   tutorialDone: boolean;
   sweepDemo: boolean;
+  /** Saved insert chains, usable on any mixer strip. */
+  fxChains: FxChainTemplate[];
+  /** Named panel layouts. */
+  layouts: WorkspaceLayout[];
 }
 
 export type WorkspaceTab = 'playlist' | 'pianoroll' | 'mixer' | 'changelog';

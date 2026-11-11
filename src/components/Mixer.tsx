@@ -333,6 +333,7 @@ function AutomationEditor({
 
 export function Mixer() {
   const project = useApp((s) => s.project);
+  const chains = useApp((s) => s.settings.fxChains);
   const [renaming, setRenaming] = useState<number | null>(null);
   const [draft, setDraft] = useState('');
   const [automationTarget, setAutomationTarget] = useState<AutomationTarget>('volume');
@@ -343,6 +344,9 @@ export function Mixer() {
     addStrip,
     removeStrip,
     addEffect,
+    saveFxChain,
+    applyFxChain,
+    removeFxChain,
     setRoute,
     addSend,
     updateSend,
@@ -368,6 +372,28 @@ export function Mixer() {
         .filter((d) => d.category === cat)
         .forEach((d) => items.push({ label: d.name, onClick: () => addEffect(strip.id, d.type as EffectType) }));
     });
+    openMenu(rect.left, rect.bottom + 3, items);
+  };
+
+  const chainMenu = (e: React.MouseEvent, strip: Strip) => {
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    const items: MenuItem[] = [
+      {
+        label: strip.effects.length ? 'Save current insert chain' : 'Add an effect to save a chain',
+        disabled: strip.effects.length === 0,
+        onClick: () => saveFxChain(strip.id),
+      },
+    ];
+    if (chains.length) {
+      items.push({ separator: true }, { label: 'Load saved chain', disabled: true });
+      chains.forEach((chain) => {
+        items.push({ label: `${chain.name} · ${chain.effects.length} fx`, onClick: () => applyFxChain(strip.id, chain.id) });
+      });
+      items.push({ separator: true }, { label: 'Delete saved chain', disabled: true });
+      chains.forEach((chain) => {
+        items.push({ label: chain.name, danger: true, onClick: () => removeFxChain(chain.id) });
+      });
+    }
     openMenu(rect.left, rect.bottom + 3, items);
   };
 
@@ -586,6 +612,9 @@ export function Mixer() {
           </span>
           <button className="tbtn small" onClick={(e) => insertMenu(e, selected)}>
             <IconPlus size={10} /> Effect
+          </button>
+          <button className="tbtn small" onClick={(e) => chainMenu(e, selected)} title="Save or load an insert chain template">
+            Chains
           </button>
           {selected.id !== 0 && (
             <>

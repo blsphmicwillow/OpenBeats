@@ -592,5 +592,7 @@ export function defaultSettings(): Settings {
     keymap: { ...DEFAULT_KEYMAP },
     tutorialDone: false,
     sweepDemo: false,
+    fxChains: [],
+    layouts: [],
   };
 }
