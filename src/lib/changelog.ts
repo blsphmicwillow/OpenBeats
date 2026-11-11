@@ -22,6 +22,8 @@ export const CHANGELOG: ChangelogEntry[] = [
           'Click a marker to jump to it, drag it to move it, double-click to rename it, or right-click to loop to the next marker.',
           'Alt+Left and Alt+Right jump to the previous and next marker without changing the loop.',
           'Markers are stored in the .obeats project and normalized when older projects load.',
+          'Pattern and audio clips have visible fade handles; a selected clip also exposes gain, pan and fade controls in the inspector.',
+          'Right-click an overlapping clip to create a one-click crossfade with the next clip.',
         ],
       },
       {

@@ -228,7 +228,7 @@ bundle and both Rust crates.
 ### Studio
 - **Channel Rack** with step sequencer, per-channel instrument, mixer routing, mute/solo and 12 procedural instrument engines.
 - **Piano roll** with draw, select, resize and velocity editing; scale highlighting.
-- **Playlist** with pattern clips, **audio clips** and **named markers**. Drop a WAV/MP3/OGG/FLAC on a lane for an LOD waveform, gain/pan/fades and loop-aware playback. Add markers with F6, drag or rename them, jump with Alt+Left/Alt+Right, and loop from a marker to the next one. Track mute/solo, the loop region and the snap grid are unchanged.
+- **Playlist** with pattern clips, **audio clips** and **named markers**. Drop a WAV/MP3/OGG/FLAC on a lane for an LOD waveform, gain/pan/fades and loop-aware playback. Add markers with F6, drag or rename them, jump with Alt+Left/Alt+Right, and loop from a marker to the next one. Selected clips expose gain, pan and fade controls, with visible fade handles and a one-click crossfade to the next overlapping clip. Track mute/solo, the loop region and the snap grid are unchanged.
   - **Playlist audio clips: Web Audio only in 1.0.6; native Rust playback pending.**
   - Media bytes are cached in the WebView (IndexedDB) with a SHA-256 integrity hash; native app-data persistence is planned for 1.1.
 - **Mixer** with inserts, sends, buses and a master strip; 8 native effect types (3-band and 10-band EQ, compressor, limiter, reverb, delay, drive, filter).

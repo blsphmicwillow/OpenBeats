@@ -21,7 +21,8 @@ type DragState =
   | { kind: 'loop-move'; startX: number; origStart: number; origEnd: number }
   | { kind: 'playhead'; startX: number; rulerLeft: number }
   | { kind: 'audio-clip'; id: string; track: number; startX: number; origStartTick: number }
-  | { kind: 'marker'; id: string; startX: number; origStart: number };
+  | { kind: 'marker'; id: string; startX: number; origStart: number }
+  | { kind: 'fade-in' | 'fade-out'; id: string; audio: boolean; startX: number; orig: number; len: number };
 
 import { AudioClipWave } from './AudioClipWave';
 
@@ -157,6 +158,25 @@ export function Playlist() {
           neighbourTicks: edges,
         });
         updateAudioClip(d.id, { start_tick: resolveSnapTick(rawTick, context) }, `audio-clip:${d.id}`);
+      } else if (d.kind === 'fade-in' || d.kind === 'fade-out') {
+        const direction = d.kind === 'fade-in' ? 1 : -1;
+        const raw = d.audio
+          ? d.orig + direction * deltaSteps * TICKS_PER_STEP
+          : d.orig + direction * deltaSteps;
+        const value = Math.max(0, Math.min(d.len, d.audio ? Math.round(raw) : snapStep(raw)));
+        if (d.audio) {
+          updateAudioClip(
+            d.id,
+            d.kind === 'fade-in' ? { fade_in: value } : { fade_out: value },
+            `fade:${d.id}:${d.kind}`,
+          );
+        } else {
+          updateClip(
+            d.id,
+            d.kind === 'fade-in' ? { fadeIn: value } : { fadeOut: value },
+            `fade:${d.id}:${d.kind}`,
+          );
+        }
       } else if (d.kind === 'marker') {
         updateMarker(d.id, { start: Math.max(0, snapStep(d.origStart + deltaSteps)) }, `marker:${d.id}`);
       } else if (d.kind === 'loop-move') {
@@ -167,7 +187,7 @@ export function Playlist() {
           p.loopStart = start;
           p.loopEnd = start + length;
         }, { coalesce: 'loop' });
-      } else {
+      } else if (d.kind === 'loop') {
         const value = snapStep(d.orig + deltaSteps);
         const current = state.project;
         if (d.edge === 'start') {
@@ -267,6 +287,20 @@ export function Playlist() {
     if (transport.playing) keepPlayheadVisible(scrollRef.current, '.playhead-line', 96);
   }, [transport.step, transport.playing]);
 
+  const nextPatternOverlap = (clip: { id: string; track: number; start: number; len: number }) => {
+    const next = project.clips
+      .filter((c) => c.track === clip.track && c.id !== clip.id && c.start > clip.start)
+      .sort((a, b) => a.start - b.start)[0];
+    return next && next.start < clip.start + clip.len ? next : null;
+  };
+
+  const nextAudioOverlap = (clip: AudioClip) => {
+    const next = project.audioClips
+      .filter((c) => c.track === clip.track && c.id !== clip.id && c.start_tick > clip.start_tick)
+      .sort((a, b) => a.start_tick - b.start_tick)[0];
+    return next && next.start_tick < clip.start_tick + clip.length_ticks ? next : null;
+  };
+
   const clipMenu = (e: React.MouseEvent, clipId: string) => {
     e.preventDefault();
     e.stopPropagation();
@@ -350,6 +384,23 @@ export function Playlist() {
         label: 'Clear fades',
         onClick: () => updateClip(clip.id, { fadeIn: 0, fadeOut: 0 }),
       },
+      (() => {
+        const next = nextPatternOverlap(clip);
+        const overlap = next ? clip.start + clip.len - next.start : 0;
+        return {
+          label: next ? `Crossfade ${overlap} steps with next clip` : 'Crossfade needs an overlapping next clip',
+          disabled: !next,
+          onClick: () => {
+            if (!next) return;
+            patchProject((p) => {
+              const current = p.clips.find((c) => c.id === clip.id);
+              const following = p.clips.find((c) => c.id === next.id);
+              if (current) current.fadeOut = overlap;
+              if (following) following.fadeIn = overlap;
+            });
+          },
+        };
+      })(),
       { separator: true },
       { label: `Pattern: ${pat?.name ?? 'unknown'}`, disabled: true },
       { label: 'Delete clip', danger: true, onClick: () => removeClip(clip.id) },
@@ -376,6 +427,23 @@ export function Playlist() {
         label: `Loop the file: ${clip.loop_mode === 'loop' ? 'on' : 'off'}`,
         onClick: () => updateAudioClip(clip.id, { loop_mode: clip.loop_mode === 'loop' ? 'off' : 'loop' }),
       },
+      (() => {
+        const next = nextAudioOverlap(clip);
+        const overlap = next ? clip.start_tick + clip.length_ticks - next.start_tick : 0;
+        return {
+          label: next ? `Crossfade ${ticksToSteps(overlap)} steps with next clip` : 'Crossfade needs an overlapping next clip',
+          disabled: !next,
+          onClick: () => {
+            if (!next) return;
+            patchProject((p) => {
+              const current = p.audioClips.find((c) => c.id === clip.id);
+              const following = p.audioClips.find((c) => c.id === next.id);
+              if (current) current.fade_out = overlap;
+              if (following) following.fade_in = overlap;
+            });
+          },
+        };
+      })(),
       { separator: true },
       { label: 'Delete clip', danger: true, onClick: () => removeAudioClip(clip.id) },
     ]);
@@ -415,6 +483,36 @@ export function Playlist() {
       { separator: true },
       { label: 'Delete marker', danger: true, onClick: () => removeMarker(id) },
     ]);
+  };
+
+  const selectedPattern = selectedClip ? project.clips.find((c) => c.id === selectedClip) : undefined;
+  const selectedAudio = selectedClip ? project.audioClips.find((c) => c.id === selectedClip) : undefined;
+  const selectedName = selectedPattern
+    ? patternById(project, selectedPattern.pattern)?.name ?? 'Pattern clip'
+    : selectedAudio?.name;
+  const selectedGain = selectedPattern?.gain ?? selectedAudio?.gain ?? 1;
+  const selectedPan = selectedPattern?.pan ?? selectedAudio?.pan ?? 0;
+  const selectedFadeIn = selectedPattern ? (selectedPattern.fadeIn ?? 0) : selectedAudio ? ticksToSteps(selectedAudio.fade_in) : 0;
+  const selectedFadeOut = selectedPattern ? (selectedPattern.fadeOut ?? 0) : selectedAudio ? ticksToSteps(selectedAudio.fade_out) : 0;
+  const selectedFadeMax = selectedPattern?.len ?? (selectedAudio ? ticksToSteps(selectedAudio.length_ticks) : 0);
+  const setSelectedGain = (value: number) => {
+    if (selectedPattern) updateClip(selectedPattern.id, { gain: value }, `inspector:${selectedPattern.id}:gain`);
+    else if (selectedAudio) updateAudioClip(selectedAudio.id, { gain: value }, `inspector:${selectedAudio.id}:gain`);
+  };
+  const setSelectedPan = (value: number) => {
+    if (selectedPattern) updateClip(selectedPattern.id, { pan: value }, `inspector:${selectedPattern.id}:pan`);
+    else if (selectedAudio) updateAudioClip(selectedAudio.id, { pan: value }, `inspector:${selectedAudio.id}:pan`);
+  };
+  const setSelectedFade = (edge: 'in' | 'out', value: number) => {
+    if (selectedPattern) {
+      updateClip(selectedPattern.id, edge === 'in' ? { fadeIn: value } : { fadeOut: value }, `inspector:${selectedPattern.id}:fade-${edge}`);
+    } else if (selectedAudio) {
+      updateAudioClip(
+        selectedAudio.id,
+        edge === 'in' ? { fade_in: Math.round(value * TICKS_PER_STEP) } : { fade_out: Math.round(value * TICKS_PER_STEP) },
+        `inspector:${selectedAudio.id}:fade-${edge}`,
+      );
+    }
   };
 
   const bars = useMemo(() => Math.ceil(contentSteps / barSteps), [contentSteps, barSteps]);
@@ -502,6 +600,29 @@ export function Playlist() {
           <IconPiano size={11} /> Piano roll
         </button>
       </div>
+
+      {(selectedPattern || selectedAudio) && (
+        <div className="clip-inspector" role="region" aria-label={`${selectedName ?? 'Clip'} controls`}>
+          <strong>{selectedName}</strong>
+          <label>
+            Gain
+            <input type="range" min={0} max={selectedAudio ? 4 : 2} step={0.01} value={selectedGain} onChange={(e) => setSelectedGain(Number(e.target.value))} />
+          </label>
+          <label>
+            Pan
+            <input type="range" min={-1} max={1} step={0.01} value={selectedPan} onChange={(e) => setSelectedPan(Number(e.target.value))} />
+          </label>
+          <label>
+            Fade in
+            <input type="number" min={0} max={selectedFadeMax} step={1} value={selectedFadeIn} onChange={(e) => setSelectedFade('in', Math.max(0, Math.min(selectedFadeMax, Number(e.target.value))))} />
+          </label>
+          <label>
+            Fade out
+            <input type="number" min={0} max={selectedFadeMax} step={1} value={selectedFadeOut} onChange={(e) => setSelectedFade('out', Math.max(0, Math.min(selectedFadeMax, Number(e.target.value))))} />
+          </label>
+          <span className="tiny-note">Pattern fades: Rust + Web Audio. Audio-clip fades: Web Audio only.</span>
+        </div>
+      )}
 
       <div
         ref={scrollRef}
@@ -775,13 +896,14 @@ export function Playlist() {
                     const pat = patternById(project, clip.pattern);
                     const color = pat?.color ?? track.color;
                     const notes = pat ? Object.values(pat.notes).flat() : [];
+                    const clipWidth = Math.max(6, clip.len * zoom);
                     return (
                       <div
                         key={clip.id}
                         className={`clip ${selectedClip === clip.id ? 'selected' : ''} ${
                           dragging === 'clip' && selectedClip === clip.id ? 'dragging' : ''
                         } ${dragging === 'resize' && selectedClip === clip.id ? 'resizing' : ''}`}
-                        style={{ left: clip.start * zoom, width: Math.max(6, clip.len * zoom), ['--clip-color' as string]: color }}
+                        style={{ left: clip.start * zoom, width: clipWidth, ['--clip-color' as string]: color }}
                         title={`${pat?.name ?? 'Pattern'} — drag to move, drag the right edge to resize, double-click to edit`}
                         onPointerDown={(e) => {
                           if (e.button !== 0) return;
@@ -798,6 +920,12 @@ export function Playlist() {
                         onContextMenu={(e) => clipMenu(e, clip.id)}
                       >
                         <div className="clip-label">{pat?.name ?? 'Pattern'}</div>
+                        {(clip.fadeIn ?? 0) > 0 && (
+                          <div className="clip-fade clip-fade-in" style={{ width: Math.min(clipWidth, (clip.fadeIn ?? 0) * zoom) }} />
+                        )}
+                        {(clip.fadeOut ?? 0) > 0 && (
+                          <div className="clip-fade clip-fade-out" style={{ width: Math.min(clipWidth, (clip.fadeOut ?? 0) * zoom) }} />
+                        )}
                         <div className="clip-notes">
                           {notes.slice(0, 120).map((n) => (
                             <i
@@ -810,6 +938,32 @@ export function Playlist() {
                             />
                           ))}
                         </div>
+                        {selectedClip === clip.id && (
+                          <>
+                            <div
+                              className="fade-handle fade-in"
+                              style={{ left: Math.max(2, Math.min(clipWidth - 4, (clip.fadeIn ?? 0) * zoom)) }}
+                              title="Drag to set fade in (steps)"
+                              onPointerDown={(e) => {
+                                e.stopPropagation();
+                                setSelectedClip(clip.id);
+                                pushHistory();
+                                beginDrag(e, { kind: 'fade-in', id: clip.id, audio: false, startX: e.clientX, orig: clip.fadeIn ?? 0, len: clip.len });
+                              }}
+                            />
+                            <div
+                              className="fade-handle fade-out"
+                              style={{ left: Math.max(2, Math.min(clipWidth - 4, clipWidth - (clip.fadeOut ?? 0) * zoom)) }}
+                              title="Drag to set fade out (steps)"
+                              onPointerDown={(e) => {
+                                e.stopPropagation();
+                                setSelectedClip(clip.id);
+                                pushHistory();
+                                beginDrag(e, { kind: 'fade-out', id: clip.id, audio: false, startX: e.clientX, orig: clip.fadeOut ?? 0, len: clip.len });
+                              }}
+                            />
+                          </>
+                        )}
                         <div
                           className="clip-resize"
                           onPointerDown={(e) => {
@@ -853,7 +1007,39 @@ export function Playlist() {
                         onContextMenu={(e) => audioClipMenu(e, clip.id)}
                       >
                         <div className="clip-label">{clip.name}</div>
+                        {clip.fade_in > 0 && (
+                          <div className="clip-fade clip-fade-in" style={{ width: Math.min(width, ticksToSteps(clip.fade_in) * zoom) }} />
+                        )}
+                        {clip.fade_out > 0 && (
+                          <div className="clip-fade clip-fade-out" style={{ width: Math.min(width, ticksToSteps(clip.fade_out) * zoom) }} />
+                        )}
                         <AudioClipWave clip={clip} width={width} />
+                        {selectedClip === clip.id && (
+                          <>
+                            <div
+                              className="fade-handle fade-in"
+                              style={{ left: Math.max(2, Math.min(width - 4, ticksToSteps(clip.fade_in) * zoom)) }}
+                              title="Drag to set audio fade in"
+                              onPointerDown={(e) => {
+                                e.stopPropagation();
+                                setSelectedClip(clip.id);
+                                pushHistory();
+                                beginDrag(e, { kind: 'fade-in', id: clip.id, audio: true, startX: e.clientX, orig: clip.fade_in, len: clip.length_ticks });
+                              }}
+                            />
+                            <div
+                              className="fade-handle fade-out"
+                              style={{ left: Math.max(2, Math.min(width - 4, width - ticksToSteps(clip.fade_out) * zoom)) }}
+                              title="Drag to set audio fade out"
+                              onPointerDown={(e) => {
+                                e.stopPropagation();
+                                setSelectedClip(clip.id);
+                                pushHistory();
+                                beginDrag(e, { kind: 'fade-out', id: clip.id, audio: true, startX: e.clientX, orig: clip.fade_out, len: clip.length_ticks });
+                              }}
+                            />
+                          </>
+                        )}
                       </div>
                     );
                   })}

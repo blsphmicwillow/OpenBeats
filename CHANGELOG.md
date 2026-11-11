@@ -13,6 +13,8 @@ Keep this file and `src/lib/changelog.ts` in sync, and bump `APP_VERSION` in `sr
 - Click a marker to jump to it, drag it to move it, double-click to rename it, or right-click to loop from it to the next marker.
 - **Alt+Left** and **Alt+Right** move between markers without changing the loop.
 - Markers are persisted in `.obeats` projects and old projects load with an empty marker list.
+- Pattern and audio clips have visible fade handles. Selecting a clip exposes gain, pan and fade controls in the inspector.
+- Right-clicking an overlapping clip offers a one-click crossfade with the next clip.
 - REAPER `.rpp` export writes the marker list and import reads it back.
 
 Markers are arrangement data only and do not change which engine plays audio. Pattern clips keep the Rust/Web Audio split; playlist audio clips remain **Web Audio only** with native playback pending.
