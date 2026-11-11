@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useApp } from '../store';
 import { Modal } from '../ui/Modal';
 import { openExternal } from '../lib/native';
+import { APP_VERSION } from '../lib/version';
 import {
   formatBytes,
   loadPluginCatalog,
@@ -77,7 +78,7 @@ export function PluginBrowser() {
   return (
     <Modal
       title="Plugin library"
-      subtitle="Native VST3/CLAP releases · OpenBeats 1.0.0 browses and downloads; it does not host plugins yet"
+      subtitle={`Native VST3/CLAP releases · OpenBeats ${APP_VERSION} browses and downloads; it does not host plugins yet`}
       onClose={close}
       footer={
         <>

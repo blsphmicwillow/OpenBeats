@@ -1,8 +1,12 @@
 # Plugins — library, example, and hosting roadmap
 
-## What ships in 1.0.0
+> **1.0.7 status:** the source-verified Linux investigation is in
+> [PLUGIN_HOST_REVERSE_ENGINEERING_1.0.7.md](PLUGIN_HOST_REVERSE_ENGINEERING_1.0.7.md).
+> It records the exact compile-time gate and a CLAP-first implementation path.
 
-OpenBeats 1.0.0 has a **plugin library**, not a plugin host.
+## What ships in 1.0.6
+
+OpenBeats 1.0.6 has a **plugin library**, not a plugin host.
 
 - **Browse and download:** **View → Plugin library…** reads the GitHub-backed
   registry in [`plugins/registry.json`](../plugins/registry.json), resolves each
@@ -28,7 +32,7 @@ security-audited.
 ## What is not included
 
 OpenBeats **cannot load VST3, AU, CLAP or reference DAW plugins into its own mixer**
-in 1.0.0. That is a native-hosting problem, not a missing file picker. The plugin
+in 1.0.6. That is a native-hosting problem, not a missing file picker. The plugin
 library is deliberately separate from the audio engine so it can ship without
 pretending hosting exists.
 
@@ -106,7 +110,9 @@ calls return:
 > not implement its Linux platform layer. The plugin browser still works.
 
 What still works on Linux: the plugin browser, categories, the bundled Gain
-utility and everything else in the app. What does not: scanning for and inserting
+utility and everything else in the app. The 1.0.7 plan keeps the Windows/macOS
+`plughost-helper` intact and adds a separate CLAP-first Linux sidecar; it does
+not patch `plughost` in place. What does not: scanning for and inserting
 native plugins. The Windows and macOS installers ship the `plughost-helper`
 sidecar; on Linux no helper is bundled.
 

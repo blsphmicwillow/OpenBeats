@@ -17,7 +17,7 @@
       "license": "GPL-3.0-or-later",
       "verified": true,
       "featured": true,
-      "notes": "Install in a VST3 or CLAP host such as Bitwig, REAPER, Ardour or Carla. OpenBeats 1.0.0 browses and downloads plugins but does not host them yet."
+      "notes": "Install in a VST3 or CLAP host such as Bitwig, REAPER, Ardour or Carla. OpenBeats 1.0.6 browses and downloads plugins but does not host them yet."
     }
   ]
 }
