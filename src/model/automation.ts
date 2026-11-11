@@ -1,4 +1,11 @@
-import type { AutomationLane, AutomationPoint, AutomationTarget, Project, Strip } from './types';
+import type {
+  AutomationCurve,
+  AutomationLane,
+  AutomationPoint,
+  AutomationTarget,
+  Project,
+  Strip,
+} from './types';
 
 export const AUTOMATION_TARGETS: AutomationTarget[] = ['volume', 'pan'];
 
@@ -25,10 +32,13 @@ export function normalizeAutomationPoints(
     const point = entry as Partial<AutomationPoint>;
     if (typeof point.step !== 'number' || !Number.isFinite(point.step)) continue;
     const step = Math.max(0, Math.round(point.step));
+    const curve: AutomationCurve =
+      point.curve === 'hold' || point.curve === 'smooth' ? point.curve : 'linear';
     byStep.set(step, {
       id: typeof point.id === 'string' && point.id ? point.id : `ap_${step}`,
       step,
       value: clampAutomationValue(target, Number(point.value)),
+      curve,
     });
   }
   return Array.from(byStep.values()).sort((a, b) => a.step - b.step);
@@ -73,8 +83,11 @@ export function automationValueAt(
     const left = points[i - 1];
     const span = right.step - left.step;
     if (span <= 0) return right.value;
-    const t = (step - left.step) / span;
-    return left.value + (right.value - left.value) * t;
+    const t = Math.min(1, Math.max(0, (step - left.step) / span));
+    if (t >= 1) return right.value;
+    if (left.curve === 'hold') return left.value;
+    const eased = left.curve === 'smooth' ? t * t * (3 - 2 * t) : t;
+    return left.value + (right.value - left.value) * eased;
   }
   return last.value;
 }

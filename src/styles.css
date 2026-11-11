@@ -1695,6 +1695,21 @@ textarea {
 .automation-lane text {
   pointer-events: none;
 }
+.automation-segment-tools {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 22px;
+  flex-wrap: wrap;
+}
+.automation-segment-tools .lbl {
+  font-size: 9px;
+}
+.automation-segment-tools .active {
+  background: color-mix(in srgb, var(--accent) 22%, var(--panel3));
+  border-color: var(--accent);
+  color: var(--text);
+}
 
 /* effects rack / inspector */
 .fx-rack {

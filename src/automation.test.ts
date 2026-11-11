@@ -49,6 +49,43 @@ describe('mixer automation', () => {
     expect(automationValueAt({ target: 'pan', points: [] }, 8, 0.25)).toBe(0.25);
   });
 
+  it('holds a value until the next point and eases smooth segments', () => {
+    const held = {
+      target: 'volume' as const,
+      points: [
+        { id: 'a', step: 0, value: 0.2, curve: 'hold' as const },
+        { id: 'b', step: 16, value: 1 },
+      ],
+    };
+    expect(automationValueAt(held, 8, 0)).toBe(0.2);
+    expect(automationValueAt(held, 16, 0)).toBe(1);
+
+    const smooth = {
+      target: 'volume' as const,
+      points: [
+        { id: 'a', step: 0, value: 0.2, curve: 'smooth' as const },
+        { id: 'b', step: 16, value: 1 },
+      ],
+    };
+    expect(automationValueAt(smooth, 4, 0)).toBeCloseTo(0.325, 5);
+    expect(automationValueAt(smooth, 8, 0)).toBeCloseTo(0.6, 5);
+    expect(automationValueAt(smooth, 12, 0)).toBeCloseTo(0.875, 5);
+  });
+
+  it('preserves segment curves when normalizing saved data', () => {
+    const lanes = normalizeAutomation([
+      {
+        target: 'volume',
+        points: [
+          { id: 'a', step: 0, value: 0.2, curve: 'hold' },
+          { id: 'b', step: 16, value: 1, curve: 'smooth' },
+        ],
+      },
+    ]);
+    expect(lanes[0].points[0].curve).toBe('hold');
+    expect(lanes[0].points[1].curve).toBe('smooth');
+  });
+
   it('detects whether a project has any automation points', () => {
     const project = blankProject();
     expect(projectHasAutomation(project)).toBe(false);

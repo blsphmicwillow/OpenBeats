@@ -155,6 +155,7 @@ export interface Send {
 }
 
 export type AutomationTarget = 'volume' | 'pan';
+export type AutomationCurve = 'linear' | 'hold' | 'smooth';
 
 export interface AutomationPoint {
   id: string;
@@ -162,6 +163,8 @@ export interface AutomationPoint {
   step: number;
   /** Volume 0..1.25, pan -1..1. */
   value: number;
+  /** Shape of the segment from this point to the next point. */
+  curve?: AutomationCurve;
 }
 
 export interface AutomationLane {

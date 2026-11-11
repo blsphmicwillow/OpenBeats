@@ -17,7 +17,7 @@ Keep this file and `src/lib/changelog.ts` in sync, and bump `APP_VERSION` in `sr
 - Right-clicking an overlapping clip offers a one-click crossfade with the next clip.
 - Browser samples can be dragged onto playlist lanes, and playlist drags no longer select surrounding interface text.
 - Offline export now includes playlist audio clips and reloads their media for saved projects before rendering.
-- Mixer **volume and pan automation lanes** with linear points. Click to add points, drag to edit, right-click to remove, and clear a lane from the mixer.
+- Mixer **volume and pan automation lanes** with **linear, hold and smooth** segments. Click to add points, drag to edit, select a point and choose its outgoing segment shape, right-click to remove, and clear a lane from the mixer.
 - Automation is **Web Audio only**. Projects with automation points use the Web Audio transport for playback, and the same ramps are applied during offline bounce; native CPAL playback ignores automation.
 - Fixed offline export using pattern-local note steps instead of absolute song steps; later arrangement clips no longer collapse toward the start of the bounce.
 - REAPER `.rpp` export writes the marker list and import reads it back.

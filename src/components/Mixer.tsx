@@ -6,6 +6,7 @@ import { Meter } from '../ui/Meter';
 import { EFFECT_DEFS, effectLabel, uid } from '../model/defaults';
 import { IconPlus, IconPower, IconTrash } from '../ui/icons';
 import type {
+  AutomationCurve,
   AutomationPoint,
   AutomationTarget,
   Effect,
@@ -149,6 +150,7 @@ function AutomationEditor({
 }) {
   const ref = useRef<SVGSVGElement>(null);
   const dragId = useRef<string | null>(null);
+  const [selectedPoint, setSelectedPoint] = useState<string | null>(null);
   const min = target === 'pan' ? -1 : 0;
   const max = target === 'pan' ? 1 : 1.25;
   const toX = (step: number) => (Math.max(0, Math.min(length, step)) / Math.max(1, length)) * (AUTO_W - AUTO_PAD * 2) + AUTO_PAD;
@@ -166,11 +168,32 @@ function AutomationEditor({
     return { step, value: Math.max(min, Math.min(max, raw)) };
   };
   const points = [...value].sort((a, b) => a.step - b.step);
-  const line = points.length
-    ? points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${toX(p.step)} ${toY(p.value)}`).join(' ')
-    : '';
+  const line = (() => {
+    if (!points.length) return '';
+    let path = `M ${toX(points[0].step)} ${toY(points[0].value)}`;
+    for (let i = 1; i < points.length; i += 1) {
+      const left = points[i - 1];
+      const right = points[i];
+      if (left.curve === 'hold') {
+        path += ` L ${toX(right.step)} ${toY(left.value)} L ${toX(right.step)} ${toY(right.value)}`;
+      } else if (left.curve === 'smooth') {
+        for (let sample = 1; sample <= 16; sample += 1) {
+          const ratio = sample / 16;
+          const value = left.value + (right.value - left.value) * (ratio * ratio * (3 - 2 * ratio));
+          path += ` L ${toX(left.step + (right.step - left.step) * ratio)} ${toY(value)}`;
+        }
+      } else {
+        path += ` L ${toX(right.step)} ${toY(right.value)}`;
+      }
+    }
+    return path;
+  })();
+  const selectedIndex = points.findIndex((point) => point.id === selectedPoint);
+  const selected = selectedIndex >= 0 ? points[selectedIndex] : null;
+  const segmentEditable = selectedIndex >= 0 && selectedIndex < points.length - 1;
+  const selectedCurve: AutomationCurve = selected?.curve ?? 'linear';
   const readout = points.length
-    ? `${points.length} point${points.length === 1 ? '' : 's'} · ${target === 'pan' ? 'L/R' : '0–125%'}`
+    ? `${points.length} point${points.length === 1 ? '' : 's'} · ${target === 'pan' ? 'L/R' : '0–125%'} · ${selectedCurve} segment`
     : 'Click the lane to add a point';
 
   return (
@@ -187,7 +210,9 @@ function AutomationEditor({
           e.preventDefault();
           const next = fromPointer(e);
           if (!next) return;
-          onChange([...points, { id: uid('ap'), step: next.step, value: next.value }]);
+          const id = uid('ap');
+          setSelectedPoint(id);
+          onChange([...points, { id, step: next.step, value: next.value, curve: 'linear' }]);
         }}
         onPointerMove={(e) => {
           if (!dragId.current) return;
@@ -224,12 +249,14 @@ function AutomationEditor({
                 if (e.button !== 0) return;
                 e.preventDefault();
                 e.stopPropagation();
+                setSelectedPoint(point.id);
                 dragId.current = point.id;
                 (e.currentTarget as SVGCircleElement).setPointerCapture(e.pointerId);
               }}
               onContextMenu={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
+                if (selectedPoint === point.id) setSelectedPoint(null);
                 onChange(points.filter((p) => p.id !== point.id));
               }}
             >
@@ -242,7 +269,27 @@ function AutomationEditor({
           {length}
         </text>
       </svg>
-      <span className="tiny-note">{readout} · linear interpolation</span>
+      <div className="automation-segment-tools">
+        <span className="lbl">Segment</span>
+        {(['linear', 'hold', 'smooth'] as const).map((curve) => (
+          <button
+            key={curve}
+            className={`tbtn small flat ${segmentEditable && selectedCurve === curve ? 'active' : ''}`}
+            disabled={!segmentEditable}
+            title={segmentEditable ? `Use ${curve} interpolation for this segment` : 'Select a point with a following point'}
+            onClick={() => {
+              if (!segmentEditable || !selected) return;
+              onChange(points.map((point) => (point.id === selected.id ? { ...point, curve } : point)));
+            }}
+          >
+            {curve}
+          </button>
+        ))}
+        <span className="tiny-note">
+          {segmentEditable ? `point ${selected?.step} → ${points[selectedIndex + 1].step}` : 'select a point to edit its outgoing segment'}
+        </span>
+      </div>
+      <span className="tiny-note">{readout}</span>
     </div>
   );
 }
