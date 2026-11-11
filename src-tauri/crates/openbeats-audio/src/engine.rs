@@ -18,7 +18,7 @@ use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::mpsc::{self, Receiver, RecvTimeoutError, Sender};
 use std::sync::{Arc, Mutex};
 use std::thread::JoinHandle;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use cpal::{FromSample, SampleFormat, SizedSample, SupportedBufferSize};
@@ -84,6 +84,11 @@ struct Shared {
     channels: AtomicU32,
     /// How many times the stream was reopened (device switch or recovery).
     device_swaps: AtomicU32,
+    /// Total callbacks, so a stream that silently stops calling back can be
+    /// distinguished from a healthy but idle stream.
+    callbacks: AtomicU32,
+    /// Last cue gain survives a stream rebuild during playback.
+    cue_gain: AtomicU32,
     device: Mutex<String>,
 }
 
@@ -101,6 +106,8 @@ impl Default for Shared {
             latency_ms: AtomicU32::new(0),
             channels: AtomicU32::new(0),
             device_swaps: AtomicU32::new(0),
+            callbacks: AtomicU32::new(0),
+            cue_gain: AtomicU32::new(1.0f32.to_bits()),
             device: Mutex::new(String::new()),
         }
     }
@@ -365,6 +372,10 @@ struct Session {
     logger: Arc<Mutex<AudioLogger>>,
     name: String,
     sample_rate: f32,
+    /// The PipeWire/Pulse sink this stream was routed to, if known. A reconnecting
+    /// Bluetooth headset gets a new sink name, so the audio thread watches this.
+    #[cfg_attr(not(target_os = "linux"), allow(dead_code))]
+    sink: Option<String>,
 }
 
 /// The engine handle held by Tauri. Cheap to clone the shared state, owns the
@@ -707,7 +718,14 @@ fn open_session(
     #[cfg(target_os = "linux")]
     let requested_sink = requested.and_then(devices::requested_sink);
     #[cfg(target_os = "linux")]
-    let _route = crate::linux_audio::route_sink(requested_sink);
+    let route_state = crate::linux_audio::route_state();
+    #[cfg(target_os = "linux")]
+    let sink = match route_state.as_ref() {
+        Some(state) => state.target_sink(requested_sink),
+        None => requested_sink.map(str::to_string),
+    };
+    #[cfg(not(target_os = "linux"))]
+    let sink: Option<String> = None;
 
     let host = cpal::default_host();
     let default_name = host.default_output_device().and_then(|d| d.name().ok());
@@ -731,6 +749,17 @@ fn open_session(
         .ok_or_else(|| "no audio output device was found".to_string())?;
     let device = &devices[index];
     let name = candidates[index].name.clone();
+
+    #[cfg(target_os = "linux")]
+    let _route = crate::linux_audio::route_sink(sink.as_deref());
+    #[cfg(target_os = "linux")]
+    if requested_sink.is_some() && sink.as_deref() != requested_sink {
+        eprintln!(
+            "openbeats: saved output \"{}\" is unavailable; using \"{}\"",
+            requested_sink.unwrap_or_default(),
+            sink.as_deref().unwrap_or("the system default")
+        );
+    }
 
     let supported = choose_output_config(device).map_err(|err| {
         format!("the output device \"{name}\" has no usable configuration: {err}")
@@ -756,6 +785,9 @@ fn open_session(
         sample_rate,
         Arc::clone(&logger),
     )));
+    if let Ok(mut guard) = state.lock() {
+        guard.cue_gain = load_f32(&shared.cue_gain);
+    }
 
     let make_error = || {
         let shared = Arc::clone(shared);
@@ -821,6 +853,7 @@ fn open_session(
         logger,
         name,
         sample_rate,
+        sink,
     })
 }
 
@@ -861,7 +894,10 @@ fn apply_command(state: &mut CallbackState, shared: &Arc<Shared>, command: Engin
             shared.playing.store(0, Ordering::Relaxed);
         }
         EngineCommand::SetMasterGain(gain) => state.master_gain = gain.clamp(0.0, 2.0),
-        EngineCommand::SetCueGain(gain) => state.cue_gain = gain.clamp(0.0, 2.0),
+        EngineCommand::SetCueGain(gain) => {
+            state.cue_gain = gain.clamp(0.0, 2.0);
+            store_f32(&shared.cue_gain, state.cue_gain);
+        }
         EngineCommand::TestTone(seconds) => state.tone_seconds_left = seconds.max(0.0),
         EngineCommand::PreviewNote {
             channel,
@@ -913,23 +949,64 @@ fn audio_thread(
     let mut ready = Some(ready);
     let mut requested = initial_device;
     let mut low_latency = initial_low_latency;
+    let mut last_project: Option<PlaybackProject> = None;
 
     loop {
-        let session = match open_session(requested.as_deref(), low_latency, &shared, &logger_slot) {
-            Ok(session) => session,
-            Err(err) => {
-                // The first failure is reported to `start`; later failures mean a
-                // device vanished, so keep retrying the system default.
-                if let Some(tx) = ready.take() {
-                    let _ = tx.send(Err(err));
-                    return;
+        // Keep the user's preference even when it is temporarily unavailable.
+        // A Bluetooth headset that vanished for a second must be picked up when
+        // it reappears, rather than being replaced permanently by the fallback.
+        let session = loop {
+            match open_session(requested.as_deref(), low_latency, &shared, &logger_slot) {
+                Ok(session) => break session,
+                Err(err) => {
+                    if ready.is_some() && requested.is_none() {
+                        if let Some(tx) = ready.take() {
+                            let _ = tx.send(Err(err));
+                        }
+                        return;
+                    }
+                    if requested.is_some() {
+                        eprintln!(
+                            "openbeats: saved output failed ({err}); trying the system default"
+                        );
+                        match open_session(None, low_latency, &shared, &logger_slot) {
+                            Ok(session) => break session,
+                            Err(fallback_err) => {
+                                if let Some(tx) = ready.take() {
+                                    let _ = tx.send(Err(format!(
+                                        "{err}; system default: {fallback_err}"
+                                    )));
+                                    return;
+                                }
+                                eprintln!(
+                                    "openbeats: could not reopen the audio device ({fallback_err}); retrying"
+                                );
+                                std::thread::sleep(Duration::from_millis(750));
+                                continue;
+                            }
+                        }
+                    }
+                    if let Some(tx) = ready.take() {
+                        let _ = tx.send(Err(err));
+                        return;
+                    }
+                    eprintln!("openbeats: could not reopen the audio device ({err}); retrying");
+                    std::thread::sleep(Duration::from_millis(750));
                 }
-                eprintln!("openbeats: could not reopen the audio device ({err}); retrying");
-                std::thread::sleep(Duration::from_millis(750));
-                requested = None;
-                continue;
             }
         };
+
+        // A stream rebuild replaces the callback state. If the transport was
+        // rolling, put the sequencer back at the last rendered step instead of
+        // silently dropping playback along with the old device.
+        if shared.playing.load(Ordering::Relaxed) == 1 {
+            if let Some(mut project) = last_project.clone() {
+                project.start_step = shared.step.load(Ordering::Relaxed);
+                if let Ok(mut state) = session.state.lock() {
+                    apply_command(&mut state, &shared, EngineCommand::Play(project));
+                }
+            }
+        }
 
         if let Some(tx) = ready.take() {
             let _ = tx.send(Ok((
@@ -940,8 +1017,14 @@ fn audio_thread(
         }
 
         let error_baseline = shared.stream_errors.load(Ordering::Relaxed);
-        // Every exit from this loop either returns or reopens the stream, so the
-        // swap counter below does not need a flag.
+        let mut callback_count = shared.callbacks.load(Ordering::Relaxed);
+        let mut last_progress = Instant::now();
+        #[cfg(target_os = "linux")]
+        let mut route_check = Instant::now();
+        let mut device_check = Instant::now();
+        let mut stream_failed = false;
+
+        // Every exit from this loop either returns or reopens the stream.
         loop {
             match commands.recv_timeout(Duration::from_millis(250)) {
                 Ok(EngineCommand::Shutdown) => return,
@@ -961,20 +1044,104 @@ fn audio_thread(
                     low_latency = next_low_latency;
                     break;
                 }
-                Ok(command) => match session.state.lock() {
-                    Ok(mut guard) => apply_command(&mut guard, &shared, command),
-                    Err(_) => break,
-                },
+                Ok(command) => {
+                    let is_play = matches!(&command, EngineCommand::Play(_));
+                    if let EngineCommand::Play(project) = &command {
+                        last_project = Some(project.clone());
+                    }
+                    if matches!(&command, EngineCommand::Stop) {
+                        last_project = None;
+                    }
+                    match session.state.lock() {
+                        Ok(mut guard) => apply_command(&mut guard, &shared, command),
+                        Err(_) => break,
+                    }
+                    if is_play {
+                        // Give a newly opened stream time to deliver its first
+                        // callback before the no-callback watchdog can fire.
+                        last_progress = Instant::now();
+                    }
+                }
                 Err(RecvTimeoutError::Timeout) => {
-                    // A stream error usually means the device was unplugged: fall
-                    // back to the system default, which hot-swaps to whatever the
-                    // OS makes current (including a freshly connected device).
                     if shared.stream_errors.load(Ordering::Relaxed) > error_baseline {
-                        eprintln!(
-                            "openbeats: the audio device failed; falling back to the system default"
-                        );
-                        requested = None;
+                        eprintln!("openbeats: the audio device failed; reopening the saved route");
+                        stream_failed = true;
                         break;
+                    }
+
+                    let callbacks = shared.callbacks.load(Ordering::Relaxed);
+                    if callbacks != callback_count {
+                        callback_count = callbacks;
+                        last_progress = Instant::now();
+                    } else if shared.playing.load(Ordering::Relaxed) == 1
+                        && last_progress.elapsed() >= Duration::from_secs(2)
+                    {
+                        eprintln!("openbeats: audio callbacks stalled; reopening the saved route");
+                        break;
+                    }
+
+                    #[cfg(target_os = "linux")]
+                    if route_check.elapsed() >= Duration::from_secs(1) {
+                        route_check = Instant::now();
+                        let follows_default = requested
+                            .as_deref()
+                            .map(|id| devices::requested_sink(id).is_some())
+                            .unwrap_or(true);
+                        if follows_default {
+                            if let Some(state) = crate::linux_audio::route_state() {
+                                let preferred =
+                                    requested.as_deref().and_then(devices::requested_sink);
+                                if crate::linux_audio::should_reopen(
+                                    preferred,
+                                    session.sink.as_deref(),
+                                    follows_default,
+                                    &state,
+                                ) {
+                                    eprintln!(
+                                        "openbeats: audio route changed; reopening {}",
+                                        preferred.unwrap_or("the system default")
+                                    );
+                                    break;
+                                }
+                            }
+                        }
+                    }
+
+                    // Pulse hosts use the sink watcher above. Every other host,
+                    // and raw ALSA devices, use CPAL's own device list so a
+                    // reconnected USB/Bluetooth endpoint is picked up again.
+                    let check_physical = cfg!(not(target_os = "linux"))
+                        || requested
+                            .as_deref()
+                            .and_then(devices::requested_device_name)
+                            .is_some();
+                    if check_physical && device_check.elapsed() >= Duration::from_secs(2) {
+                        device_check = Instant::now();
+                        let host = cpal::default_host();
+                        let default_name = host.default_output_device().and_then(|d| d.name().ok());
+                        let mut available = Vec::new();
+                        if let Ok(outputs) = host.output_devices() {
+                            for device in outputs {
+                                if let Ok(name) = device.name() {
+                                    available.push(name);
+                                }
+                            }
+                        }
+                        let requested_name = requested
+                            .as_deref()
+                            .and_then(devices::requested_device_name);
+                        if devices::should_follow_device(
+                            requested_name,
+                            Some(&session.name),
+                            default_name.as_deref(),
+                            &available,
+                        ) {
+                            eprintln!(
+                                "openbeats: output device changed; reopening {}",
+                                requested_name.unwrap_or("the system default")
+                            );
+                            break;
+                        }
                     }
                 }
                 Err(RecvTimeoutError::Disconnected) => return,
@@ -983,6 +1150,10 @@ fn audio_thread(
 
         drop(session);
         shared.device_swaps.fetch_add(1, Ordering::Relaxed);
+        if stream_failed {
+            // A Bluetooth reconnect can take a moment to publish its new sink.
+            std::thread::sleep(Duration::from_millis(400));
+        }
     }
 }
 
@@ -994,6 +1165,10 @@ fn render<T>(
 ) where
     T: SizedSample + FromSample<f32> + Copy,
 {
+    // Count every callback, including one that loses the state lock, so the
+    // audio thread can tell a dead stream from an idle but healthy one.
+    shared.callbacks.fetch_add(1, Ordering::Relaxed);
+
     let mut guard = match state.try_lock() {
         Ok(guard) => guard,
         Err(_) => {

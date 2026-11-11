@@ -28,6 +28,101 @@ pub fn outputs() -> Vec<Endpoint> {
     endpoints("sinks", "get-default-sink", "Default Sink:")
 }
 
+/// The current sinks and default, used to follow a Bluetooth headset across a
+/// disconnect/reconnect. `None` means `pactl` could not be read, which must not
+/// be confused with "the machine has no sinks".
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RouteState {
+    pub sinks: Vec<Endpoint>,
+    pub default_sink: Option<String>,
+}
+
+impl RouteState {
+    pub fn has_sink(&self, name: &str) -> bool {
+        self.sinks
+            .iter()
+            .any(|endpoint| endpoint.name.eq_ignore_ascii_case(name))
+    }
+
+    pub fn default_name(&self) -> Option<&str> {
+        self.default_sink
+            .as_deref()
+            .filter(|name| self.has_sink(name))
+    }
+
+    /// The saved sink while it exists, otherwise PipeWire/PulseAudio's default.
+    /// BlueZ recreates the sink under a different profile suffix on reconnect
+    /// (`bluez_sink.AC_12...a2dp_sink` becomes `bluez_output.AC_12...1`), so a
+    /// matching Bluetooth address is treated as the same physical device.
+    pub fn target_sink(&self, preferred: Option<&str>) -> Option<String> {
+        if let Some(preferred) = preferred {
+            if let Some(exact) = self
+                .sinks
+                .iter()
+                .find(|endpoint| endpoint.name.eq_ignore_ascii_case(preferred))
+            {
+                return Some(exact.name.clone());
+            }
+            if let Some(address) = bluetooth_address(preferred) {
+                if let Some(alias) = self.sinks.iter().find(|endpoint| {
+                    endpoint.is_bluetooth
+                        && bluetooth_address(&endpoint.name).as_deref() == Some(address.as_str())
+                }) {
+                    return Some(alias.name.clone());
+                }
+            }
+        }
+        self.default_name().map(str::to_string)
+    }
+}
+
+/// True when the open stream is no longer attached to the sink it should use.
+/// `follow_default` is false for a raw ALSA device, which is not a Pulse sink.
+pub fn should_reopen(
+    preferred_sink: Option<&str>,
+    active_sink: Option<&str>,
+    follow_default: bool,
+    state: &RouteState,
+) -> bool {
+    if !follow_default && preferred_sink.is_none() {
+        return false;
+    }
+    state
+        .target_sink(preferred_sink)
+        .is_some_and(|target| active_sink != Some(target.as_str()))
+}
+
+/// Reads the current sink list and default in one place. Returning `None` when
+/// `pactl` is unavailable keeps a transient utility failure from causing the
+/// engine to tear down a working stream.
+pub fn route_state() -> Option<RouteState> {
+    let raw = pactl(&["-f", "json", "list", "sinks"])?;
+    let default = default_endpoint("get-default-sink", "Default Sink:").unwrap_or_default();
+    let sinks = parse_endpoints(&raw, &default, "sinks");
+    if sinks.is_empty() {
+        return None;
+    }
+    let default_sink = sinks
+        .iter()
+        .find(|endpoint| endpoint.is_default)
+        .map(|endpoint| endpoint.name.clone());
+    Some(RouteState {
+        sinks,
+        default_sink,
+    })
+}
+
+fn bluetooth_address(name: &str) -> Option<String> {
+    name.split('.').find_map(|part| {
+        let octets: Vec<&str> = part.split(['_', ':']).collect();
+        (octets.len() == 6
+            && octets
+                .iter()
+                .all(|octet| octet.len() == 2 && octet.chars().all(|c| c.is_ascii_hexdigit())))
+        .then(|| octets.join(":").to_ascii_lowercase())
+    })
+}
+
 pub fn inputs() -> Vec<Endpoint> {
     endpoints("sources", "get-default-source", "Default Source:")
 }
@@ -389,5 +484,109 @@ mod tests {
         let label = names.label("hdmi:CARD=HDMI,DEV=0", None);
         assert!(label.contains("HDA Intel HDMI"));
         assert!(label.to_lowercase().contains("screen"));
+    }
+
+    fn endpoint(name: &str, default: bool, bluetooth: bool) -> Endpoint {
+        Endpoint {
+            name: name.into(),
+            label: name.into(),
+            is_default: default,
+            is_bluetooth: bluetooth,
+            is_hdmi: false,
+            is_usb: false,
+        }
+    }
+
+    #[test]
+    fn a_bluez_sink_reconnect_with_a_new_profile_is_the_same_device() {
+        let state = RouteState {
+            sinks: vec![
+                endpoint("alsa_output.pci.speakers", true, false),
+                endpoint("bluez_output.AC_12_2F_00_11_22.1", false, true),
+            ],
+            default_sink: Some("alsa_output.pci.speakers".into()),
+        };
+        let old = "bluez_sink.AC_12_2F_00_11_22.a2dp_sink";
+        assert_eq!(
+            state.target_sink(Some(old)).as_deref(),
+            Some("bluez_output.AC_12_2F_00_11_22.1")
+        );
+        assert!(should_reopen(
+            Some(old),
+            Some("alsa_output.pci.speakers"),
+            true,
+            &state
+        ));
+    }
+
+    #[test]
+    fn a_missing_saved_sink_does_not_flap_while_the_default_is_stable() {
+        let state = RouteState {
+            sinks: vec![endpoint("alsa_output.pci.speakers", true, false)],
+            default_sink: Some("alsa_output.pci.speakers".into()),
+        };
+        assert_eq!(
+            state
+                .target_sink(Some("bluez_sink.GONE.a2dp_sink"))
+                .as_deref(),
+            Some("alsa_output.pci.speakers")
+        );
+        assert!(!should_reopen(
+            Some("bluez_sink.GONE.a2dp_sink"),
+            Some("alsa_output.pci.speakers"),
+            true,
+            &state
+        ));
+    }
+
+    #[test]
+    fn a_returning_saved_sink_reopens_the_stream() {
+        let state = RouteState {
+            sinks: vec![
+                endpoint("alsa_output.pci.speakers", true, false),
+                endpoint("bluez_sink.AC_12_2F_00_11_22.a2dp_sink", false, true),
+            ],
+            default_sink: Some("alsa_output.pci.speakers".into()),
+        };
+        assert!(should_reopen(
+            Some("bluez_sink.AC_12_2F_00_11_22.a2dp_sink"),
+            Some("alsa_output.pci.speakers"),
+            true,
+            &state
+        ));
+    }
+
+    #[test]
+    fn system_default_changes_are_followed_but_raw_devices_are_not() {
+        let speakers = RouteState {
+            sinks: vec![endpoint("alsa_output.pci.speakers", true, false)],
+            default_sink: Some("alsa_output.pci.speakers".into()),
+        };
+        assert!(!should_reopen(
+            None,
+            Some("alsa_output.pci.speakers"),
+            true,
+            &speakers
+        ));
+
+        let headphones = RouteState {
+            sinks: vec![
+                endpoint("alsa_output.pci.speakers", false, false),
+                endpoint("bluez_output.AC_12_2F_00_11_22.1", true, true),
+            ],
+            default_sink: Some("bluez_output.AC_12_2F_00_11_22.1".into()),
+        };
+        assert!(should_reopen(
+            None,
+            Some("alsa_output.pci.speakers"),
+            true,
+            &headphones
+        ));
+        assert!(!should_reopen(
+            None,
+            Some("alsa_output.pci.speakers"),
+            false,
+            &headphones
+        ));
     }
 }

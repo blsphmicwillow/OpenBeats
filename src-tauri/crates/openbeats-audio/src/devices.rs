@@ -98,6 +98,28 @@ pub fn requested_device_name(id: &str) -> Option<&str> {
     (!name.is_empty() && !name.starts_with("sink:")).then_some(name)
 }
 
+/// True when the stream should be reopened because the saved physical device
+/// vanished or returned, or because the OS default changed. Unlike the Linux
+/// PipeWire watcher, this uses CPAL's own device list and works on every host.
+///
+/// A device that is still absent while the stream is already on the fallback is
+/// left alone; otherwise the engine would rebuild every check forever.
+pub fn should_follow_device(
+    requested: Option<&str>,
+    active: Option<&str>,
+    default: Option<&str>,
+    available: &[String],
+) -> bool {
+    if let Some(want) = requested {
+        let present = available.iter().any(|name| name.eq_ignore_ascii_case(want));
+        if present {
+            return !active.is_some_and(|active| active.eq_ignore_ascii_case(want));
+        }
+        return active.is_some_and(|active| active.eq_ignore_ascii_case(want));
+    }
+    default.is_some_and(|default| active != Some(default))
+}
+
 /// One input or output device, as serialized to the settings UI.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct DeviceInfo {
@@ -200,6 +222,62 @@ mod tests {
         assert_eq!(requested_device_name(&id), None);
         assert_eq!(requested_sink("pulse"), None);
         assert_eq!(requested_device_name("pulse"), Some("pulse"));
+    }
+
+    #[test]
+    fn a_physical_saved_device_is_followed_across_a_reconnect() {
+        let speakers = vec!["Speakers".to_string(), "USB Headset".to_string()];
+        assert!(!should_follow_device(
+            Some("USB Headset"),
+            Some("USB Headset"),
+            Some("Speakers"),
+            &speakers
+        ));
+        assert!(!should_follow_device(
+            Some("USB Headset"),
+            Some("Speakers"),
+            Some("Speakers"),
+            &["Speakers".to_string()]
+        ));
+        assert!(should_follow_device(
+            Some("USB Headset"),
+            Some("Speakers"),
+            Some("Speakers"),
+            &speakers
+        ));
+    }
+
+    #[test]
+    fn a_vanished_device_reopens_once_and_then_waits() {
+        assert!(should_follow_device(
+            Some("Bluetooth Headphones"),
+            Some("Bluetooth Headphones"),
+            Some("Speakers"),
+            &["Speakers".to_string()]
+        ));
+        assert!(!should_follow_device(
+            Some("Bluetooth Headphones"),
+            Some("Speakers"),
+            Some("Speakers"),
+            &["Speakers".to_string()]
+        ));
+    }
+
+    #[test]
+    fn the_default_device_is_followed_on_non_pulse_hosts() {
+        assert!(!should_follow_device(
+            None,
+            Some("Speakers"),
+            Some("Speakers"),
+            &["Speakers".to_string()]
+        ));
+        assert!(should_follow_device(
+            None,
+            Some("Speakers"),
+            Some("Headphones"),
+            &["Speakers".to_string(), "Headphones".to_string()]
+        ));
+        assert!(!should_follow_device(None, Some("Speakers"), None, &[]));
     }
 
     #[test]

@@ -29,7 +29,7 @@ Eleven built-in themes, Classic and Modern chrome, and an editable **My theme** 
 - **A playhead you can move**: drag the playhead to seek native playback in real time, and the playlist and piano roll follow it while playing.
 - **Friendly device names** by default, including PipeWire/PulseAudio descriptions for Bluetooth/BlueZ, HDMI/DisplayPort and USB endpoints, with an opt-in Dev Mode that shows the raw backend strings.
 - **Linux silence fixed properly**: the picker prefers the PipeWire/PulseAudio bridge, because ALSA's `default` device can route to a null sink; F32/F64/I8/I16/I32/U8/U16 formats are handled, unsupported I24/U24 defaults fall back to a supported format, and the opened device, rate and latency are logged.
-- **Hot-swap and low latency**: a failed device falls back to the system default, and Low-latency mode uses the smallest buffer the device offers with a live latency readout.
+- **Hot-swap and low latency**: a failed device falls back safely, then the selected Bluetooth/USB output is restored when it returns; stalled callbacks reopen the stream and native playback resumes at the last step. Low-latency mode uses the smallest buffer the device offers with a live latency readout.
 - **Master on outputs 1/2, cue on 3/4** for four-channel interfaces, with an independent cue level.
 - **True-peak master limiter** with 4× oversampled inter-sample detection, plus Mid/Side inserts, a sidechain dynamic EQ and a `rustfft` spectrum analyser.
 - **Smart Humanize** (groove templates, deterministic), **Auto Gain Staging** to -6 dBFS, a rule-based **Melody Generator**, a held-note **Note Arpeggiator**, **Project Health Check**, **Tap Tempo** and **session recovery** every 30 seconds.

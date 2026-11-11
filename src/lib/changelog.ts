@@ -33,9 +33,18 @@ export const CHANGELOG: ChangelogEntry[] = [
         ],
       },
       {
+        title: 'Audio recovery',
+        items: [
+          'The selected output is retained when a stream fails, so a Bluetooth headset is not replaced permanently by a fallback device.',
+          'A recreated BlueZ sink is matched by Bluetooth address, including the change from bluez_sink…a2dp_sink to bluez_output…1.',
+          'PipeWire/PulseAudio route changes, stalled callbacks, changed defaults and returning Windows/macOS/raw ALSA devices reopen the stream.',
+          'Native playback resumes at the last rendered step after a rebuild, preserving the cue level.',
+        ],
+      },
+      {
         title: 'Verification',
         items: [
-          'Added settings migration and immediate-persistence tests plus device-ID routing tests.',
+          'Added settings migration, immediate-persistence, BlueZ alias and cross-platform device-return tests.',
         ],
       },
     ],

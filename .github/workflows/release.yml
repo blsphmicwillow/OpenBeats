@@ -324,6 +324,9 @@ jobs:
           body: |
             ## OpenBeats ${{ github.ref_name }}
 
+            This refreshed 1.0.8 build replaces the original installers with the
+            audio-reconnect recovery patch.
+
             Native installers for Linux, Windows and macOS, built and tested by
             GitHub Actions on native runners.
 
@@ -352,6 +355,11 @@ jobs:
               Web Audio only in 1.0.8; native CPAL audio-clip playback is pending.
             - Audio output/input choices, low-latency mode, cue level and input
               monitor level now persist and are reapplied before playback.
+            - A failed stream keeps the selected output. Reconnected BlueZ sinks,
+              changed defaults and stalled callbacks reopen the route, and native
+              playback resumes at the last step instead of stopping.
+            - Windows, macOS and raw ALSA outputs return to the selected physical
+              device when it reconnects.
             - Linux device names identify Bluetooth/BlueZ, HDMI/DisplayPort and USB
               endpoints from PipeWire/PulseAudio, and the saved sink is routed
               through the system audio server.

@@ -159,10 +159,12 @@ pub fn configure_audio(
     let engine = guard
         .as_ref()
         .ok_or_else(|| "the audio engine did not start".to_string())?;
+    // Send the cue level before a rebuild so the replacement callback state
+    // starts with the saved value rather than a moment of full cue.
+    engine.set_cue_gain(cue_gain);
     if existed {
         engine.reconfigure(device, low_latency)?;
     }
-    engine.set_cue_gain(cue_gain);
     // Let the reopen complete before the caller starts the chime or playback.
     std::thread::sleep(Duration::from_millis(350));
     Ok(engine.snapshot())

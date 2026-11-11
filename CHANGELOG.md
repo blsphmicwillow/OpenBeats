@@ -22,9 +22,17 @@ Native installers for Linux, Windows and macOS are built by CI from the `v1.0.8`
 - Selecting a PipeWire/Pulse sink routes the stream to that sink using `PULSE_SINK`/`PIPEWIRE_NODE`, with the previous environment restored after opening.
 - Output devices whose default format is an unsupported I24/U24 configuration now fall back to a supported format; I8/U8 output is also accepted.
 
+### Audio recovery
+
+- The selected output is retained when a stream fails; the engine no longer replaces a Bluetooth headset with a fallback device permanently.
+- On Linux, a recreated BlueZ sink is matched by its Bluetooth address, so a profile change from `bluez_sink…a2dp_sink` to `bluez_output…1` keeps the same headphones selected.
+- PipeWire/PulseAudio route changes, stalled callback streams and changed default sinks now trigger a bounded reopen.
+- Windows, macOS and raw ALSA outputs watch the selected physical device and return to it when it reconnects.
+- Native playback resumes at the last rendered step after a rebuild instead of dropping the transport, and the cue level is preserved.
+
 ### Verification
 
-- Added settings migration and immediate-persistence tests plus device-ID routing tests.
+- Added settings migration, immediate-persistence, BlueZ alias and cross-platform device-return tests.
 
 ## 1.0.7 — 2026-11-11
 
