@@ -1218,6 +1218,45 @@ textarea {
   cursor: ew-resize;
   background: linear-gradient(90deg, transparent, #fff3);
 }
+.slip-handle {
+  position: absolute;
+  left: 50%;
+  bottom: 3px;
+  z-index: 5;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  min-width: 36px;
+  max-width: calc(100% - 10px);
+  height: 13px;
+  padding: 0 6px;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--clip-color) 55%, #fff4);
+  border-radius: 5px;
+  background: color-mix(in srgb, var(--bg) 58%, transparent);
+  color: var(--clip-text, #fff);
+  box-shadow: 0 1px 3px #0005;
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  line-height: 1;
+  cursor: ew-resize;
+  opacity: 0.72;
+  user-select: none;
+  white-space: nowrap;
+}
+.slip-handle:hover,
+.slip-handle:focus-visible {
+  opacity: 1;
+  background: color-mix(in srgb, var(--clip-color) 45%, var(--bg));
+  outline: 1px solid var(--text);
+  outline-offset: 1px;
+}
+.slip-handle:active {
+  cursor: grabbing;
+}
 .playhead-line {
   position: absolute;
   top: 0;

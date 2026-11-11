@@ -1126,7 +1126,7 @@ export function Playlist() {
                           width,
                           ['--clip-color' as string]: '#4cc9f0',
                         }}
-                        title={`${clip.name} — Web Audio clip (native playback pending). Drag to move, Alt-drag to slip the source; right-click for gain, pan, loop, reverse and normalize.`}
+                        title={`${clip.name} — Web Audio clip (native playback pending). Drag to move, drag the SLIP grip to slip the source; right-click for gain, pan, loop, reverse and normalize.`}
                         onPointerDown={(e) => {
                           if (e.button !== 0) return;
                           e.preventDefault();
@@ -1166,6 +1166,48 @@ export function Playlist() {
                           <div className="clip-fade clip-fade-out" style={{ width: Math.min(width, ticksToSteps(clip.fade_out) * zoom) }} />
                         )}
                         <AudioClipWave clip={clip} width={width} bpm={project.bpm} />
+                        <div
+                          className="slip-handle"
+                          role="slider"
+                          tabIndex={0}
+                          aria-label="Slip source audio"
+                          aria-orientation="horizontal"
+                          aria-valuemin={0}
+                          aria-valuemax={ticksToSteps(clampSourceOffset(Number.MAX_SAFE_INTEGER, clip.length_ticks, sourceDurationTicksFor(clip)))}
+                          aria-valuenow={ticksToSteps(clip.source_offset_ticks ?? 0)}
+                          aria-valuetext={`${ticksToSteps(clip.source_offset_ticks ?? 0)} steps`}
+                          title="Drag to slip the source audio (arrow keys for fine steps)"
+                          onPointerDown={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            setSelectedClip(clip.id);
+                            pushHistory();
+                            beginDrag(e, {
+                              kind: 'audio-slip',
+                              id: clip.id,
+                              startX: e.clientX,
+                              origOffset: clip.source_offset_ticks ?? 0,
+                              lengthTicks: clip.length_ticks,
+                              sourceDurationTicks: sourceDurationTicksFor(clip),
+                            });
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+                            e.preventDefault();
+                            e.stopPropagation();
+                            const direction = e.key === 'ArrowRight' ? 1 : -1;
+                            const offset = clampSourceOffset(
+                              (clip.source_offset_ticks ?? 0) + direction * TICKS_PER_STEP,
+                              clip.length_ticks,
+                              sourceDurationTicksFor(clip),
+                            );
+                            if (offset === (clip.source_offset_ticks ?? 0)) return;
+                            pushHistory();
+                            updateAudioClip(clip.id, { source_offset_ticks: offset }, `slip:${clip.id}`);
+                          }}
+                        >
+                          <span aria-hidden="true">↔</span> SLIP
+                        </div>
                         {selectedClip === clip.id && (
                           <>
                             <div
