@@ -255,13 +255,13 @@ function nativeInserts(project: Project, mixer: number): NativeInsertSnapshot[] 
       case 'limiter':
         inserts.push({
           kind: 'limiter',
-          ceiling_db: p.ceiling ?? -1,
+          ceiling_db: p.threshold ?? -1,
           attack_ms: 1,
           release_ms: Math.max(1, (p.release ?? 0.1) * 1000),
         });
         break;
       case 'drive':
-        inserts.push({ kind: 'drive', amount: p.amount ?? 0.4 });
+        inserts.push({ kind: 'drive', amount: Math.max(0, Math.min(1, (p.amount ?? 6) / 40)) });
         break;
       case 'filter':
         inserts.push({
