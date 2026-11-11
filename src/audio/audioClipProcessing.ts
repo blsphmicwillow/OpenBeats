@@ -62,3 +62,22 @@ export function audioClipLevel(clip: AudioClip, buffer: AudioBuffer): number {
 export function playbackBuffer(ctx: BaseAudioContext, clip: AudioClip, buffer: AudioBuffer): AudioBuffer {
   return clip.reversed ? reversedBuffer(ctx, buffer) : buffer;
 }
+
+/**
+ * Maps a timeline window's media offset into the buffer being played. Normal
+ * clips use the offset directly. A reversed clip plays the reversed copy of
+ * its source segment, so the offset is mirrored inside that segment.
+ */
+export function sourceOffsetForWindow(
+  clip: AudioClip,
+  bufferDuration: number,
+  mediaOffsetSec: number,
+  clipDurationSec: number,
+  secPerTick: number,
+): number {
+  if (!clip.reversed) return Math.max(0, mediaOffsetSec);
+  const sourceOffsetSec = Math.max(0, clip.source_offset_ticks ?? 0) * secPerTick;
+  const fromClip = Math.max(0, mediaOffsetSec - sourceOffsetSec);
+  const segmentStart = Math.max(0, bufferDuration - (sourceOffsetSec + clipDurationSec));
+  return Math.min(bufferDuration, segmentStart + fromClip);
+}

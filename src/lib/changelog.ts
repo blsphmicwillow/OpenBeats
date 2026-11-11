@@ -31,6 +31,7 @@ export const CHANGELOG: ChangelogEntry[] = [
           'The tutorial welcome title and native splash read the package version, so both always match the release.',
           'Split the selected pattern or audio clip at the playhead; outer fades and media are preserved.',
           'Reverse and peak-normalize audio clips. ENGINE: Web Audio only, with the same processing in live playback and offline bounce.',
+          'Audio clips keep a source offset, so splitting resumes the right-hand half at the cut point and the waveform follows the segment.',
           'Automation is Web Audio only: native CPAL playback ignores it, so projects with automation points use the Web Audio transport and the mixer labels that limit.',
           'Fixed offline export using pattern-local steps instead of absolute song steps, so later arrangement clips no longer collapse toward the start of the bounce.',
         ],

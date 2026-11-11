@@ -1107,7 +1107,7 @@ export function Playlist() {
                         {clip.fade_out > 0 && (
                           <div className="clip-fade clip-fade-out" style={{ width: Math.min(width, ticksToSteps(clip.fade_out) * zoom) }} />
                         )}
-                        <AudioClipWave clip={clip} width={width} />
+                        <AudioClipWave clip={clip} width={width} bpm={project.bpm} />
                         {selectedClip === clip.id && (
                           <>
                             <div

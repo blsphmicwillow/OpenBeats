@@ -1,9 +1,31 @@
 import { describe, expect, it } from 'vitest';
+import { scheduleWindows } from './audio/audioClipScheduler';
+import type { AudioClip } from './model/audioClip';
 import {
   NORMALIZE_CEILING,
   normalizationGain,
   reverseChannelData,
+  sourceOffsetForWindow,
 } from './audio/audioClipProcessing';
+
+const clip = (reversed: boolean, sourceOffset: number): AudioClip => ({
+  id: 'clip',
+  sample_id: 'sample',
+  media_ref: { path: 'idb://x', hash: 'hash', mime: 'audio/wav', bytes: 1, name: 'x.wav' },
+  start_tick: 0,
+  length_ticks: 960,
+  source_offset_ticks: sourceOffset,
+  gain: 1,
+  pan: 0,
+  pitch_cents: 0,
+  stretch_ratio: 1,
+  fade_in: 0,
+  fade_out: 0,
+  reversed,
+  loop_mode: 'off',
+  name: 'x.wav',
+  track: 0,
+});
 
 describe('audio clip processing', () => {
   it('reverses channel data without mutating the source', () => {
@@ -22,5 +44,27 @@ describe('audio clip processing', () => {
   it('leaves silent buffers at unity instead of dividing by zero', () => {
     expect(normalizationGain(0)).toBe(1);
     expect(normalizationGain(Number.NaN)).toBe(1);
+  });
+
+  it('uses source offset directly for normal playback', () => {
+    expect(sourceOffsetForWindow(clip(false, 2), 10, 1.5, 4, 0.5)).toBe(1.5);
+  });
+
+  it('mirrors a source offset inside the reversed segment', () => {
+    // 2 ticks at 0.5 s/tick = 1 s into a 4 s clip; the segment starts at
+    // 10 - (1 + 4) = 5 s in the reversed buffer.
+    expect(sourceOffsetForWindow(clip(true, 2), 10, 1.5, 4, 0.5)).toBe(5.5);
+    expect(sourceOffsetForWindow(clip(true, 2), 10, 2.5, 4, 0.5)).toBe(6.5);
+  });
+
+  it('schedules a split half from its media offset', () => {
+    const rightHalf = { ...clip(false, 960), start_tick: 1920, length_ticks: 960 };
+    const windows = scheduleWindows(
+      [rightHalf],
+      { bpm: 120, fromTick: 1920, horizonSec: 2, loop: false, loopStartTick: 0, loopEndTick: 0 },
+      { clip: 10 },
+    );
+    expect(windows).toHaveLength(1);
+    expect(windows[0].offsetSec).toBe(1);
   });
 });

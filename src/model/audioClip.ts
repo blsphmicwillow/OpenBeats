@@ -45,6 +45,12 @@ export interface AudioClip {
   start_tick: number;
   /** Length on the timeline, in ticks. */
   length_ticks: number;
+  /**
+   * First tick of the source media used by this clip. Nonzero after a split,
+   * so the right-hand half resumes at the cut point instead of replaying the
+   * start of the file. Omitted means zero for projects saved before 1.0.6.
+   */
+  source_offset_ticks?: number;
   gain: number;
   pan: number;
   pitch_cents: number;
@@ -154,6 +160,7 @@ export function createAudioClipFromDrop(input: CreateAudioClipInput): AudioClip 
     media_ref: input.mediaRef,
     start_tick: Math.max(0, Math.round(input.startTick)),
     length_ticks: lengthTicks,
+    source_offset_ticks: 0,
     gain: 1,
     pan: 0,
     pitch_cents: 0,
@@ -174,6 +181,7 @@ export function clampAudioClip(clip: AudioClip): AudioClip {
     ...clip,
     start_tick: Math.max(0, Math.round(clip.start_tick)),
     length_ticks: Math.max(1, Math.round(clip.length_ticks)),
+    source_offset_ticks: Math.max(0, Math.round(clip.source_offset_ticks ?? 0)),
     gain: Math.max(0, Math.min(4, clip.gain)),
     pan: Math.max(-1, Math.min(1, clip.pan)),
     pitch_cents: Math.max(-2400, Math.min(2400, Math.round(clip.pitch_cents))),
@@ -213,6 +221,7 @@ export function normalizeAudioClips(raw: unknown): AudioClip[] {
         },
         start_tick: typeof c.start_tick === 'number' ? c.start_tick : 0,
         length_ticks: typeof c.length_ticks === 'number' ? c.length_ticks : 1,
+        source_offset_ticks: typeof c.source_offset_ticks === 'number' ? c.source_offset_ticks : 0,
         gain: typeof c.gain === 'number' ? c.gain : 1,
         pan: typeof c.pan === 'number' ? c.pan : 0,
         pitch_cents: typeof c.pitch_cents === 'number' ? c.pitch_cents : 0,

@@ -32,6 +32,7 @@ describe('clip splitting', () => {
       media_ref: { path: 'idb://x', hash: 'abc', mime: 'audio/wav', bytes: 100, name: 'loop.wav' },
       start_tick: 480,
       length_ticks: 1920,
+      source_offset_ticks: 480,
       gain: 1,
       pan: 0,
       pitch_cents: 0,
@@ -48,8 +49,8 @@ describe('clip splitting', () => {
     })());
     expect(parts).not.toBeNull();
     const [left, right] = parts!;
-    expect(left).toMatchObject({ id: 'part-1', start_tick: 480, length_ticks: 960, fade_in: 120, fade_out: 0, loop_mode: 'loop' });
-    expect(right).toMatchObject({ id: 'part-2', start_tick: 1440, length_ticks: 960, fade_in: 0, fade_out: 240 });
+    expect(left).toMatchObject({ id: 'part-1', start_tick: 480, length_ticks: 960, source_offset_ticks: 480, fade_in: 120, fade_out: 0, loop_mode: 'loop' });
+    expect(right).toMatchObject({ id: 'part-2', start_tick: 1440, length_ticks: 960, source_offset_ticks: 1440, fade_in: 0, fade_out: 240 });
     expect(right.media_ref).toBe(clip.media_ref);
   });
 

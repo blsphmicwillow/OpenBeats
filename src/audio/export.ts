@@ -4,9 +4,9 @@ import { playVoice } from './instruments';
 import { songEvents, songLengthSteps, stepsToSeconds, swingOffset, isChannelAudible } from './sequencer';
 import { masterBuffer, masterProfile, type MasterTarget } from '../lib/mastering';
 import type { Project } from '../model/types';
-import { ticksToSteps, type AudioClip } from '../model/audioClip';
+import { ticksToSteps, TICKS_PER_BEAT, type AudioClip } from '../model/audioClip';
 import { applyClipGain, scheduleWindows } from './audioClipScheduler';
-import { audioClipLevel, playbackBuffer } from './audioClipProcessing';
+import { audioClipLevel, playbackBuffer, sourceOffsetForWindow } from './audioClipProcessing';
 import { buffersForClips, registerSample } from './sampleLibrary';
 import { getSample } from './mediaStore';
 import { scheduleMixerAutomation } from './automation';
@@ -100,6 +100,14 @@ function scheduleAudioClipWindows(
     if (!clip || !buffer) continue;
     try {
       const sourceBuffer = playbackBuffer(ctx, clip, buffer);
+      const secPerTick = 60 / (Math.max(1, bpm) * TICKS_PER_BEAT);
+      const sourceOffset = sourceOffsetForWindow(
+        clip,
+        sourceBuffer.duration,
+        window.offsetSec,
+        clip.length_ticks * secPerTick,
+        secPerTick,
+      );
       const source = ctx.createBufferSource();
       source.buffer = sourceBuffer;
       if (window.loopWithinSource) {
@@ -120,7 +128,7 @@ function scheduleAudioClipWindows(
       source.connect(gain);
       source.start(
         window.whenSec,
-        window.offsetSec,
+        sourceOffset,
         window.loopWithinSource ? undefined : window.durationSec,
       );
     } catch {

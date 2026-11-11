@@ -19,7 +19,7 @@
 
 import type { AudioClip } from '../model/audioClip';
 import { TICKS_PER_BEAT } from '../model/audioClip';
-import { audioClipLevel, playbackBuffer } from './audioClipProcessing';
+import { audioClipLevel, playbackBuffer, sourceOffsetForWindow } from './audioClipProcessing';
 
 export interface TransportWindow {
   bpm: number;
@@ -109,7 +109,8 @@ export function scheduleWindows(
       const windowStartSec = pass.atSec + (overlapStart - pass.start) * secPerTick;
       if (windowStartSec >= horizon) continue;
 
-      const offsetSec = Math.max(0, (overlapStart - clipStart(clip)) * secPerTick);
+      const sourceOffsetTicks = Math.max(0, clip.source_offset_ticks ?? 0);
+      const offsetSec = Math.max(0, (sourceOffsetTicks + (overlapStart - clipStart(clip))) * secPerTick);
       const rawDuration = (overlapEnd - overlapStart) * secPerTick;
       const end = Math.min(horizon, windowStartSec + rawDuration);
       const available = bufferDurations[clip.id];
@@ -249,6 +250,13 @@ export class AudioClipPlayer {
       if (!buffer || !clip) continue;
       try {
         const sourceBuffer = playbackBuffer(this.ctx, clip, buffer);
+        const sourceOffset = sourceOffsetForWindow(
+          clip,
+          sourceBuffer.duration,
+          window.offsetSec,
+          clip.length_ticks * (60 / (Math.max(1, transport.bpm) * TICKS_PER_BEAT)),
+          60 / (Math.max(1, transport.bpm) * TICKS_PER_BEAT),
+        );
         const source = this.ctx.createBufferSource();
         source.buffer = sourceBuffer;
         if (window.loopWithinSource) {
@@ -276,7 +284,7 @@ export class AudioClipPlayer {
         source.connect(gain);
         source.start(
           now + window.whenSec,
-          window.offsetSec,
+          sourceOffset,
           window.loopWithinSource ? undefined : window.durationSec,
         );
         this.active.push({

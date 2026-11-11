@@ -44,11 +44,13 @@ export function splitAudioClip(
   if (at <= clip.start_tick || at >= end) return null;
   const leftLen = at - clip.start_tick;
   const rightLen = end - at;
+  const sourceOffset = Math.max(0, clip.source_offset_ticks ?? 0);
   return [
     {
       ...clip,
       id: nextId(),
       length_ticks: leftLen,
+      source_offset_ticks: sourceOffset,
       fade_in: Math.min(clip.fade_in, leftLen),
       fade_out: 0,
     },
@@ -57,6 +59,7 @@ export function splitAudioClip(
       id: nextId(),
       start_tick: at,
       length_ticks: rightLen,
+      source_offset_ticks: sourceOffset + leftLen,
       fade_in: 0,
       fade_out: Math.min(clip.fade_out, rightLen),
     },

@@ -7,8 +7,8 @@
  */
 
 import { useEffect, useRef } from 'react';
-import type { AudioClip } from '../model/audioClip';
-import { getSamplePeaks, peakLevelCount } from '../audio/sampleLibrary';
+import { secondsToTicks, type AudioClip } from '../model/audioClip';
+import { getSampleBuffer, getSamplePeaks, peakLevelCount } from '../audio/sampleLibrary';
 
 const HEIGHT = 24;
 
@@ -20,7 +20,7 @@ export function levelForPixelWidth(levels: number, width: number): number {
   return level;
 }
 
-export function AudioClipWave({ clip, width }: { clip: AudioClip; width: number }) {
+export function AudioClipWave({ clip, width, bpm }: { clip: AudioClip; width: number; bpm: number }) {
   const ref = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
@@ -40,12 +40,18 @@ export function AudioClipWave({ clip, width }: { clip: AudioClip; width: number 
     if (!peaks) return;
     const buckets = Math.floor(peaks.length / 2);
     if (!buckets) return;
+    const sampleBuffer = getSampleBuffer(clip.sample_id);
+    const totalTicks = sampleBuffer ? secondsToTicks(sampleBuffer.duration, bpm) : clip.length_ticks;
+    const mediaStart = totalTicks > 0 ? Math.min(1, (clip.source_offset_ticks ?? 0) / totalTicks) : 0;
+    const mediaLength = totalTicks > 0 ? Math.min(1 - mediaStart, clip.length_ticks / totalTicks) : 1;
 
     g.fillStyle = 'rgba(255, 255, 255, 0.62)';
     for (let x = 0; x < width; x += 1) {
       const sourceX = clip.reversed ? width - 1 - x : x;
-      const from = Math.floor((sourceX / width) * buckets);
-      const to = Math.max(from + 1, Math.floor(((sourceX + 1) / width) * buckets));
+      const bucketStart = (mediaStart + (sourceX / width) * mediaLength) * buckets;
+      const bucketEnd = (mediaStart + ((sourceX + 1) / width) * mediaLength) * buckets;
+      const from = Math.floor(bucketStart);
+      const to = Math.max(from + 1, Math.floor(bucketEnd));
       let min = 0;
       let max = 0;
       for (let b = from; b < to && b < buckets; b += 1) {
@@ -56,7 +62,7 @@ export function AudioClipWave({ clip, width }: { clip: AudioClip; width: number 
       const bottom = HEIGHT / 2 - min * (HEIGHT / 2);
       g.fillRect(x, top, 1, Math.max(1, bottom - top));
     }
-  }, [clip.sample_id, clip.length_ticks, clip.reversed, width]);
+  }, [bpm, clip.sample_id, clip.length_ticks, clip.reversed, clip.source_offset_ticks, width]);
 
   return (
     <canvas
