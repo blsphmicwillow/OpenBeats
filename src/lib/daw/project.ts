@@ -51,6 +51,7 @@ function gmProgramFor(preset: PresetId): number {
       return 0;
     case 'bass':
     case 'sub':
+    case 'acidwell':
       return 38;
     case 'lead':
     case 'pluck':
@@ -59,7 +60,16 @@ function gmProgramFor(preset: PresetId): number {
     case 'chords':
       return 89;
     case 'keys':
+    case 'cordwood':
+    case 'hammerfelt':
       return 4;
+    case 'prism':
+    case 'sundial':
+    case 'vector9':
+    case 'dice':
+    case 'chatter':
+    case 'dustdevil':
+      return 81;
     default:
       return 0;
   }

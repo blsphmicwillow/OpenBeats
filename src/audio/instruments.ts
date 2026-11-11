@@ -453,6 +453,375 @@ export function playVoice(
       n.connect(bp).connect(g).connect(out);
       break;
     }
+    case 'anvil': {
+      const freq = mtof(pitch + (channel.transpose ?? 0));
+      const body = ctx.createOscillator();
+      body.type = 'sine';
+      body.frequency.setValueAtTime(freq * 2.6, t);
+      body.frequency.exponentialRampToValueAtTime(Math.max(38, freq * 0.72), t + 0.06 + env.tone * 0.03);
+      const bodyGain = adsr(ctx, vel * 1.05, t, 0.02, { ...env, decay: 0.06 + env.decay * 0.12, release: 0.05 });
+      body.connect(bodyGain).connect(out);
+      body.start(t);
+      stopAt([body], t + 0.7);
+      // A short inharmonic ring turns the shell into a struck metal drum.
+      [2.7, 4.13, 5.9].forEach((ratio, index) => {
+        const ring = ctx.createOscillator();
+        ring.type = 'square';
+        ring.frequency.value = freq * ratio;
+        const band = ctx.createBiquadFilter();
+        band.type = 'bandpass';
+        band.frequency.value = freq * ratio;
+        band.Q.value = 7;
+        const len = 0.04 + env.decay * (0.16 - index * 0.03);
+        const level = ctx.createGain();
+        level.gain.setValueAtTime(Math.max(0.0002, (vel * 0.12) / (index + 1)), t);
+        level.gain.exponentialRampToValueAtTime(0.0001, t + Math.max(0.02, len));
+        ring.connect(band).connect(level).connect(out);
+        ring.start(t);
+        stopAt([ring], t + len + 0.03);
+      });
+      const strike = noiseSource(ctx, t, 0.05);
+      const hp = ctx.createBiquadFilter();
+      hp.type = 'highpass';
+      hp.frequency.value = 1600 + env.tone * 2600;
+      const ng = ctx.createGain();
+      ng.gain.setValueAtTime(vel * 0.32, t);
+      ng.gain.exponentialRampToValueAtTime(0.0001, t + 0.022);
+      strike.connect(hp).connect(ng).connect(out);
+      break;
+    }
+    case 'prism': {
+      const freq = mtof(pitch + (channel.transpose ?? 0));
+      const ratios = [1, 2.01, 3.02, 4.05, 5.12, 7.06, 9.1];
+      const master = adsr(ctx, vel * 0.5, t, dur, { ...env, release: Math.max(0.3, env.release) });
+      master.connect(out);
+      const oscs: OscillatorNode[] = [];
+      ratios.forEach((ratio, index) => {
+        const osc = ctx.createOscillator();
+        osc.type = 'sine';
+        // Higher partials stretch further out of tune as Tone rises, which is
+        // what makes the spectrum feel metallic rather than organ-like.
+        osc.frequency.value = freq * (ratio + index * 0.004 * env.tone);
+        osc.detune.value = (index % 2 === 0 ? 5 : -5) * env.tone;
+        const level = ctx.createGain();
+        const peak = (0.62 / (index + 1.4)) * (0.55 + env.tone * 0.6);
+        const decay = Math.max(0.08, 0.9 / (index * 0.55 + 1) + env.decay * 0.4);
+        level.gain.setValueAtTime(0.0001, t);
+        level.gain.exponentialRampToValueAtTime(Math.max(0.0002, peak), t + Math.max(0.004, env.attack));
+        level.gain.exponentialRampToValueAtTime(Math.max(0.0002, peak * 0.32), t + decay);
+        osc.connect(level).connect(master);
+        osc.start(t);
+        oscs.push(osc);
+      });
+      stopAt(oscs, t + Math.max(dur, 0.3) + env.release + 0.2);
+      break;
+    }
+    case 'sundial': {
+      const freq = mtof(pitch + (channel.transpose ?? 0));
+      const filter = ctx.createBiquadFilter();
+      filter.type = 'lowpass';
+      filter.Q.value = 2.4 + env.tone * 5;
+      const open = 700 + env.tone * 5200;
+      filter.frequency.setValueAtTime(open, t);
+      filter.frequency.exponentialRampToValueAtTime(Math.max(180, open * (0.25 + env.decay * 0.3)), t + 0.2 + env.decay * 0.6);
+      const g = adsr(ctx, vel * 0.48, t, dur, env);
+      filter.connect(g).connect(out);
+      const oscs: OscillatorNode[] = [];
+      [-9, 0, 9].forEach((cents, index) => {
+        const osc = ctx.createOscillator();
+        osc.type = 'sawtooth';
+        osc.frequency.value = freq;
+        osc.detune.value = cents;
+        const level = ctx.createGain();
+        level.gain.value = index === 1 ? 0.55 : 0.4;
+        osc.connect(level).connect(filter);
+        osc.start(t);
+        oscs.push(osc);
+      });
+      const sub = ctx.createOscillator();
+      sub.type = 'square';
+      sub.frequency.value = freq / 2;
+      const subGain = ctx.createGain();
+      subGain.gain.value = 0.18;
+      sub.connect(subGain).connect(filter);
+      sub.start(t);
+      oscs.push(sub);
+      stopAt(oscs, t + Math.max(dur, 0.2) + env.release + 0.15);
+      break;
+    }
+    case 'cordwood': {
+      const freq = mtof(pitch + (channel.transpose ?? 0));
+      const delay = ctx.createDelay(0.2);
+      delay.delayTime.value = Math.min(0.05, Math.max(0.0015, 1 / freq));
+      const damp = ctx.createBiquadFilter();
+      damp.type = 'lowpass';
+      damp.frequency.value = 1200 + env.tone * 6800;
+      const feedback = ctx.createGain();
+      feedback.gain.value = Math.min(0.985, 0.92 + env.tone * 0.06);
+      delay.connect(damp).connect(feedback).connect(delay);
+      // A noise burst is the plectrum; the delay loop is the string.
+      const burst = noiseSource(ctx, t, 0.06);
+      const excitation = ctx.createGain();
+      excitation.gain.setValueAtTime(vel * 0.8, t);
+      excitation.gain.exponentialRampToValueAtTime(0.0001, t + 0.03);
+      burst.connect(excitation).connect(delay);
+      const g = adsr(ctx, vel * 0.65, t, Math.max(dur, 0.1), {
+        ...env,
+        decay: Math.min(0.35, env.decay),
+        release: Math.max(0.2, env.release),
+      });
+      damp.connect(g).connect(out);
+      break;
+    }
+    case 'vector9': {
+      const freq = mtof(pitch + (channel.transpose ?? 0));
+      const carrier = ctx.createOscillator();
+      carrier.type = 'sine';
+      carrier.frequency.value = freq;
+      const modA = ctx.createOscillator();
+      modA.type = 'sine';
+      modA.frequency.value = freq * 2;
+      const modB = ctx.createOscillator();
+      modB.type = 'sine';
+      modB.frequency.value = freq * 3.01;
+      const indexA = ctx.createGain();
+      indexA.gain.setValueAtTime(freq * (1.2 + env.tone * 4.5), t);
+      indexA.gain.exponentialRampToValueAtTime(freq * 0.12, t + 0.16 + env.decay * 0.5);
+      const indexB = ctx.createGain();
+      indexB.gain.setValueAtTime(freq * (0.4 + env.tone * 1.6), t);
+      indexB.gain.exponentialRampToValueAtTime(freq * 0.04, t + 0.22 + env.decay * 0.4);
+      modA.connect(indexA).connect(carrier.frequency);
+      modB.connect(indexB).connect(carrier.frequency);
+      const saw = ctx.createOscillator();
+      saw.type = 'sawtooth';
+      saw.frequency.value = freq;
+      const sawGain = ctx.createGain();
+      sawGain.gain.value = 0.18;
+      const filter = ctx.createBiquadFilter();
+      filter.type = 'lowpass';
+      filter.Q.value = 2.2;
+      filter.frequency.setValueAtTime(900 + env.tone * 5200, t);
+      filter.frequency.exponentialRampToValueAtTime(320 + env.tone * 600, t + 0.25 + env.decay * 0.4);
+      const g = adsr(ctx, vel * 0.55, t, dur, env);
+      carrier.connect(filter);
+      saw.connect(sawGain).connect(filter);
+      filter.connect(g).connect(out);
+      carrier.start(t);
+      modA.start(t);
+      modB.start(t);
+      saw.start(t);
+      stopAt([carrier, modA, modB, saw], t + Math.max(dur, 0.2) + env.release + 0.2);
+      break;
+    }
+    case 'acidwell': {
+      const freq = mtof(pitch + (channel.transpose ?? 0));
+      const osc = ctx.createOscillator();
+      osc.type = 'sawtooth';
+      osc.frequency.value = freq;
+      const square = ctx.createOscillator();
+      square.type = 'square';
+      square.frequency.value = freq;
+      square.detune.value = -1200;
+      const squareGain = ctx.createGain();
+      squareGain.gain.value = 0.22;
+      const filter = ctx.createBiquadFilter();
+      filter.type = 'lowpass';
+      // Keep Q in a stable range: a very high resonance plus a fast exponential
+      // sweep makes some browsers report an unstable BiquadFilter.
+      filter.Q.value = 7 + env.tone * 7;
+      const accent = velocity > 0.8 ? 1.35 : 1;
+      filter.frequency.setValueAtTime((280 + env.tone * 2400) * accent, t);
+      filter.frequency.linearRampToValueAtTime(Math.max(120, 160 + env.tone * 340), t + 0.12 + env.decay * 0.35);
+      const curve = new Float32Array(256);
+      for (let i = 0; i < curve.length; i += 1) {
+        const x = (i / (curve.length - 1)) * 2 - 1;
+        curve[i] = Math.tanh(x * (1.4 + env.tone * 3));
+      }
+      const shaper = ctx.createWaveShaper();
+      shaper.curve = curve;
+      shaper.oversample = '2x';
+      const g = adsr(ctx, vel * 0.72, t, dur, { ...env, release: Math.max(0.1, env.release) });
+      osc.connect(filter);
+      square.connect(squareGain).connect(filter);
+      filter.connect(shaper).connect(g).connect(out);
+      osc.start(t);
+      square.start(t);
+      stopAt([osc, square], t + Math.max(dur, 0.15) + env.release + 0.15);
+      break;
+    }
+    case 'dice': {
+      // The channel seeds the patch, so the instrument is stable across notes
+      // and bounces but different on every new channel.
+      let seed = 2166136261;
+      const text = `${channel.id}:${channel.name}`;
+      for (let i = 0; i < text.length; i += 1) {
+        seed ^= text.charCodeAt(i);
+        seed = Math.imul(seed, 16777619);
+      }
+      const rand = () => {
+        seed = Math.imul(seed ^ (seed >>> 15), 2246822507);
+        seed ^= seed >>> 13;
+        return (seed >>> 0) / 4294967296;
+      };
+      const waves: OscillatorType[] = ['sawtooth', 'square', 'triangle', 'sine'];
+      const freq = mtof(pitch + (channel.transpose ?? 0));
+      const filter = ctx.createBiquadFilter();
+      filter.type = 'lowpass';
+      filter.Q.value = 1.5 + rand() * 8;
+      const cutoff = 380 + rand() * 4200;
+      filter.frequency.setValueAtTime(cutoff + env.tone * 3000, t);
+      filter.frequency.exponentialRampToValueAtTime(Math.max(160, cutoff * (0.3 + rand() * 0.4)), t + 0.18 + env.decay * 0.5);
+      const g = adsr(ctx, vel * 0.5, t, dur, env);
+      filter.connect(g).connect(out);
+      const oscs: OscillatorNode[] = [];
+      const count = 2 + Math.floor(rand() * 2);
+      for (let i = 0; i < count; i += 1) {
+        const osc = ctx.createOscillator();
+        osc.type = waves[Math.floor(rand() * waves.length)];
+        osc.frequency.value = freq * (i === 0 ? 1 : rand() > 0.6 ? 2 : 1.005);
+        osc.detune.value = -20 + rand() * 40;
+        const level = ctx.createGain();
+        level.gain.value = 0.45 / (i + 1);
+        osc.connect(level).connect(filter);
+        osc.start(t);
+        oscs.push(osc);
+      }
+      if (rand() > 0.5) {
+        const sub = ctx.createOscillator();
+        sub.type = 'sine';
+        sub.frequency.value = freq / 2;
+        const subGain = ctx.createGain();
+        subGain.gain.value = 0.25;
+        sub.connect(subGain).connect(filter);
+        sub.start(t);
+        oscs.push(sub);
+      }
+      stopAt(oscs, t + Math.max(dur, 0.2) + env.release + 0.2);
+      break;
+    }
+    case 'dustdevil': {
+      const sampleBuffer = channel.sample ? SAMPLE_BANK.get(channel.sample.id) : undefined;
+      const sourceBuffer = sampleBuffer ?? noiseBuffer(ctx);
+      const usable = Math.max(0.05, Math.min(1, sourceBuffer.duration));
+      const grainCount = Math.max(6, Math.min(24, Math.ceil(Math.max(dur, 0.15) / 0.03)));
+      const rate = Math.pow(2, pitchShift / 12);
+      for (let i = 0; i < grainCount; i += 1) {
+        const src = ctx.createBufferSource();
+        src.buffer = sourceBuffer;
+        src.playbackRate.value = rate * (0.85 + Math.random() * 0.3);
+        const start = t + i * 0.018;
+        const offset = sampleBuffer
+          ? Math.random() * Math.max(0, sourceBuffer.duration - 0.12)
+          : Math.random() * Math.max(0, usable - 0.12);
+        const band = ctx.createBiquadFilter();
+        band.type = 'bandpass';
+        band.frequency.value = 500 + Math.random() * (1200 + env.tone * 5200);
+        band.Q.value = 1.2 + Math.random() * 2.4;
+        const g = ctx.createGain();
+        const peak = (vel * 0.5) / Math.sqrt(grainCount);
+        g.gain.setValueAtTime(0.0001, start);
+        g.gain.exponentialRampToValueAtTime(Math.max(0.0002, peak), start + 0.006);
+        g.gain.exponentialRampToValueAtTime(0.0001, start + 0.09);
+        src.connect(band).connect(g).connect(out);
+        src.start(start, offset, 0.1);
+        try {
+          src.stop(start + 0.12);
+        } catch {
+          /* already stopped */
+        }
+      }
+      break;
+    }
+    case 'chatter': {
+      const freq = mtof(pitch + (channel.transpose ?? 0));
+      const g = adsr(ctx, vel * 0.5, t, dur, { ...env, release: Math.max(0.2, env.release) });
+      g.connect(out);
+      const vowel = 0.75 + env.tone * 0.7;
+      const formants = [
+        { hz: 700, q: 7, level: 0.55 },
+        { hz: 1150, q: 9, level: 0.36 },
+        { hz: 2600, q: 12, level: 0.16 },
+      ];
+      const oscs: OscillatorNode[] = [];
+      [-6, 6].forEach((cents) => {
+        const osc = ctx.createOscillator();
+        osc.type = 'sawtooth';
+        osc.frequency.value = freq;
+        osc.detune.value = cents;
+        // A slow pitch wobble keeps the voice from sounding like a static saw.
+        const vibrato = ctx.createOscillator();
+        vibrato.frequency.value = 5.2;
+        const vibratoDepth = ctx.createGain();
+        vibratoDepth.gain.value = 4 + env.tone * 8;
+        vibrato.connect(vibratoDepth).connect(osc.detune);
+        vibrato.start(t);
+        oscs.push(vibrato);
+        formants.forEach((formant) => {
+          const band = ctx.createBiquadFilter();
+          band.type = 'bandpass';
+          band.frequency.value = formant.hz * vowel;
+          band.Q.value = formant.q;
+          const level = ctx.createGain();
+          level.gain.value = formant.level;
+          osc.connect(band).connect(level).connect(g);
+        });
+        osc.start(t);
+        oscs.push(osc);
+      });
+      // Consonant-like noise at the onset, plus breath through the vowel.
+      const onset = noiseSource(ctx, t, 0.06);
+      const onsetBand = ctx.createBiquadFilter();
+      onsetBand.type = 'bandpass';
+      onsetBand.frequency.value = 2400 + env.tone * 3000;
+      onsetBand.Q.value = 1.4;
+      const onsetGain = ctx.createGain();
+      onsetGain.gain.setValueAtTime(vel * 0.25, t);
+      onsetGain.gain.exponentialRampToValueAtTime(0.0001, t + 0.045);
+      onset.connect(onsetBand).connect(onsetGain).connect(out);
+      const air = noiseSource(ctx, t, Math.max(dur, 0.2) + env.release);
+      const airBand = ctx.createBiquadFilter();
+      airBand.type = 'bandpass';
+      airBand.frequency.value = 1800 + env.tone * 2000;
+      airBand.Q.value = 0.8;
+      const airGain = ctx.createGain();
+      airGain.gain.value = vel * 0.05;
+      air.connect(airBand).connect(airGain).connect(g);
+      stopAt(oscs, t + Math.max(dur, 0.2) + env.release + 0.2);
+      break;
+    }
+    case 'hammerfelt': {
+      const freq = mtof(pitch + (channel.transpose ?? 0));
+      const ratios = [1, 2, 3, 4.02, 5.05, 6.08, 7.16];
+      const master = adsr(ctx, vel * 0.55, t, dur, { ...env, release: Math.max(0.25, env.release) });
+      master.connect(out);
+      const oscs: OscillatorNode[] = [];
+      ratios.forEach((ratio, index) => {
+        const osc = ctx.createOscillator();
+        osc.type = 'sine';
+        osc.frequency.value = freq * ratio * (1 + index * 0.0006 * env.tone);
+        osc.detune.value = (index % 2 === 0 ? 2 : -2) * env.tone;
+        const level = ctx.createGain();
+        const peak = 0.7 / Math.pow(index + 1, 1.35);
+        const decay = Math.max(0.12, 0.7 / (index * 0.7 + 1) + env.decay * 0.3);
+        level.gain.setValueAtTime(0.0001, t);
+        level.gain.exponentialRampToValueAtTime(Math.max(0.0002, peak), t + 0.004 + index * 0.0015);
+        level.gain.exponentialRampToValueAtTime(Math.max(0.0002, peak * 0.25), t + decay);
+        osc.connect(level).connect(master);
+        osc.start(t);
+        oscs.push(osc);
+      });
+      const hammer = noiseSource(ctx, t, 0.04);
+      const hammerBand = ctx.createBiquadFilter();
+      hammerBand.type = 'bandpass';
+      hammerBand.frequency.value = 1200 + env.tone * 2200;
+      hammerBand.Q.value = 0.9;
+      const hammerGain = ctx.createGain();
+      hammerGain.gain.setValueAtTime(vel * 0.18, t);
+      hammerGain.gain.exponentialRampToValueAtTime(0.0001, t + 0.025);
+      hammer.connect(hammerBand).connect(hammerGain).connect(out);
+      stopAt(oscs, t + Math.max(dur, 0.25) + env.release + 0.2);
+      break;
+    }
     case 'sample': {
       const buf = channel.sample ? SAMPLE_BANK.get(channel.sample.id) : undefined;
       if (!buf) {

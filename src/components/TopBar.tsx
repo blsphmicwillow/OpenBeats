@@ -113,6 +113,7 @@ export function TopBar() {
     ...(layouts.length
       ? layouts.map((layout) => ({
           label: layout.name,
+          checked: ui.activeLayout === layout.id,
           onClick: () => applyWorkspaceLayout(layout.id),
         }))
       : [{ label: 'No saved layouts yet', disabled: true } as MenuItem]),

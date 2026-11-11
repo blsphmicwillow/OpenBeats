@@ -329,6 +329,7 @@ export const useApp = create<AppState>((set, get) => ({
   settings: storedSettings,
   ui: {
     tab: 'playlist',
+    activeLayout: null,
     browserOpen: true,
     rackWidth: 470,
     browserWidth: 232,
@@ -410,7 +411,20 @@ export const useApp = create<AppState>((set, get) => ({
   },
 
   setUI(patch) {
-    set((s) => ({ ui: { ...s.ui, ...patch } }));
+    set((s) => {
+      const ui = { ...s.ui, ...patch };
+      // A saved layout stops being "active" as soon as its workspace geometry,
+      // visibility or view changes. Comparing values keeps no-op clicks from
+      // clearing the tick.
+      const changed =
+        ui.rackWidth !== s.ui.rackWidth ||
+        ui.browserWidth !== s.ui.browserWidth ||
+        ui.lowerHeight !== s.ui.lowerHeight ||
+        ui.browserOpen !== s.ui.browserOpen ||
+        ui.tab !== s.ui.tab;
+      if (changed && patch.activeLayout === undefined) ui.activeLayout = null;
+      return { ui };
+    });
   },
 
   hint(text) {
@@ -1164,6 +1178,8 @@ export const useApp = create<AppState>((set, get) => ({
       },
       { coalesce },
     );
+    // Collapsing or expanding a strip changes a saved layout's group state.
+    if (patch.collapsed !== undefined && get().ui.activeLayout) get().setUI({ activeLayout: null });
   },
 
   setAutomation(stripId, target, points, coalesce) {
@@ -1351,6 +1367,7 @@ export const useApp = create<AppState>((set, get) => ({
     get().patchSettings({
       layouts: [...settings.layouts.filter((item) => item.name !== trimmed), layout],
     });
+    get().setUI({ activeLayout: layout.id });
     get().toast(`Layout “${trimmed}” saved`);
   },
 
@@ -1363,6 +1380,7 @@ export const useApp = create<AppState>((set, get) => ({
       lowerHeight: layout.lowerHeight,
       browserOpen: layout.browserOpen,
       tab: layout.tab,
+      activeLayout: layout.id,
     });
     const groups = new Set(layout.collapsedGroups);
     get().patchProject(

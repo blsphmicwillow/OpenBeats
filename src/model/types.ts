@@ -29,7 +29,27 @@ export type PresetId =
   | 'pluck'
   | 'pad'
   | 'fx'
-  | 'sample';
+  | 'sample'
+  /** Physical-model drum shell (Anvil). */
+  | 'anvil'
+  /** Additive spectral synth (Prism). */
+  | 'prism'
+  /** Three-saw analog poly (Sundial). */
+  | 'sundial'
+  /** Karplus-Strong plucked string (Cordwood). */
+  | 'cordwood'
+  /** Two-operator FM hybrid (Vector Nine). */
+  | 'vector9'
+  /** Resonant mono acid bass (Acid Well). */
+  | 'acidwell'
+  /** Generative patch (Dice). */
+  | 'dice'
+  /** Granular cloud (Dust Devil). */
+  | 'dustdevil'
+  /** Formant vocal synth (Chatter). */
+  | 'chatter'
+  /** Felted physical piano (Hammer Felt). */
+  | 'hammerfelt';
 
 export type EffectType =
   | 'eq3'
@@ -374,6 +394,8 @@ export interface UpdateInfo {
 
 export interface UIState {
   tab: WorkspaceTab;
+  /** Id of the saved workspace layout currently in effect, if any. */
+  activeLayout: string | null;
   browserOpen: boolean;
   rackWidth: number;
   browserWidth: number;

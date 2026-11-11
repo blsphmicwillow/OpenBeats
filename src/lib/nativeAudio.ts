@@ -16,6 +16,7 @@ import {
   songLengthSteps,
 } from '../audio/sequencer';
 import { invokeNative, isNative, nativeInvoke } from './native';
+import { nativeVoiceId } from './nativeVoices';
 
 export interface PlaybackChannelSnapshot {
   id: string;
@@ -213,7 +214,7 @@ export function buildPlaybackSnapshot(
     start_step: Math.max(0, Math.round(startStep)),
     channels: project.channels.map((channel) => ({
       id: channel.id,
-      preset: channel.preset,
+      preset: nativeVoiceId(channel.preset),
       gain: channel.gain,
       pan: channel.pan,
       mute: channel.mute,
@@ -880,7 +881,7 @@ export async function nativePlayTestNote(opts: {
 }): Promise<void> {
   if (!isNative()) return;
   await nativeInvoke<null>('play_test_note', {
-    preset: opts.preset,
+    preset: nativeVoiceId(opts.preset),
     pitch: opts.pitch,
     velocity: opts.velocity ?? 0.85,
     gain: opts.gain ?? 0.9,

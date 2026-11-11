@@ -53,6 +53,16 @@ export const PRESETS: PresetDef[] = [
   { id: 'pad', name: 'Warm Pad', category: 'Synth', blurb: 'Slow evolving pad', root: 60, tone: 0.4, decay: 0.8, attack: 0.45, release: 0.7, gain: 0.55, poly: true },
   { id: 'fx', name: 'Riser FX', category: 'FX', blurb: 'Noise riser for transitions', root: 60, tone: 0.6, decay: 0.9, attack: 0.5, release: 0.6, gain: 0.5, poly: false },
   { id: 'sample', name: 'Sampler', category: 'Sampler', blurb: 'Drop in your own one-shot', root: 60, tone: 0.5, decay: 0.6, attack: 0, release: 0.2, gain: 0.85, poly: true },
+  { id: 'anvil', name: 'Anvil', category: 'Drums', blurb: 'Modelled drum shell with a struck metal ring', root: 36, tone: 0.45, decay: 0.4, attack: 0, release: 0.08, gain: 0.9, poly: false },
+  { id: 'prism', name: 'Prism', category: 'Synth', blurb: 'Additive spectrum that drifts as it decays', root: 60, tone: 0.55, decay: 0.6, attack: 0.01, release: 0.5, gain: 0.6, poly: true },
+  { id: 'sundial', name: 'Sundial', category: 'Synth', blurb: 'Three-saw analog poly with a moving filter', root: 57, tone: 0.5, decay: 0.5, attack: 0.05, release: 0.35, gain: 0.62, poly: true },
+  { id: 'cordwood', name: 'Cordwood', category: 'Keys', blurb: 'Physical string excited by a noise pluck', root: 60, tone: 0.5, decay: 0.55, attack: 0.002, release: 0.3, gain: 0.65, poly: true },
+  { id: 'vector9', name: 'Vector Nine', category: 'Synth', blurb: 'Two-operator FM through a resonant filter', root: 60, tone: 0.5, decay: 0.5, attack: 0.01, release: 0.3, gain: 0.6, poly: true },
+  { id: 'acidwell', name: 'Acid Well', category: 'Bass', blurb: 'Resonant mono bass with an accent bite', root: 33, tone: 0.55, decay: 0.35, attack: 0.005, release: 0.15, gain: 0.7, poly: false },
+  { id: 'dice', name: 'Dice', category: 'Synth', blurb: 'A fresh generative patch seeded by the channel', root: 60, tone: 0.5, decay: 0.5, attack: 0.02, release: 0.3, gain: 0.55, poly: true },
+  { id: 'dustdevil', name: 'Dust Devil', category: 'Sampler', blurb: 'Granular cloud from a loaded sample or noise', root: 60, tone: 0.5, decay: 0.6, attack: 0.05, release: 0.4, gain: 0.6, poly: true },
+  { id: 'chatter', name: 'Chatter', category: 'FX', blurb: 'Formant vocal synth with consonant bursts', root: 60, tone: 0.5, decay: 0.5, attack: 0.03, release: 0.25, gain: 0.55, poly: true },
+  { id: 'hammerfelt', name: 'Hammer Felt', category: 'Keys', blurb: 'Felted piano with inharmonic partials', root: 60, tone: 0.45, decay: 0.6, attack: 0.003, release: 0.35, gain: 0.65, poly: true },
 ];
 
 export function presetDef(id: PresetId): PresetDef {
