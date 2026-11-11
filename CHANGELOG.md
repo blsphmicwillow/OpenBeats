@@ -3,6 +3,49 @@
 The same entries are bundled into the app and shown in the **Changelog** tab, so the notes ship with the build.
 Keep this file and `src/lib/changelog.ts` in sync, and bump `APP_VERSION` in `src/lib/version.ts`.
 
+## 1.0.5 — 2026-11-11
+
+**OpenBeats v1.0.5 — playlist audio clips, honest engine documentation and an automated theme audit.**
+
+Linux, Windows and macOS installers are built by CI from the `v1.0.5` tag and attached to that GitHub release.
+1.0.4 stays available from its own tag.
+
+### Playlist audio clips (Web Audio only)
+
+- Drop a WAV, MP3, OGG, FLAC or AIFF file on a playlist lane to create an audio clip with a waveform, gain, pan,
+  fade and loop controls. Clips follow the loop region: a wrap resumes at the wrapped offset instead of going silent.
+- Waveforms are built as a peak pyramid in a Web Worker with progressive level-of-detail, so a five-minute 48 kHz
+  stereo file does not block the UI thread. The pyramid builds in about 53 ms (measured).
+- Media bytes are SHA-256 addressed in the WebView's IndexedDB, so a reopened project can verify its media.
+  **Native app-data persistence is planned for 1.1**; 1.0.5 caches media in the WebView.
+- **This feature runs in Web Audio only.** The Rust/CPAL engine has no audio-clip voice, so the playlist toolbar
+  reads “Playlist audio clips: Web Audio (desktop native pending).”
+
+### Documentation corrections
+
+- The engine split is now stated where users look: CPAL runs the transport, the 16 voices and the master
+  EQ → compressor → limiter; reverb, delay, drive, filter and the 10-band EQ are Web Audio only; mixer routing,
+  automation lanes and the modular effect graph are tested in Rust but not wired into the CPAL callback.
+- Desktop playback and offline bounce can diverge, and per-clip pan is applied per note by Rust while the Web Audio
+  fallback uses channel pan.
+- Plugin copy matches reality: hosting exists on Windows/macOS through an out-of-process helper, but inserts are not
+  routed into the audio callback and Linux hosting is unsupported, so loading plugins into the mixer is still not
+  implemented.
+
+### Quality
+
+- New `scripts/qa-visual.mjs` measures WCAG contrast for all 11 built-in themes in both interface modes
+  (22 combinations) and writes `docs/QA_THEMES_1.0.5.md` with screenshots.
+- **22/22 combinations pass WCAG AA** (4.5:1 body text, 3:1 large/UI). Mint Studio and Studio 2006 needed a small
+  `--dim` adjustment to clear the bar.
+- Vitest covers playlist audio clips and pack import, and a root Cargo workspace makes `cargo test -p openbeats`
+  work from the repository root.
+
+### Verification
+
+- `npm test`, `npm run typecheck` and `cargo test` pass locally, and 22/22 theme combinations pass the contrast
+  harness.
+
 ## 1.0.4 — 2026-11-10
 
 **OpenBeats v1.0.4 — working microphone capture on Windows and macOS.**

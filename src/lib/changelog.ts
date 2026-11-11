@@ -11,6 +11,40 @@ export interface ChangelogEntry {
  */
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '1.0.5',
+    date: '2026-11-11',
+    headline: 'Playlist audio clips, honest engine docs and an automated theme audit.',
+    groups: [
+      {
+        title: 'Playlist audio clips (Web Audio only)',
+        items: [
+          'Drop a WAV, MP3, OGG, FLAC or AIFF file on a playlist lane to get an audio clip with a waveform, gain, pan, fades and loop controls.',
+          'Clips follow the loop region: a wrap resumes at the wrapped offset instead of going silent.',
+          'Waveforms build as a peak pyramid in a Web Worker with progressive level-of-detail, so a five-minute 48 kHz file does not block the UI.',
+          'Media bytes are SHA-256 addressed in the WebView IndexedDB; native app-data persistence is planned for 1.1.',
+          'This is Web Audio only: the Rust/CPAL engine has no audio-clip voice, and the playlist says so.',
+        ],
+      },
+      {
+        title: 'Documentation corrections',
+        items: [
+          'CPAL runs the transport, 16 voices and the master EQ → compressor → limiter; reverb, delay, drive, filter and the 10-band EQ are Web Audio only.',
+          'Mixer routing, automation lanes and the modular effect graph are tested in Rust but not wired into the CPAL callback.',
+          'Desktop playback and offline bounce can diverge, and per-clip pan is per-note in Rust versus channel pan in Web Audio.',
+          'Plugin hosting exists on Windows/macOS out-of-process, but inserts are not routed into the audio callback and Linux hosting is unsupported; loading plugins into the mixer is still not implemented.',
+        ],
+      },
+      {
+        title: 'Quality',
+        items: [
+          'scripts/qa-visual.mjs measures WCAG contrast for 11 themes × 2 interface modes and writes docs/QA_THEMES_1.0.5.md with screenshots.',
+          'All 22 combinations pass WCAG AA after a small --dim adjustment on Mint Studio and Studio 2006.',
+          'Vitest covers playlist audio clips and pack import, and a root Cargo workspace makes cargo test -p openbeats work from the repository root.',
+        ],
+      },
+    ],
+  },
+  {
     version: '1.0.4',
     date: '2026-11-10',
     headline: 'Working microphone capture on Windows and macOS.',
