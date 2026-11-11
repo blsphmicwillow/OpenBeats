@@ -136,7 +136,9 @@ export const THEMES: Theme[] = [
     panel3: '#d7ded7',
     border: '#b9c1b9',
     text: '#1d2620',
-    dim: '#69746b',
+    // QA 1.0.5: #69746b measured 4.28:1 on --bg. #5e6961 is 5.03:1 on --bg and
+    // 5.44:1 on --panel, keeping --text at 13.7:1 for hierarchy.
+    dim: '#5e6961',
     accent: '#0f9d58',
     accentText: '#ffffff',
     playhead: '#0b7d45',
@@ -196,7 +198,9 @@ export const THEMES: Theme[] = [
     panel3: '#41413c',
     border: '#101010',
     text: '#e8e2d4',
-    dim: '#948d7c',
+    // QA 1.0.5: #948d7c measured 4.30:1 on --panel and 4.24:1 on --panel2.
+    // #a49d8b is 5.25:1 on --panel and 4.70:1 on --panel2 (--text stays 9.8:1).
+    dim: '#a49d8b',
     accent: '#ff8a00',
     accentText: '#1a0f00',
     playhead: '#ffc247',
