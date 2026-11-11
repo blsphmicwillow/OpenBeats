@@ -626,12 +626,13 @@ export function playVoice(
       squareGain.gain.value = 0.22;
       const filter = ctx.createBiquadFilter();
       filter.type = 'lowpass';
-      // Keep Q in a stable range: a very high resonance plus a fast exponential
-      // sweep makes some browsers report an unstable BiquadFilter.
-      filter.Q.value = 7 + env.tone * 7;
+      // A high Q with an abrupt sweep can push a BiquadFilter into a bad state
+      // in Chromium. Smoothing with setTargetAtTime keeps the 303 bite without
+      // asking the filter for unstable coefficients.
+      filter.Q.value = 6 + env.tone * 5;
       const accent = velocity > 0.8 ? 1.35 : 1;
-      filter.frequency.setValueAtTime((280 + env.tone * 2400) * accent, t);
-      filter.frequency.linearRampToValueAtTime(Math.max(120, 160 + env.tone * 340), t + 0.12 + env.decay * 0.35);
+      filter.frequency.setValueAtTime((320 + env.tone * 2200) * accent, t);
+      filter.frequency.setTargetAtTime(Math.max(150, 180 + env.tone * 340), t + 0.02, 0.05 + env.decay * 0.12);
       const curve = new Float32Array(256);
       for (let i = 0; i < curve.length; i += 1) {
         const x = (i / (curve.length - 1)) * 2 - 1;

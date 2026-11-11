@@ -94,7 +94,25 @@ const STEPS: Step[] = [
           Every row is an instrument. Click the name to hear it, use <b>M</b> and <b>S</b> to mute or solo, and watch the
           thin meter for its level. The gear opens the instrument: preset, tone, envelope, transposition and routing.
         </p>
-        <p>Right-click a row for clone, unload, transpose and delete. <b>+ Channel</b> adds another one.</p>
+        <p>Right-click a row for clone, relink, unload, transpose and delete. <b>+ Channel</b> adds another one.</p>
+      </>
+    ),
+    target: '[data-tour="rack"]',
+  },
+  {
+    title: 'Ten new instruments',
+    body: (
+      <>
+        <p>
+          Beyond the classic drums and synths, the rack now ships ten original engines: <b>Anvil</b> (modelled drum),
+          <b>Prism</b> (additive), <b>Sundial</b> (analog poly), <b>Cordwood</b> (physical string), <b>Vector Nine</b> (FM),
+          <b>Acid Well</b> (resonant bass), <b>Dice</b> (generative), <b>Dust Devil</b> (granular), <b>Chatter</b>
+          (formant voice) and <b>Hammer Felt</b> (felted piano).
+        </p>
+        <p>
+          Audition them in the browser or pick one from the channel's Instrument menu. Tone, Decay, Attack and Release
+          shape each engine. ENGINE: Web Audio only — the desktop build plays the closest native voice for these ten.
+        </p>
       </>
     ),
     target: '[data-tour="rack"]',
@@ -166,6 +184,24 @@ const STEPS: Step[] = [
     ),
     target: '[data-tour="mixer"]',
     tab: 'mixer',
+  },
+  {
+    title: 'Linked channels, chains and layouts',
+    body: (
+      <>
+        <p>
+          <b>Linked</b> in the rack creates a channel with its own playlist track and mixer strip. Right-click a channel
+          and choose <b>Relink</b> to move it onto a fresh track and strip while its inserts, sends, gain, pan and group
+          come along.
+        </p>
+        <p>
+          On a mixer strip, <b>Chains</b> saves the insert chain as a template and recalls it on any other strip,
+          including the master. In Settings ▸ Appearance, save panel sizes, browser state, the active view and collapsed
+          groups as a named workspace layout; the View menu lists saved layouts and ticks the one in effect.
+        </p>
+      </>
+    ),
+    target: '[data-tour="mixer"]',
   },
   {
     title: 'Bounce, save and interchange',
