@@ -28,23 +28,23 @@ jobs:
             bundles: deb,rpm,appimage
             artifact: openbeats-linux
             path: |
-              src-tauri/target/release/bundle/deb/*.deb
-              src-tauri/target/release/bundle/rpm/*.rpm
-              src-tauri/target/release/bundle/appimage/*.AppImage
+              target/release/bundle/deb/*.deb
+              target/release/bundle/rpm/*.rpm
+              target/release/bundle/appimage/*.AppImage
           - label: Windows (MSI + NSIS)
             platform: windows-latest
             bundles: msi,nsis
             artifact: openbeats-windows
             path: |
-              src-tauri/target/release/bundle/msi/*.msi
-              src-tauri/target/release/bundle/nsis/*.exe
+              target/release/bundle/msi/*.msi
+              target/release/bundle/nsis/*.exe
           - label: macOS (DMG + app, Apple silicon)
             platform: macos-latest
             bundles: dmg,app
             artifact: openbeats-macos
             path: |
-              src-tauri/target/release/bundle/dmg/*.dmg
-              src-tauri/target/release/bundle/macos/*.app.zip
+              target/release/bundle/dmg/*.dmg
+              target/release/bundle/macos/*.app.zip
     runs-on: ${{ matrix.platform }}
     steps:
       - uses: actions/checkout@v4
@@ -109,7 +109,7 @@ jobs:
           exe=""
           if [ "${{ runner.os }}" = "Windows" ]; then exe=".exe"; fi
           mkdir -p binaries
-          cp "target/release/plughost-helper${exe}" "binaries/plughost-helper-${triple}${exe}"
+          cp "../target/release/plughost-helper${exe}" "binaries/plughost-helper-${triple}${exe}"
           ls -l binaries
 
       # Catch bundle-config regressions before spending time on installers.
@@ -174,10 +174,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          app="$(find src-tauri/target/release/bundle/macos -maxdepth 1 -name '*.app' -print -quit)"
+          app="$(find target/release/bundle/macos -maxdepth 1 -name '*.app' -print -quit)"
           test -n "$app" || { echo '::error::No macOS .app was produced'; exit 1; }
           ditto -c -k --sequesterRsrc --keepParent "$app" "${app}.zip"
-          ls -lh src-tauri/target/release/bundle/macos
+          ls -lh target/release/bundle/macos
 
       # Keep the existing Linux audio-runtime proof: the installers must contain
       # the GStreamer plugins and must not bundle a private FUSE runtime.
@@ -187,16 +187,16 @@ jobs:
         run: |
           set -euo pipefail
 
-          deb="$(find src-tauri/target/release/bundle/deb -maxdepth 1 -name '*.deb' -print -quit)"
+          deb="$(find target/release/bundle/deb -maxdepth 1 -name '*.deb' -print -quit)"
           test -n "$deb" || { echo '::error::No deb was produced'; exit 1; }
           dpkg-deb -f "$deb" Depends | grep -Fq 'gstreamer1.0-pulseaudio'
           dpkg-deb -f "$deb" Depends | grep -Fq 'gstreamer1.0-plugins-good'
 
-          rpm="$(find src-tauri/target/release/bundle/rpm -maxdepth 1 -name '*.rpm' -print -quit)"
+          rpm="$(find target/release/bundle/rpm -maxdepth 1 -name '*.rpm' -print -quit)"
           test -n "$rpm" || { echo '::error::No RPM was produced'; exit 1; }
           rpm -qp --requires "$rpm" | grep -Fq 'gstreamer1-plugins-good'
 
-          appimage="$(find src-tauri/target/release/bundle/appimage -maxdepth 1 -name '*.AppImage' -print -quit)"
+          appimage="$(find target/release/bundle/appimage -maxdepth 1 -name '*.AppImage' -print -quit)"
           test -n "$appimage" || { echo '::error::No AppImage was produced'; exit 1; }
           test -x "$appimage" || { echo '::error::AppImage is not executable'; exit 1; }
 
@@ -207,7 +207,7 @@ jobs:
           test -x squashfs-root/usr/bin/openbeats || { echo '::error::AppImage has no executable payload'; exit 1; }
           desktop="squashfs-root/usr/share/applications/OpenBeats.desktop"
           test -f "$desktop" || { echo '::error::AppImage has no desktop entry'; exit 1; }
-          version="$(node -p "require('./package.json').version")"
+          version="$(node -p "require(process.env.GITHUB_WORKSPACE + '/package.json').version")"
           grep -q "^X-AppImage-Version=${version}$" "$desktop" || { echo '::error::AppImage desktop entry has no matching X-AppImage-Version'; exit 1; }
           grep -q '^Exec=openbeats$' "$desktop" || { echo '::error::AppImage desktop entry has an unexpected Exec'; exit 1; }
           if find squashfs-root -iname 'libfuse*' -print -quit | grep -q .; then
