@@ -14,7 +14,12 @@ import type {
   MenuItem,
   Strip,
 } from '../model/types';
-import { automationValueAt, laneFor } from '../model/automation';
+import {
+  automationValueAt,
+  buildAutomationPreset,
+  laneFor,
+  type AutomationPresetId,
+} from '../model/automation';
 import { songLengthSteps } from '../audio/sequencer';
 
 function EqCurve({ effect, onChange }: { effect: Effect; onChange: (index: number, gain: number) => void }) {
@@ -139,12 +144,14 @@ function AutomationEditor({
   value,
   target,
   length,
+  barSteps,
   fallback,
   onChange,
 }: {
   value: AutomationPoint[];
   target: AutomationTarget;
   length: number;
+  barSteps: number;
   fallback: number;
   onChange: (points: AutomationPoint[]) => void;
 }) {
@@ -195,6 +202,17 @@ function AutomationEditor({
   const readout = points.length
     ? `${points.length} point${points.length === 1 ? '' : 's'} · ${target === 'pan' ? 'L/R' : '0–125%'} · ${selectedCurve} segment`
     : 'Click the lane to add a point';
+  const presets: { id: AutomationPresetId; label: string; disabled: boolean }[] = [
+    { id: 'fade-in', label: 'Fade in · 4 bars', disabled: target === 'pan' },
+    { id: 'tremolo', label: 'Tremolo · 1/8', disabled: false },
+    { id: 'ducking', label: 'Ducking · 1/4', disabled: target === 'pan' },
+  ];
+  const applyPreset = (preset: AutomationPresetId) => {
+    const next = buildAutomationPreset(target, preset, { length, barSteps });
+    if (!next.length) return;
+    setSelectedPoint(null);
+    onChange(next);
+  };
 
   return (
     <div className="automation-editor">
@@ -269,6 +287,25 @@ function AutomationEditor({
           {length}
         </text>
       </svg>
+      <div className="automation-presets">
+        <span className="lbl">Preset</span>
+        {presets.map((preset) => (
+          <button
+            key={preset.id}
+            className="tbtn small flat"
+            disabled={preset.disabled}
+            title={
+              preset.disabled
+                ? `${preset.label} applies to volume lanes`
+                : `Replace this lane with ${preset.label} — tempo-synced to the 16th grid`
+            }
+            onClick={() => applyPreset(preset.id)}
+          >
+            {preset.label}
+          </button>
+        ))}
+        <span className="tiny-note">replaces lane · tempo-synced</span>
+      </div>
       <div className="automation-segment-tools">
         <span className="lbl">Segment</span>
         {(['linear', 'hold', 'smooth'] as const).map((curve) => (
@@ -653,6 +690,7 @@ export function Mixer() {
           value={laneFor(selected, automationTarget).points}
           target={automationTarget}
           length={Math.max(16, songLengthSteps(project))}
+          barSteps={project.beatsPerBar * 4}
           fallback={automationTarget === 'pan' ? selected.pan : selected.gain}
           onChange={(points) => setAutomation(selected.id, automationTarget, points, `auto:${selected.id}:${automationTarget}`)}
         />

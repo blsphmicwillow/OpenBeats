@@ -1695,6 +1695,17 @@ textarea {
 .automation-lane text {
   pointer-events: none;
 }
+.automation-presets {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+  min-height: 22px;
+}
+.automation-presets .lbl {
+  font-size: 9px;
+}
+
 .automation-segment-tools {
   display: flex;
   align-items: center;

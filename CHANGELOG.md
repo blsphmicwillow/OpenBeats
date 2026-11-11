@@ -18,6 +18,7 @@ Keep this file and `src/lib/changelog.ts` in sync, and bump `APP_VERSION` in `sr
 - Browser samples can be dragged onto playlist lanes, and playlist drags no longer select surrounding interface text.
 - Offline export now includes playlist audio clips and reloads their media for saved projects before rendering.
 - Mixer **volume and pan automation lanes** with **linear, hold and smooth** segments. Click to add points, drag to edit, select a point and choose its outgoing segment shape, right-click to remove, and clear a lane from the mixer.
+- **Tempo-synced presets**: a four-bar smooth fade-in, a 1/8-note tremolo and a 1/4-note ducking pulse. Presets replace the selected lane and stay aligned to the 16th grid as the project tempo changes.
 - Automation is **Web Audio only**. Projects with automation points use the Web Audio transport for playback, and the same ramps are applied during offline bounce; native CPAL playback ignores automation.
 - Fixed offline export using pattern-local note steps instead of absolute song steps; later arrangement clips no longer collapse toward the start of the bounce.
 - REAPER `.rpp` export writes the marker list and import reads it back.

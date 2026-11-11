@@ -8,6 +8,7 @@ import type {
 } from './types';
 
 export const AUTOMATION_TARGETS: AutomationTarget[] = ['volume', 'pan'];
+export type AutomationPresetId = 'fade-in' | 'tremolo' | 'ducking';
 
 /** Safe ranges for the two supported strip targets. */
 export function automationRange(target: AutomationTarget): { min: number; max: number } {
@@ -90,6 +91,69 @@ export function automationValueAt(
     return left.value + (right.value - left.value) * eased;
   }
   return last.value;
+}
+
+export interface AutomationPresetOptions {
+  /** Length of the generated lane in 16th steps. */
+  length: number;
+  /** Steps in one bar, used to keep fade-in tempo-synced to bars. */
+  barSteps: number;
+}
+
+/**
+ * Builds grid-aligned, tempo-synced automation. The points are in 16th steps,
+ * so changing the project BPM moves the audio but keeps the musical timing of
+ * the fades, tremolo cycles and ducking pulses intact.
+ */
+export function buildAutomationPreset(
+  target: AutomationTarget,
+  preset: AutomationPresetId,
+  opts: AutomationPresetOptions,
+): AutomationPoint[] {
+  const length = Math.max(1, Math.round(opts.length));
+  const barSteps = Math.max(1, Math.round(opts.barSteps));
+  const points: AutomationPoint[] = [];
+  const add = (step: number, value: number, curve: AutomationCurve) => {
+    const safeStep = Math.max(0, Math.min(length, Math.round(step)));
+    if (points.some((point) => point.step === safeStep)) return;
+    points.push({
+      id: `ap_${preset}_${safeStep}`,
+      step: safeStep,
+      value: clampAutomationValue(target, value),
+      curve,
+    });
+  };
+
+  if (preset === 'fade-in') {
+    // Pan fade-in would be arbitrary; the mixer disables it for pan lanes.
+    if (target === 'pan') return [];
+    const end = Math.min(length, barSteps * 4);
+    add(0, 0, 'smooth');
+    add(end, 1, 'linear');
+    return points;
+  }
+
+  if (preset === 'tremolo') {
+    const high = target === 'pan' ? 0.8 : 1;
+    const low = target === 'pan' ? -0.8 : 0.2;
+    for (let step = 0; step <= length; step += 2) {
+      add(step, step % 4 === 0 ? high : low, 'smooth');
+    }
+    if (points[points.length - 1]?.step !== length) {
+      add(length, points[points.length - 1]?.value ?? high, 'linear');
+    }
+    return points;
+  }
+
+  // Ducking is a volume gesture; a pan version would not have a defined target.
+  if (target === 'pan') return [];
+  for (let beat = 0; beat <= length; beat += 4) {
+    add(beat, 1, 'smooth');
+    add(beat + 1, 0.3, 'smooth');
+    add(beat + 3, 1, 'smooth');
+  }
+  add(length, 1, 'linear');
+  return points;
 }
 
 export function laneHasPoints(strip: Strip, target: AutomationTarget): boolean {

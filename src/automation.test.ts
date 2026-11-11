@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   automationValueAt,
+  buildAutomationPreset,
   clampAutomationValue,
   laneFor,
   normalizeAutomation,
@@ -84,6 +85,31 @@ describe('mixer automation', () => {
     ]);
     expect(lanes[0].points[0].curve).toBe('hold');
     expect(lanes[0].points[1].curve).toBe('smooth');
+  });
+
+  it('builds tempo-synced fade-in, tremolo and ducking presets', () => {
+    const fade = buildAutomationPreset('volume', 'fade-in', { length: 128, barSteps: 16 });
+    expect(fade.map((point) => [point.step, point.value, point.curve])).toEqual([
+      [0, 0, 'smooth'],
+      [64, 1, 'linear'],
+    ]);
+
+    const tremolo = buildAutomationPreset('volume', 'tremolo', { length: 16, barSteps: 16 });
+    expect(tremolo.slice(0, 4).map((point) => [point.step, point.value])).toEqual([
+      [0, 1],
+      [2, 0.2],
+      [4, 1],
+      [6, 0.2],
+    ]);
+    expect(tremolo.every((point) => point.curve === 'smooth')).toBe(true);
+
+    const ducking = buildAutomationPreset('volume', 'ducking', { length: 16, barSteps: 16 });
+    expect(ducking.slice(0, 3).map((point) => [point.step, point.value])).toEqual([
+      [0, 1],
+      [1, 0.3],
+      [3, 1],
+    ]);
+    expect(buildAutomationPreset('pan', 'ducking', { length: 16, barSteps: 16 })).toEqual([]);
   });
 
   it('detects whether a project has any automation points', () => {

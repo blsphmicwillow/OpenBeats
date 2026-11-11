@@ -233,7 +233,7 @@ The version is bumped in the app, Tauri bundle and both Rust crates.
 - **Playlist** with pattern clips, **audio clips** and **named markers**. Drop a WAV/MP3/OGG/FLAC on a lane for an LOD waveform, gain/pan/fades and loop-aware playback. Add markers with F6, drag or rename them, jump with Alt+Left/Alt+Right, and loop from a marker to the next one. Selected clips expose gain, pan and fade controls, with visible fade handles and a one-click crossfade to the next overlapping clip. Track mute/solo, the loop region and the snap grid are unchanged.
   - **Playlist audio clips: Web Audio only in 1.0.6; native Rust playback pending.**
   - Media bytes are cached in the WebView (IndexedDB) with a SHA-256 integrity hash; native app-data persistence is planned for 1.1.
-- **Mixer** with inserts, sends, buses and a master strip; 8 native effect types (3-band and 10-band EQ, compressor, limiter, reverb, delay, drive, filter), plus **Web Audio volume/pan automation lanes** with linear, hold and smooth segments that render into offline bounces.
+- **Mixer** with inserts, sends, buses and a master strip; 8 native effect types (3-band and 10-band EQ, compressor, limiter, reverb, delay, drive, filter), plus **Web Audio volume/pan automation lanes** with linear, hold and smooth segments and tempo-synced fade-in, tremolo and ducking presets that render into offline bounces.
 - **Song / Pattern mode**, metronome, count-in, tempo and swing.
 - **Bounce** to 16/24-bit WAV at 44.1 or 48 kHz, with optional mastering targets.
 
