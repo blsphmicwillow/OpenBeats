@@ -180,6 +180,9 @@ of inventing a routing API.
 - `cargo build -p openbeats-clap-helper` — passed.
 - Sidecar acceptance probe — SCAN found `studio.openbeats.gain`, LOAD returned
   READY, PROCESS returned 64 finite stereo frames at the input RMS, exit 0.
+- `cargo test -p openbeats-clap-helper` — 3/3 passed: CLAP_PATH scan plus
+  load/process, unknown-ID and process-before-load errors, and killed-helper
+  detection. The fixture test skips when `OpenBeatsGain.clap` is absent.
 - `cargo check -p openbeats-plugins` — passed (Linux stub).
 - `cargo check -p openbeats-plughost-helper` — passed (Linux stub).
 - Linux dependency graph — no `plughost` crate.
