@@ -137,8 +137,9 @@ server, so no separate multimedia package list is required.
 ### Windows
 
 1. Download `OpenBeats_1.0.5_x64-setup.exe` (or the `.msi`) from the release.
-2. Run it. Current installers embed the WebView2 offline runtime, so the app
-   does not depend on a separate WebView2 download.
+2. Run it. Current installers use the WebView2 download bootstrapper: if
+   WebView2 is missing, setup downloads it once, so allow network access on the
+   first install.
 3. SmartScreen may warn because the build is not code-signed: **More info →
    Run anyway**.
 

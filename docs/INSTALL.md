@@ -200,9 +200,9 @@ Uninstall: `sudo dnf remove open-beats`.
 1. Download `OpenBeats_1.0.0_x64-setup.exe` from the release page.
 2. Run it and complete the installer. Administrators can deploy the `.msi`
    instead.
-3. The installer carries the WebView2 offline runtime and the Visual C++
-   runtime, so it does not need an internet connection or a preinstalled
-   Evergreen Runtime. No extra download is offered during setup.
+3. The installer carries the Visual C++ runtime and uses the WebView2 download
+   bootstrapper. If WebView2 is not already installed, setup downloads the
+   Evergreen Runtime once, so allow network access on the first install.
 4. The executable is unsigned, so SmartScreen may show “Windows protected your
    PC”. Choose **More info → Run anyway** only if the file came from the release
    page above.
@@ -297,7 +297,7 @@ More detail, including signing and release automation, is in
 | Transport turns green but the playhead does not move | Web Audio never resumed. Make sure a PipeWire-Pulse or PulseAudio server is running, restart the app, and click the window once before pressing Space. |
 | AppImage says “dlopen(): error loading libfuse.so.2” | Install FUSE 2, or run `./OpenBeats.AppImage --appimage-extract-and-run`. |
 | Blank white window on Linux | Install/repair Mesa/GPU drivers, then try `WEBKIT_DISABLE_COMPOSITING_MODE=1 openbeats`. |
-| Blank window on Windows | Reinstall with the current installer; it embeds the WebView2 runtime. If you built the installer yourself, rebuild with the repository's `tauri.conf.json`. |
+| Blank window on Windows | Reinstall with the current installer; it uses the WebView2 download bootstrapper. If WebView2 is missing, allow setup network access. If you built the installer yourself, rebuild with the repository's `tauri.conf.json`. |
 | macOS says the app is damaged | Clear quarantine with the `xattr` command above; do not disable Gatekeeper globally. |
 | “App is already running” / old version opens | Close all OpenBeats windows and relaunch; packages install side-by-side with a previously extracted AppImage only if both are kept. |
 | Plugins do not appear | VST3/AU/CLAP hosting is not implemented in 1.0.0. See [PLUGINS.md](PLUGINS.md). |

@@ -91,7 +91,7 @@
     "windows": {
       "bundleVCRuntime": true,
       "webviewInstallMode": {
-        "type": "offlineInstaller",
+        "type": "downloadBootstrapper",
         "silent": true
       }
     },

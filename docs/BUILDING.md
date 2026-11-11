@@ -33,7 +33,7 @@ end-user guide is [INSTALL.md](INSTALL.md).
 
 ### Windows
 - Visual Studio Build Tools with the **Desktop development with C++** workload (MSVC + Windows SDK).
-- WebView2 runtime (preinstalled on Windows 11; the installer can bundle it).
+- WebView2 runtime (preinstalled on Windows 11; the installer can download it when missing).
 
 ### macOS
 - Xcode command line tools (`xcode-select --install`). Universal builds need both `aarch64-apple-darwin` and `x86_64-apple-darwin` targets.
@@ -74,8 +74,11 @@ installs them before bundling. The AppImage still uses the host's PipeWire-Pulse
 or PulseAudio server.
 
 The `.deb` and `.rpm` packages declare GStreamer, the audio plugins and a
-PulseAudio-compatible server. Windows installers embed the WebView2 offline
-runtime and bundle the VC runtime; macOS uses the system WebKit/CoreAudio stack.
+PulseAudio-compatible server. Windows installers use the WebView2 download
+bootstrapper and bundle the VC runtime; macOS uses the system WebKit/CoreAudio
+stack. The bootstrapper downloads WebView2 during installation if the machine
+does not already have it, so the installer stays small and needs network access
+on first install.
 
 To verify a Linux bundle locally:
 
@@ -96,13 +99,21 @@ The version lives in three places and must match:
 
 ## Releases (GitHub Actions)
 
-`.github/workflows/release.yml` runs on pushes to `main`, pull requests and `v*` tags:
+`.github/workflows/release.yml` runs on pushes to `main`, `v*` tags and manual dispatches:
 
 1. **build** matrix on `ubuntu-22.04`, `windows-latest`, `macos-latest`.
-2. Installs the Linux system packages, Node and Rust, then runs `tauri-apps/tauri-action`.
-3. On a tag (`v1.2.0`) it creates a **draft GitHub Release** with every installer attached; publishing the draft makes it live and visible to the in-app update checker.
+2. Each job installs Node and Rust, installs the Linux system packages only on Ubuntu, runs `npm ci`, `npm run desktop:build -- --bundles …`, and uploads that platform's installers as workflow artifacts.
+3. A single **release** job waits for all three builds. On a `v*` tag it downloads every artifact and attaches the `.deb`, `.rpm`, `.AppImage`, `.msi`, NSIS `.exe`, `.dmg` and zipped `.app` to the GitHub Release with `softprops/action-gh-release`.
 
-Manual run: **Actions → Release → Run workflow**. Artifacts are also uploaded for every successful build, so you can test an installer without tagging.
+Manual run: **Actions → Release → Run workflow**. Every build also keeps its installers as downloadable workflow artifacts, so you can test a package without creating a tag. Tagging `v1.0.6` is enough to create or update the matching release.
+
+#### Platform notes
+
+- **macOS**: unsigned builds work but Gatekeeper shows the unidentified-developer warning. For signed and notarized builds, add `APPLE_CERTIFICATE` (base64 `.p12`), `APPLE_CERTIFICATE_PASSWORD`, `APPLE_SIGNING_IDENTITY`, `APPLE_ID`, `APPLE_PASSWORD` (app-specific password) and `APPLE_TEAM_ID` under **Settings → Secrets and variables → Actions**. The workflow passes them to Tauri when present.
+- **Windows**: the WebView2 download bootstrapper is configured in `src-tauri/tauri.conf.json`; the NSIS/MSI installers fetch the runtime if it is missing. An Authenticode certificate is optional and only affects SmartScreen warnings.
+- **Linux**: the workflow installs the same GTK, WebKitGTK, GStreamer and ALSA development packages listed above before bundling.
+
+Only the host platform can be bundled. A Linux runner cannot produce Windows or macOS installers; that is why the matrix uses native runners.
 
 ### Update signing (optional, for silent updates)
 
@@ -116,14 +127,14 @@ npm run tauri signer generate -- -w ~/.tauri/openbeats.key
 2. Set `plugins.updater.endpoints` to
    `https://github.com/blsphmicwillow/OpenBeats/releases/latest/download/latest.json`.
 3. Add repository secrets `TAURI_SIGNING_PRIVATE_KEY` and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`.
-4. Set `includeUpdaterJson: true` in the workflow's `tauri-action` step.
+4. Set `bundle.createUpdaterArtifacts: true` in `src-tauri/tauri.conf.json` and extend the release workflow to upload the generated `latest.json`.
 
 Never commit the private key.
 
 ### Code signing
 
 - **macOS**: set `APPLE_CERTIFICATE`, `APPLE_CERTIFICATE_PASSWORD`, `APPLE_SIGNING_IDENTITY`, `APPLE_ID`, `APPLE_PASSWORD`, `APPLE_TEAM_ID`. Unsigned builds trigger Gatekeeper warnings.
-- **Windows**: an Authenticode certificate avoids SmartScreen warnings; wire it through `tauri-action`'s signing inputs.
+- **Windows**: an Authenticode certificate avoids SmartScreen warnings. Configure `bundle.windows.certificateThumbprint` or a Tauri `signCommand` and provide the certificate through repository secrets; the checked-in workflow does not sign Windows binaries by default.
 
 ## Plugin example
 
