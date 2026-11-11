@@ -125,13 +125,6 @@ jobs:
         working-directory: src-tauri
         run: cargo test -p openbeats-audio --features device,fundsp-graph,decode,mp3
 
-      # The desktop crate needs GTK/WebKitGTK at link time, so its tests stay on
-      # the Linux runner. Windows and macOS still compile it in the build step.
-      - name: Desktop crate tests
-        if: matrix.platform == 'ubuntu-22.04'
-        working-directory: src-tauri
-        run: cargo test -p openbeats --lib
-
       # Linux uses the CLAP-only sidecar; Windows and macOS keep plughost.
       # Both must use the target-triple name Tauri's externalBin expects.
       - name: Stage Linux CLAP helper
@@ -145,6 +138,15 @@ jobs:
           mkdir -p binaries
           cp "../target/release/openbeats-clap-helper" "binaries/openbeats-clap-helper-${triple}"
           ls -l binaries
+
+      # Stage the sidecar before these tests: tauri-build validates externalBin
+      # while compiling the desktop crate.
+      # The desktop crate needs GTK/WebKitGTK at link time, so its tests stay on
+      # the Linux runner. Windows and macOS still compile it in the build step.
+      - name: Desktop crate tests
+        if: matrix.platform == 'ubuntu-22.04'
+        working-directory: src-tauri
+        run: cargo test -p openbeats --lib
 
       - name: Stage plugin host helper
         if: matrix.platform != 'ubuntu-22.04'
