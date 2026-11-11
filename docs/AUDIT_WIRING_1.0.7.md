@@ -96,15 +96,16 @@ Sequencer triggers
   -> clamp and output
 ```
 
-Everything before the master chain is summed into one stereo pair. There is no
-per-strip bus, no insert slot, no send bus and no automation evaluation in the
-callback.
+The callback now renders a per-channel insert/automation bus, then executes a
+precomputed `MixerGraph` routing plan (routes, sends, mute/solo) before the
+master chain. Sidechain ducking and the modular `effect_graph` are still not in
+the callback.
 
 ### 2.2 What exists but is offline-only
 
 | Module | Capability | Why it is not in the callback |
 | --- | --- | --- |
-| `mixer.rs` | `MixerGraph` with routing, sends, solo/mute, sidechain, cycle refusal; `render()` takes `&[(f32, f32)]` | Still offline: the callback now has per-strip frames, but routing/sends are not evaluated there. |
+| `mixer.rs` | `MixerGraph` with routing, sends, solo/mute, sidechain, cycle refusal; `render()` takes `&[(f32, f32)]` | Routing/sends/mute/solo are executed in the callback by `mixer_runtime.rs`; sidechain ducking remains offline. |
 | `automation.rs` | `AutomationLane`/`AutomationSet` with linear, hold and curved segments | Gain lanes on `PlaybackChannel` are now evaluated per frame; `AutomationSet` and arbitrary targets are still offline. |
 | `effect_graph.rs` | Mono modular graph (gain, low-pass, high-pass, drive) with cycle refusal | Still a Tauri command, not the callback; the per-strip chain uses its own stereo processors. |
 | `plugins` | `PluginHost` scan/open/process/recover on Windows/macOS; Linux stub | No frontend caller and no insert slot; Linux has a separate CLAP sidecar. |
@@ -112,21 +113,25 @@ callback.
 
 ## 3. Per-strip status
 
-**Per-strip gain inserts and gain automation are wired; routing/sends and
-plugin inserts are not.**
+**Per-strip inserts, volume automation, routing and sends are wired; sidechain
+and plugin inserts are not.**
 
-`PlaybackChannel` now carries `inserts` and `automation` with serde defaults,
-so old `.obeats` snapshots still parse. `CallbackState` owns one `VoicePool`
-per channel, one `StripProcessor` per channel and that channel's lanes. The
-callback renders each pool, applies its gain lane, runs its inserts, sums the
-strips, then runs the original master EQ -> compressor -> limiter chain.
+`PlaybackChannel` carries `mixer`, `inserts` and `automation` with serde
+defaults, so old `.obeats` snapshots still parse. `PlaybackProject` carries the
+`MixerGraph`. `CallbackState` owns one `VoicePool` per channel, one
+`StripProcessor` per channel, that channel's lanes, and a `MixerRuntime` built
+from the graph when playback starts. The callback renders each pool, applies
+its gain lane, runs its inserts, executes the precomputed route/send plan, then
+runs the unchanged master EQ -> compressor -> limiter chain.
 
 `strip.rs` implements seven native insert kinds: Gain, Eq3, Compressor,
-Limiter, Lowpass, Highpass and Drive. Reverb and delay do not exist in the Rust
-DSP, so they were not invented for this pass. `MixerGraph` routing/sends and
-plugin inserts are still not in the callback. The frontend snapshot does not
-send the new `inserts`/`automation` fields yet; Rust tests construct them
-directly.
+Limiter, Lowpass, Highpass and Drive. The React snapshot maps the existing
+`eq3`, `comp`, `limiter`, `drive` and `filter` effects to those native kinds and
+maps the volume lane to a native gain lane. `eq10`, reverb, delay, chorus,
+phaser, bitcrusher, tremolo, auto-pan and ring-mod have no native implementation
+and are skipped rather than approximated. Pan automation is not mapped.
+Sidechain ducking is parsed but not executed by `MixerRuntime`; plugin inserts
+are still not routed on any platform.
 
 Measured tests now cover:
 
@@ -135,7 +140,10 @@ Measured tests now cover:
 - a volume lane from 0 to 1 over eight steps: 0.0 at step 0, 0.5 at step 4,
   1.0 at step 8;
 - a low-pass insert attenuating a Nyquist-rate signal;
-- old project JSON defaulting to empty inserts and automation.
+- old project JSON defaulting to no mixer, inserts or automation;
+- routing and send isolation: a 0.5 strip gain affects only that strip, a 0.5
+  send reaches its bus without leaking into another channel, and mute/solo
+  follow the graph.
 
 ## 4. Prompt 1 status: Linux CLAP hosting
 
@@ -157,14 +165,15 @@ point exists on any platform, so a loaded plugin still cannot affect playback.
 
 ## 5. Prompt 2 status: wiring existing tools
 
-**Partial, with measured per-strip audio.** The per-channel voice pools,
-insert chain and one gain-automation path are implemented and unit-tested.
-What remains is not a small wiring patch:
+**Partial, with measured per-strip and routing audio.** The per-channel voice
+pools, insert chain, volume automation, routing and sends are implemented and
+unit-tested. What remains is not a small wiring patch:
 
-- `MixerGraph` free routing, sends and sidechain are still offline-only.
+- Sidechain ducking and the modular `effect_graph` are still offline-only.
 - Plugin inserts are not routed on any platform.
-- The React snapshot does not populate `inserts` or `automation` yet, so the
-  running app cannot exercise these fields without a native-snapshot change.
+- The React snapshot maps only effects that already have native processors;
+  `eq10`, reverb, delay, chorus, phaser, bitcrusher, tremolo, auto-pan and
+  ring-mod remain Web Audio-only. Pan automation is not mapped.
 - Reverb and delay are Web Audio only; adding them to Rust would be a new
   effect, not wiring an existing one.
 
@@ -173,9 +182,9 @@ What remains is not a small wiring patch:
 - `npm run docs:check` — passed.
 - `npm run typecheck` — passed.
 - `npm test` — 42/42 passed.
-- `cargo test -p openbeats-audio --lib` — 261/261 passed, including the
-  per-strip -6 dB isolation, volume-ramp, low-pass and old-snapshot-defaults
-  tests.
+- `cargo test -p openbeats-audio --lib` — 264/264 passed, including the
+  per-strip -6 dB isolation, volume-ramp, low-pass, routing/send isolation and
+  old-snapshot-defaults tests.
 - `cargo check -p openbeats-clap-helper` — passed.
 - `cargo build -p openbeats-clap-helper` — passed.
 - `cargo check -p openbeats-clap-helper` — passed.

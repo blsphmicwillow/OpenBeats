@@ -27,6 +27,7 @@ use crate::automation::AutomationLane;
 use crate::devices::{self, AudioDevices, Candidate, DeviceInfo};
 use crate::dsp::{Compressor, Eq3, Transmitter, TruePeakLimiter};
 use crate::logger::AudioLogger;
+use crate::mixer_runtime::MixerRuntime;
 use crate::sequencer::{PlaybackChannel, PlaybackProject, Sequencer, Trigger};
 use crate::strip::{gain_at, StripProcessor};
 use crate::synth::VoicePool;
@@ -134,6 +135,8 @@ struct CallbackState {
     strip_pools: Vec<VoicePool>,
     strip_processors: Vec<StripProcessor>,
     strip_automation: Vec<Vec<AutomationLane>>,
+    strip_frames: Vec<(f32, f32)>,
+    mixer_runtime: Option<MixerRuntime>,
     eq: [Eq3; 2],
     compressor: [Compressor; 2],
     limiter: TruePeakLimiter,
@@ -172,6 +175,8 @@ impl CallbackState {
             strip_pools: Vec::new(),
             strip_processors: Vec::new(),
             strip_automation: Vec::new(),
+            strip_frames: Vec::new(),
+            mixer_runtime: None,
             eq,
             compressor,
             limiter,
@@ -268,22 +273,26 @@ impl CallbackState {
                 .as_ref()
                 .map(|seq| seq.position_steps())
                 .unwrap_or(0.0);
-            let mut out_l = 0.0;
-            let mut out_r = 0.0;
+            let frames = &mut self.strip_frames;
+            frames.resize(strip_pools.len(), (0.0, 0.0));
             for (index, pool) in strip_pools.iter_mut().enumerate() {
                 let (l, r) = pool.next_frame();
                 let gain = strip_automation
                     .get(index)
                     .map(|lanes| gain_at(lanes, time))
                     .unwrap_or(1.0);
-                let (l, r) = match strip_processors.get_mut(index) {
+                frames[index] = match strip_processors.get_mut(index) {
                     Some(processor) => processor.process(l * gain, r * gain),
                     None => (l * gain, r * gain),
                 };
-                out_l += l;
-                out_r += r;
             }
-            (out_l, out_r)
+            if let Some(mixer) = self.mixer_runtime.as_mut() {
+                mixer.process(frames)
+            } else {
+                frames
+                    .iter()
+                    .fold((0.0, 0.0), |(l, r), (sl, sr)| (l + sl, r + sr))
+            }
         };
         left += voice_l;
         right += voice_r;
@@ -733,6 +742,9 @@ fn apply_command(state: &mut CallbackState, shared: &Arc<Shared>, command: Engin
                 .iter()
                 .map(|channel| channel.automation.clone())
                 .collect();
+            state.strip_frames = vec![(0.0, 0.0); project.channels.len()];
+            let channel_mixers: Vec<usize> = project.channels.iter().map(|ch| ch.mixer).collect();
+            state.mixer_runtime = MixerRuntime::new(&project.mixer, &channel_mixers);
             state.sequencer = Some(Sequencer::new(project, state.sample_rate));
             shared.playing.store(1, Ordering::Relaxed);
         }

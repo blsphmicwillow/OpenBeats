@@ -8,6 +8,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::automation::AutomationLane;
 use crate::clips::{expand_clip, PlaybackClip, PlaybackPattern};
+use crate::mixer::MixerGraph;
 use crate::strip::Insert;
 
 /// One mixer channel as the native engine needs it.
@@ -15,6 +16,9 @@ use crate::strip::Insert;
 pub struct PlaybackChannel {
     pub id: String,
     pub preset: String,
+    /// Mixer strip this channel feeds.
+    #[serde(default)]
+    pub mixer: usize,
     #[serde(default = "unity")]
     pub gain: f32,
     #[serde(default)]
@@ -111,6 +115,9 @@ pub struct PlaybackProject {
     pub clips: Vec<PlaybackClip>,
     #[serde(default)]
     pub patterns: Vec<PlaybackPattern>,
+    /// Routing, send and gain data for the native callback.
+    #[serde(default)]
+    pub mixer: MixerGraph,
 }
 
 impl PlaybackProject {
@@ -343,6 +350,7 @@ mod tests {
                 PlaybackChannel {
                     id: "kick".into(),
                     preset: "kick".into(),
+                    mixer: 1,
                     gain: 1.0,
                     pan: 0.0,
                     mute: false,
@@ -358,6 +366,7 @@ mod tests {
                 PlaybackChannel {
                     id: "snare".into(),
                     preset: "snare".into(),
+                    mixer: 2,
                     gain: 1.0,
                     pan: 0.0,
                     mute: false,
@@ -393,6 +402,7 @@ mod tests {
             ],
             clips: Vec::new(),
             patterns: Vec::new(),
+            mixer: MixerGraph::default(),
         }
     }
 
@@ -412,6 +422,8 @@ mod tests {
         .expect("old snapshot");
         assert!(parsed.channels[0].inserts.is_empty());
         assert!(parsed.channels[0].automation.is_empty());
+        assert_eq!(parsed.channels[0].mixer, 0);
+        assert!(parsed.mixer.strips.is_empty());
     }
 
     #[test]

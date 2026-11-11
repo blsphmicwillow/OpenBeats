@@ -531,6 +531,7 @@ mod tests {
         PlaybackChannel {
             id: "c1".into(),
             preset: preset.into(),
+            mixer: 0,
             gain: 1.0,
             pan: 0.0,
             mute: false,

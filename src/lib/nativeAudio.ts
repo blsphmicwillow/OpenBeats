@@ -18,9 +18,44 @@ import {
 import { invokeNative, isNative, nativeInvoke } from './native';
 import { nativeVoiceId } from './nativeVoices';
 
+export type NativeInsertSnapshot =
+  | { kind: 'gain'; gain_db: number }
+  | { kind: 'eq3'; low_db: number; mid_db: number; high_db: number; mid_hz: number }
+  | {
+      kind: 'compressor';
+      threshold_db: number;
+      ratio: number;
+      attack: number;
+      release: number;
+      knee_db: number;
+      makeup_db: number;
+    }
+  | { kind: 'limiter'; ceiling_db: number; attack_ms: number; release_ms: number }
+  | { kind: 'lowpass'; cutoff_hz: number }
+  | { kind: 'highpass'; cutoff_hz: number }
+  | { kind: 'drive'; amount: number };
+
+export interface NativeAutomationPointSnapshot {
+  time: number;
+  value: number;
+  curve: 'linear' | 'hold' | 'ease_in' | 'ease_out' | 's_curve';
+}
+
+export interface NativeAutomationLaneSnapshot {
+  target: string;
+  default: number;
+  min: number;
+  max: number;
+  loop_len: number | null;
+  points: NativeAutomationPointSnapshot[];
+}
+
 export interface PlaybackChannelSnapshot {
   id: string;
   preset: string;
+  mixer: number;
+  inserts: NativeInsertSnapshot[];
+  automation: NativeAutomationLaneSnapshot[];
   gain: number;
   pan: number;
   mute: boolean;
@@ -81,6 +116,17 @@ export interface PlaybackSnapshot {
   /** Song-mode clips, expanded natively with pan/pitch/stretch/fades. */
   clips: PlaybackClipSnapshot[];
   patterns: PlaybackPatternSnapshot[];
+  mixer: {
+    strips: {
+      id: number;
+      gain: number;
+      mute: boolean;
+      solo: boolean;
+      route: number | null;
+      sends: { to: number; amount: number; pre_fader: boolean }[];
+      sidechain: number | null;
+    }[];
+  };
 }
 
 export interface NativePlaybackStatus {
@@ -169,6 +215,80 @@ export interface ParsedCommand {
 }
 
 /** Flattens the project into the sequencer data the Rust engine consumes. */
+function nativeInserts(project: Project, mixer: number): NativeInsertSnapshot[] {
+  const strip = project.strips.find((candidate) => candidate.id === mixer);
+  if (!strip) return [];
+  const inserts: NativeInsertSnapshot[] = [];
+  for (const effect of strip.effects) {
+    if (effect.bypass) continue;
+    const p = effect.params;
+    switch (effect.type) {
+      case 'eq3':
+        inserts.push({
+          kind: 'eq3',
+          low_db: p.low ?? 0,
+          mid_db: p.mid ?? 0,
+          high_db: p.high ?? 0,
+          mid_hz: p.freq ?? 1000,
+        });
+        break;
+      case 'comp':
+        inserts.push({
+          kind: 'compressor',
+          threshold_db: p.threshold ?? -20,
+          ratio: p.ratio ?? 4,
+          attack: p.attack ?? 0.15,
+          release: p.release ?? 0.35,
+          knee_db: p.knee ?? 6,
+          makeup_db: p.makeup ?? 0,
+        });
+        break;
+      case 'limiter':
+        inserts.push({
+          kind: 'limiter',
+          ceiling_db: p.ceiling ?? -1,
+          attack_ms: 1,
+          release_ms: Math.max(1, (p.release ?? 0.1) * 1000),
+        });
+        break;
+      case 'drive':
+        inserts.push({ kind: 'drive', amount: p.amount ?? 0.4 });
+        break;
+      case 'filter':
+        inserts.push({
+          kind: 'lowpass',
+          cutoff_hz: 80 * Math.pow(150, p.cutoff ?? 0.8),
+        });
+        break;
+      default:
+        // eq10, reverb and delay have no native implementation yet.
+        break;
+    }
+  }
+  return inserts;
+}
+
+function nativeAutomation(project: Project, mixer: number): NativeAutomationLaneSnapshot[] {
+  const strip = project.strips.find((candidate) => candidate.id === mixer);
+  const lane = strip?.automation.find((candidate) => candidate.target === 'volume');
+  if (!strip || !lane || lane.points.length === 0) return [];
+  return [
+    {
+      target: 'gain',
+      default: strip.gain,
+      min: 0,
+      max: 1.25,
+      loop_len: null,
+      points: lane.points.map((point) => ({
+        time: point.step,
+        value: Math.max(0, Math.min(1, point.value / 1.25)),
+        curve:
+          point.curve === 'hold' ? 'hold' : point.curve === 'smooth' ? 's_curve' : 'linear',
+      })),
+    },
+  ];
+}
+
 export function buildPlaybackSnapshot(
   project: Project,
   songMode: boolean,
@@ -215,6 +335,9 @@ export function buildPlaybackSnapshot(
     channels: project.channels.map((channel) => ({
       id: channel.id,
       preset: nativeVoiceId(channel.preset),
+      mixer: channel.mixer,
+      inserts: nativeInserts(project, channel.mixer),
+      automation: nativeAutomation(project, channel.mixer),
       gain: channel.gain,
       pan: channel.pan,
       mute: channel.mute,
@@ -242,6 +365,17 @@ export function buildPlaybackSnapshot(
           muted: project.tracks[clip.track]?.mute ?? false,
         }))
       : [],
+    mixer: {
+      strips: project.strips.map((strip) => ({
+        id: strip.id,
+        gain: strip.gain,
+        mute: strip.mute,
+        solo: strip.solo,
+        route: strip.route,
+        sends: strip.sends.map((send) => ({ ...send, pre_fader: false })),
+        sidechain: null,
+      })),
+    },
     patterns: useClips
       ? project.patterns.map((pattern) => ({
           id: pattern.id,

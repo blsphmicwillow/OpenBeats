@@ -171,6 +171,7 @@ pub fn play_test_note(
     let channel = PlaybackChannel {
         id: "preview".into(),
         preset,
+        mixer: 0,
         gain: gain.unwrap_or(0.9).clamp(0.05, 2.0),
         pan: pan.unwrap_or(0.0).clamp(-1.0, 1.0),
         mute: false,
