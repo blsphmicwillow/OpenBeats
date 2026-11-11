@@ -3,6 +3,20 @@
 The same entries are bundled into the app and shown in the **Changelog** tab, so the notes ship with the build.
 Keep this file and `src/lib/changelog.ts` in sync, and bump `APP_VERSION` in `src/lib/version.ts`.
 
+## 1.0.6 — 2026-11-11
+
+**OpenBeats v1.0.6 — arrangement markers, section loops and RPP marker interchange.**
+
+### Playlist markers
+
+- Add named markers at the playhead from the playlist toolbar or with **F6**.
+- Click a marker to jump to it, drag it to move it, double-click to rename it, or right-click to loop from it to the next marker.
+- **Alt+Left** and **Alt+Right** move between markers without changing the loop.
+- Markers are persisted in `.obeats` projects and old projects load with an empty marker list.
+- REAPER `.rpp` export writes the marker list and import reads it back.
+
+Markers are arrangement data only and do not change which engine plays audio. Pattern clips keep the Rust/Web Audio split; playlist audio clips remain **Web Audio only** with native playback pending.
+
 ## 1.0.5 — 2026-11-11
 
 **OpenBeats v1.0.5 — playlist audio clips, honest engine documentation and an automated theme audit.**

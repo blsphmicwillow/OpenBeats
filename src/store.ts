@@ -4,6 +4,7 @@ import type {
   Clip,
   EffectType,
   KeyAction,
+  Marker,
   MenuItem,
   Note,
   Pattern,
@@ -30,6 +31,7 @@ import { engine, routeIsSafe } from './audio/engine';
 import { SAMPLE_BANK } from './audio/instruments';
 import { advanceAudioClips, startAudioClips, stopAudioClips } from './audio/audioClipTransport';
 import { createAudioClipFromDrop, normalizeAudioClips, type AudioClip } from './model/audioClip';
+import { markerLoopRange, nextMarker, normalizeMarkers, previousMarker } from './model/markers';
 import { putSample } from './audio/mediaStore';
 import { buildPeaksOffThread } from './audio/waveformClient';
 import { registerSample } from './audio/sampleLibrary';
@@ -126,6 +128,7 @@ export function normalizeProject(raw: unknown): Project {
     strips: strips.map((s, i) => ({ ...createStrip(s.id ?? i, s.name ?? 'Insert', s.color ?? '#888'), ...s })),
     tracks: Array.isArray(p.tracks) && p.tracks.length ? p.tracks : base.tracks,
     clips: Array.isArray(p.clips) ? p.clips : [],
+    markers: normalizeMarkers(p.markers),
     // Projects written before 1.0.5 have no audioClips key; they load unchanged.
     audioClips: normalizeAudioClips(p.audioClips),
     currentPattern: patterns.some((x) => x.id === p.currentPattern) ? (p.currentPattern as string) : patterns[0].id,
@@ -199,6 +202,11 @@ export interface AppState {
   addTrack(): void;
   updateTrack(index: number, patch: Partial<Project['tracks'][number]>, coalesce?: string): void;
   removeTrack(index: number): void;
+  addMarker(start?: number): void;
+  updateMarker(id: string, patch: Partial<Marker>, coalesce?: string): void;
+  removeMarker(id: string): void;
+  jumpMarker(direction: 1 | -1): void;
+  loopFromMarker(id: string): void;
   addClip(patternId: string, track: number, start: number, len: number): void;
   updateClip(id: string, patch: Partial<Clip>, coalesce?: string): void;
   removeClip(id: string): void;
@@ -749,6 +757,61 @@ export const useApp = create<AppState>((set, get) => ({
       p.clips = p.clips.filter((c) => c.track !== index).map((c) => (c.track > index ? { ...c, track: c.track - 1 } : c));
       p.tracks.splice(index, 1);
     });
+  },
+
+  addMarker(start) {
+    const state = get();
+    const at = Math.max(0, Math.round(start ?? state.transport.step));
+    const markerStart = state.settings.snap ? Math.round(at / state.settings.snap) * state.settings.snap : at;
+    state.patchProject((p) => {
+      const same = p.markers.filter((m) => Math.abs(m.start - markerStart) < 0.001).length;
+      p.markers.push({
+        id: uid('mk'),
+        name: same ? `Marker ${p.markers.length + 1}` : `Marker ${p.markers.length + 1}`,
+        start: markerStart,
+      });
+      p.markers.sort((a, b) => a.start - b.start);
+    });
+    state.toast(`Marker at bar ${Math.floor(markerStart / (state.project.beatsPerBar * 4)) + 1}`);
+  },
+
+  updateMarker(id, patch, coalesce) {
+    get().patchProject(
+      (p) => {
+        const marker = p.markers.find((m) => m.id === id);
+        if (marker) Object.assign(marker, patch);
+        p.markers = normalizeMarkers(p.markers);
+      },
+      { coalesce },
+    );
+  },
+
+  removeMarker(id) {
+    get().patchProject((p) => {
+      p.markers = p.markers.filter((m) => m.id !== id);
+    });
+  },
+
+  jumpMarker(direction) {
+    const state = get();
+    const marker =
+      direction > 0
+        ? nextMarker(state.project.markers, state.transport.step)
+        : previousMarker(state.project.markers, state.transport.step);
+    if (marker) state.seek(marker.start);
+    else state.hint(direction > 0 ? 'No later marker' : 'No earlier marker');
+  },
+
+  loopFromMarker(id) {
+    const state = get();
+    const range = markerLoopRange(state.project.markers, id, songLengthSteps(state.project));
+    if (!range) return;
+    state.patchProject((p) => {
+      p.loopStart = range.start;
+      p.loopEnd = range.end;
+      p.loop = true;
+    });
+    state.toast(`Looping bars ${Math.floor(range.start / (state.project.beatsPerBar * 4)) + 1}–${Math.ceil(range.end / (state.project.beatsPerBar * 4))}`);
   },
 
   addClip(patternId, track, start, len) {

@@ -11,6 +11,29 @@ export interface ChangelogEntry {
  */
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '1.0.6',
+    date: '2026-11-11',
+    headline: 'Arrangement markers for faster song navigation and section loops.',
+    groups: [
+      {
+        title: 'Playlist markers',
+        items: [
+          'Add named markers at the playhead from the playlist toolbar or with F6.',
+          'Click a marker to jump to it, drag it to move it, double-click to rename it, or right-click to loop to the next marker.',
+          'Alt+Left and Alt+Right jump to the previous and next marker without changing the loop.',
+          'Markers are stored in the .obeats project and normalized when older projects load.',
+        ],
+      },
+      {
+        title: 'Interchange and engine split',
+        items: [
+          'REAPER .rpp export now writes markers and .rpp import reads them back.',
+          'Markers are timeline data only: they do not change the audio path. Pattern clips keep the Rust/Web Audio split, and playlist audio clips remain Web Audio only with native playback pending.',
+        ],
+      },
+    ],
+  },
+  {
     version: '1.0.5',
     date: '2026-11-11',
     headline: 'Playlist audio clips, honest engine docs and an automated theme audit.',

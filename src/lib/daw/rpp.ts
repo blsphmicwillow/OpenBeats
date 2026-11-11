@@ -4,7 +4,7 @@
  * RPP is a plain-text, indented chunk format. We handle the musical core:
  * tempo, tracks, MIDI items and note events at 960 ticks per quarter note.
  */
-import { clamp, type ExchangeNote, type ExchangeSong, type ExchangeTrack } from './types';
+import { clamp, type ExchangeMarker, type ExchangeNote, type ExchangeSong, type ExchangeTrack } from './types';
 
 const PPQ = 960;
 
@@ -23,6 +23,13 @@ export function writeRpp(song: ExchangeSong): string {
   const bpm = clamp(song.bpm, 20, 300);
   const sps = secondsPerStep(bpm);
   const lines: string[] = ['<REAPER_PROJECT 0.1 "7.0" 0', `  TEMPO ${bpm} 4 4`, '  MASTER_FX 1'];
+
+  (song.markers ?? []).forEach((marker, index) => {
+    const name = marker.name.replace(/"/g, "'").slice(0, 64);
+    lines.push(
+      `  MARKER ${index + 1} ${(Math.max(0, marker.start) * sps).toFixed(6)} "${name}" 0 0 1 B`,
+    );
+  });
 
   for (const track of song.tracks) {
     if (!track.notes.length) continue;
@@ -57,6 +64,7 @@ export function parseRpp(text: string): ExchangeSong {
   const sps = secondsPerStep(bpm);
 
   const tracks: ExchangeTrack[] = [];
+  const markers: ExchangeMarker[] = [];
   let depth = 0;
   let trackDepth = -1;
   let itemDepth = -1;
@@ -120,6 +128,15 @@ export function parseRpp(text: string): ExchangeSong {
     }
 
     const upper = line.toUpperCase();
+    if (depth === 1 && upper.startsWith('MARKER ')) {
+      const match = line.match(/^MARKER\s+\d+\s+([\d.]+)\s+"([^"]*)"/i);
+      if (match) {
+        markers.push({
+          name: match[2].slice(0, 64) || `Marker ${markers.length + 1}`,
+          start: Math.max(0, (Number(match[1]) || 0) / sps),
+        });
+      }
+    }
     if (trackDepth === depth && upper.startsWith('NAME ')) {
       currentName = line.slice(5).trim().replace(/^"|"$/g, '');
     }
@@ -153,5 +170,5 @@ export function parseRpp(text: string): ExchangeSong {
   }
 
   if (!tracks.length) throw new Error('No MIDI items were found in this REAPER project');
-  return { name: 'Imported REAPER project', bpm, tracks, source: 'rpp' };
+  return { name: 'Imported REAPER project', bpm, tracks, markers, source: 'rpp' };
 }

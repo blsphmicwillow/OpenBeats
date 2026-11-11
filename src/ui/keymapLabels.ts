@@ -16,6 +16,9 @@ export const KEY_ACTION_LABELS: Record<KeyAction, string> = {
   nextPattern: 'Next pattern',
   prevPattern: 'Previous pattern',
   metronome: 'Metronome on/off',
+  addMarker: 'Add marker at playhead',
+  prevMarker: 'Previous marker',
+  nextMarker: 'Next marker',
   help: 'Manual & shortcuts',
 };
 

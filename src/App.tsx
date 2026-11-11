@@ -183,6 +183,15 @@ export default function App() {
         case 'metronome':
           state.toggleMetronome();
           break;
+        case 'addMarker':
+          state.addMarker();
+          break;
+        case 'prevMarker':
+          state.jumpMarker(-1);
+          break;
+        case 'nextMarker':
+          state.jumpMarker(1);
+          break;
         case 'help':
           state.setUI({ aboutOpen: true });
           break;

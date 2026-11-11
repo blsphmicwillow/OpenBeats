@@ -20,7 +20,8 @@ type DragState =
   | { kind: 'loop'; edge: 'start' | 'end'; startX: number; orig: number }
   | { kind: 'loop-move'; startX: number; origStart: number; origEnd: number }
   | { kind: 'playhead'; startX: number; rulerLeft: number }
-  | { kind: 'audio-clip'; id: string; track: number; startX: number; origStartTick: number };
+  | { kind: 'audio-clip'; id: string; track: number; startX: number; origStartTick: number }
+  | { kind: 'marker'; id: string; startX: number; origStart: number };
 
 import { AudioClipWave } from './AudioClipWave';
 
@@ -41,8 +42,14 @@ export function Playlist() {
   const [renaming, setRenaming] = useState<number | null>(null);
   const [draft, setDraft] = useState('');
   const [audioGhost, setAudioGhost] = useState<{ track: number; left: number; width: number } | null>(null);
+  const [renamingMarker, setRenamingMarker] = useState<string | null>(null);
+  const [markerDraft, setMarkerDraft] = useState('');
 
   const {
+    addMarker,
+    updateMarker,
+    removeMarker,
+    loopFromMarker,
     addClip,
     updateClip,
     removeClip,
@@ -68,6 +75,7 @@ export function Playlist() {
     64,
     Math.ceil((songLengthSteps(project) + barSteps) / barSteps) * barSteps,
     Math.ceil((project.loopEnd + barSteps) / barSteps) * barSteps,
+    Math.ceil((Math.max(0, ...project.markers.map((m) => m.start)) + barSteps) / barSteps) * barSteps,
   );
   const width = contentSteps * zoom;
 
@@ -149,6 +157,8 @@ export function Playlist() {
           neighbourTicks: edges,
         });
         updateAudioClip(d.id, { start_tick: resolveSnapTick(rawTick, context) }, `audio-clip:${d.id}`);
+      } else if (d.kind === 'marker') {
+        updateMarker(d.id, { start: Math.max(0, snapStep(d.origStart + deltaSteps)) }, `marker:${d.id}`);
       } else if (d.kind === 'loop-move') {
         // Keep the loop length and slide the whole window.
         const length = Math.max(1, d.origEnd - d.origStart);
@@ -393,6 +403,20 @@ export function Playlist() {
     ]);
   };
 
+  const markerMenu = (e: React.MouseEvent, id: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const marker = project.markers.find((m) => m.id === id);
+    if (!marker) return;
+    openMenu(e.clientX, e.clientY, [
+      { label: 'Rename marker', onClick: () => { setRenamingMarker(id); setMarkerDraft(marker.name); } },
+      { label: 'Move to playhead', onClick: () => updateMarker(id, { start: transport.step }) },
+      { label: 'Loop to next marker', onClick: () => loopFromMarker(id) },
+      { separator: true },
+      { label: 'Delete marker', danger: true, onClick: () => removeMarker(id) },
+    ]);
+  };
+
   const bars = useMemo(() => Math.ceil(contentSteps / barSteps), [contentSteps, barSteps]);
 
   return (
@@ -413,6 +437,9 @@ export function Playlist() {
         </select>
         <button className="tbtn small" onClick={() => addClip(project.currentPattern, 0, transport.step, (patternById(project, project.currentPattern)?.bars ?? 2) * barSteps)} title="Add a clip at the playhead">
           <IconPlus size={10} /> Clip
+        </button>
+        <button className="tbtn small" onClick={() => addMarker()} title="Add a marker at the playhead (M)">
+          <IconPlus size={10} /> Marker
         </button>
         <div className="sep" />
         <button className="tbtn small" onClick={addTrack} title="Add playlist track">
@@ -569,6 +596,51 @@ export function Playlist() {
             )}
           </div>
 
+          <div className="pl-marker-lane" style={{ marginLeft: HEAD, width }}>
+            {project.markers.map((marker) => (
+              <div
+                key={marker.id}
+                className={`marker-flag ${dragging === 'marker' ? 'dragging' : ''}`}
+                style={{ left: marker.start * zoom }}
+                title={`${marker.name} — click to jump, drag to move, right-click for loop and rename`}
+                onPointerDown={(e) => {
+                  if (e.button !== 0 || (e.target as HTMLElement).closest('input')) return;
+                  e.stopPropagation();
+                  e.preventDefault();
+                  pushHistory();
+                  seek(marker.start);
+                  beginDrag(e, { kind: 'marker', id: marker.id, startX: e.clientX, origStart: marker.start });
+                }}
+                onDoubleClick={(e) => {
+                  e.stopPropagation();
+                  setRenamingMarker(marker.id);
+                  setMarkerDraft(marker.name);
+                }}
+                onContextMenu={(e) => markerMenu(e, marker.id)}
+              >
+                {renamingMarker === marker.id ? (
+                  <input
+                    autoFocus
+                    value={markerDraft}
+                    aria-label="Marker name"
+                    onChange={(e) => setMarkerDraft(e.target.value)}
+                    onBlur={() => {
+                      updateMarker(marker.id, { name: markerDraft.trim() || marker.name });
+                      setRenamingMarker(null);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+                      if (e.key === 'Escape') setRenamingMarker(null);
+                      e.stopPropagation();
+                    }}
+                  />
+                ) : (
+                  <span>{marker.name}</span>
+                )}
+              </div>
+            ))}
+          </div>
+
           {project.tracks.map((track, index) => (
             <div className="track-row" key={track.id} style={{ height: track.height }}>
               <div className="track-head" onContextMenu={(e) => trackMenu(e, index)}>
@@ -689,6 +761,14 @@ export function Playlist() {
                   addClip(project.currentPattern, index, start, len);
                 }}
               >
+                {project.markers.map((marker) => (
+                  <div
+                    key={`line-${marker.id}`}
+                    className="marker-line"
+                    style={{ left: marker.start * zoom }}
+                    aria-hidden
+                  />
+                ))}
                 {project.clips
                   .filter((c) => c.track === index)
                   .map((clip) => {

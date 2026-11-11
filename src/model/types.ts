@@ -111,6 +111,13 @@ export interface Track {
   height: number;
 }
 
+export interface Marker {
+  id: string;
+  name: string;
+  /** Position on the song timeline in 16th steps. */
+  start: number;
+}
+
 export interface Clip {
   id: string;
   pattern: string;
@@ -176,6 +183,8 @@ export interface Project {
   patterns: Pattern[];
   tracks: Track[];
   clips: Clip[];
+  /** Arrangement landmarks. Missing on old projects and normalized to []. */
+  markers: Marker[];
   /**
    * Playlist audio clips. Web Audio only in 1.0.5 — the native Rust sequencer
    * has pattern clips but no audio-clip voice. Projects saved before 1.0.5 have
@@ -231,6 +240,9 @@ export type KeyAction =
   | 'nextPattern'
   | 'prevPattern'
   | 'metronome'
+  | 'addMarker'
+  | 'prevMarker'
+  | 'nextMarker'
   | 'help';
 
 export type UiMode = 'classic' | 'modern';

@@ -1,6 +1,6 @@
 # Working with other DAWs
 
-OpenBeats exchanges **musical data**, not plugin graphs. What travels: track names, notes, note lengths, velocities, tempo and (where the format supports it) MIDI programs. What does not: devices, automation, audio clips, routing and plugin state. Every DAW's project format is proprietary; MIDI is the only format all of them read reliably.
+OpenBeats exchanges **musical data**, not plugin graphs. What travels: track names, notes, note lengths, velocities, tempo, arrangement markers for REAPER and (where the format supports it) MIDI programs. What does not: devices, automation, audio clips, routing and plugin state. Every DAW's project format is proprietary; MIDI is the only format all of them read reliably.
 
 ## Matrix
 
@@ -8,7 +8,7 @@ OpenBeats exchanges **musical data**, not plugin graphs. What travels: track nam
 | --- | --- | --- | --- |
 | **reference DAW** | MIDI | MIDI | FLP is a binary event stream with plugin data; export MIDI from FL (`File → Export → MIDI`) and import it here. |
 | **Ableton Live** | `.als` (10–12), MIDI | MIDI | `.als` is gzipped XML — tracks, clips, notes and tempo are read. Live imports SMF type 1 as separate tracks. |
-| **REAPER** | `.rpp`, MIDI | `.rpp`, MIDI | RPP is plain text; tracks and MIDI items round-trip. |
+| **REAPER** | `.rpp`, MIDI | `.rpp`, MIDI | RPP is plain text; tracks, MIDI items and arrangement markers round-trip. |
 | **Logic Pro** | MIDI | MIDI | Logic imports SMF type 1. |
 | **Cubase / Nuendo** | MIDI | MIDI | Use *File → Import → MIDI File*. |
 | **Studio One** | MIDI | MIDI | Drag the `.mid` onto the arrangement. |
@@ -22,7 +22,7 @@ OpenBeats exchanges **musical data**, not plugin graphs. What travels: track nam
 - `types.ts` — neutral `ExchangeSong`, a flat list of tracks with notes in 16th-note steps.
 - `midi.ts` — Standard MIDI File type 1 writer/parser (96 PPQ, tempo meta, track names, program changes, running status, format 0 channel splitting).
 - `als.ts` — gunzips the Live Set via `DecompressionStream`, parses `MasterTrack/Tempo/Manual`, `Tracks/MidiTrack`, `MidiClip`, `KeyTrack/MidiKey` and `MidiNoteEvent`.
-- `rpp.ts` — tokenises REAPER's indented chunk text, reads `TEMPO`, `TRACK`, `NAME`, `ITEM/POSITION`, `SOURCE MIDI` and `E` events (960 PPQ).
+- `rpp.ts` — tokenises REAPER's indented chunk text, reads `TEMPO`, `MARKER`, `TRACK`, `NAME`, `ITEM/POSITION`, `SOURCE MIDI` and `E` events (960 PPQ).
 - `project.ts` — converts the project to an exchange song (arrangement clips first, current pattern as fallback) and rebuilds an imported song as channels, one pattern per channel, playlist clips and mixer strips.
 
 ### Import
@@ -35,7 +35,7 @@ OpenBeats exchanges **musical data**, not plugin graphs. What travels: track nam
 ### Export
 
 - **MIDI** writes one `MTrk` per channel with notes flattened to the arrangement timeline. If a channel has no clips, its current-pattern notes are written instead.
-- **REAPER** writes a text project with one track and one MIDI item per channel.
+- **REAPER** writes a text project with one track and one MIDI item per channel, plus the project's named arrangement markers.
 - **OpenBeats `.obeats`** is the only lossless round-trip (mixer, effects, theme, settings).
 - **WAV** is the audio path when devices matter.
 

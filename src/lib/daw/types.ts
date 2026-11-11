@@ -16,10 +16,18 @@ export interface ExchangeTrack {
   notes: ExchangeNote[];
 }
 
+export interface ExchangeMarker {
+  name: string;
+  /** Start in 16th-note steps from the start of the song. */
+  start: number;
+}
+
 export interface ExchangeSong {
   name: string;
   bpm: number;
   tracks: ExchangeTrack[];
+  /** Arrangement landmarks when the format can carry them. */
+  markers?: ExchangeMarker[];
   source: 'midi' | 'als' | 'rpp';
   /** Human-readable warnings, e.g. skipped automation. */
   notes?: string[];

@@ -95,6 +95,7 @@ export function exchangeFromProject(project: Project): ExchangeSong {
     name: project.name,
     bpm: project.bpm,
     tracks: tracks.filter((t) => t.notes.length),
+    markers: project.markers.map((marker) => ({ name: marker.name, start: marker.start })),
     source: 'midi',
   };
 }
@@ -148,6 +149,11 @@ export function projectFromExchange(song: ExchangeSong): Project {
       mute: false,
       solo: false,
       height: 92,
+    })),
+    markers: (song.markers ?? []).map((marker) => ({
+      id: uid('mk'),
+      name: marker.name.slice(0, 64) || 'Marker',
+      start: Math.max(0, marker.start),
     })),
     clips: tracks.map((t, index) => ({
       id: uid('cl'),

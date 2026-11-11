@@ -398,6 +398,12 @@ export function demoProject(): Project {
     patterns,
     tracks,
     clips,
+    markers: [
+      { id: uid('mk'), name: 'Intro', start: 0 },
+      { id: uid('mk'), name: 'Groove', start: 32 },
+      { id: uid('mk'), name: 'Chorus', start: 64 },
+      { id: uid('mk'), name: 'Finale', start: 96 },
+    ],
     audioClips: [],
     strips,
     currentPattern: p1.id,
@@ -444,6 +450,7 @@ export function blankProject(): Project {
       { id: uid('tr'), name: 'Track 4', color: colors[3], mute: false, solo: false, height: 92 },
     ],
     clips: [],
+    markers: [],
     audioClips: [],
     strips,
     currentPattern: p.id,
@@ -474,6 +481,9 @@ export const DEFAULT_KEYMAP: Settings['keymap'] = {
   nextPattern: 'PageDown',
   prevPattern: 'PageUp',
   metronome: 'c',
+  addMarker: 'F6',
+  prevMarker: 'Alt+Left',
+  nextMarker: 'Alt+Right',
   help: 'F1',
 };
 
