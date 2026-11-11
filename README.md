@@ -187,14 +187,14 @@ and the GStreamer runtime itself; the one thing an AppImage cannot provide is
 the system audio server, so PipeWire-Pulse or PulseAudio must be running.
 
 **Can I use VST3, AU or CLAP plugins?**
-Hosting is available on Windows/macOS (out-of-process). Loading plugins into
-OpenBeats is still not implemented: the `openbeats-plugins` crate can scan, host
-and process VST3/CLAP inside the `plughost-helper` sidecar, but inserts are not
-routed into the CPAL audio callback yet, so a plugin cannot sit on a mixer strip.
-On Linux hosting is disabled because plughost 0.2.1 has no Linux platform layer,
-and the app says so instead of failing silently. **View → Plugin library…** still
-browses and downloads releases, and the first-party **OpenBeats Gain** proof
-plugin is included. The honest status and plan are in
+Hosting is available on Windows/macOS (out-of-process). On Linux, 1.0.7 adds a
+CLAP-only sidecar: **View → Plugin library…** scans `~/.clap`, `/usr/lib/clap`,
+`/usr/local/lib/clap` and `$CLAP_PATH`, and **Load** returns READY from a real
+`clack-host` instance. No platform routes a plugin into the mixer yet: inserts
+are not wired into the CPAL callback, so a loaded plugin cannot sit on a strip
+or affect audio. Windows/macOS keep the existing `plughost-helper` path, which
+is also not UI-wired or routed into the callback. The first-party
+**OpenBeats Gain** proof plugin is included. The honest status is in
 [docs/PLUGINS.md](docs/PLUGINS.md).
 
 **Does it need an account or the internet?**
@@ -249,7 +249,7 @@ The version is bumped in the app, Tauri bundle and both Rust crates.
 - **Per-clip gain, pan, pitch, stretch and fades**, note names, clip normalisation, and **automation lanes** that can drive any engine parameter.
 - **Mixer routing in Rust**: free routing, multiple and pre-fader sends, mute/solo, sidechain ducking, with cycles refused.
 - **Editing tools** in Rust: strum, arpeggiate, flam, twelve scales, clip slice/chop/quantize/trim/duplicate, and a modular effect graph.
-- **VST3/CLAP hosting** on Windows and macOS through an out-of-process host with crash recovery. On Linux the plugin browser works and the app reports hosting as unavailable.
+- **VST3/CLAP hosting** on Windows and macOS through an out-of-process host with crash recovery. On Linux a separate CLAP-only sidecar scans and loads plugins; neither platform routes an insert into the audio callback yet.
 
 ### Engine split (which engine executes what)
 - **Rust native (CPAL):** the transport and sequencer, all 29 procedural voices (including Anvil, Prism, Sundial, Cordwood, Vector Nine, Acid Well, Dice, Dust Devil, Chatter and Hammer Felt), and the master chain **EQ → compressor → limiter**. The transmitter meter and audio logger also run natively.
@@ -287,7 +287,7 @@ The version is bumped in the app, Tauri bundle and both Rust crates.
 ### Plugin library
 - **View → Plugin library…** (or the **Plugins** button) lists community VST3/CLAP releases from the GitHub-backed registry in [`plugins/registry.json`](plugins/registry.json), with vendor-style category filtering.
 - Original instruments and effects include **Glass Keys** (bright inharmonic bell), **Velvet Choir** (additive formant pad) and **FM Bass** (two-operator sine bass), all available in both engines, plus Web Audio **Chorus**, **Phaser**, **Bitcrusher**, **Tremolo**, **Auto Pan** and **Ring Mod** inserts. The first-party **OpenBeats Gain** proof plugin is built in [`plugins/openbeats-gain`](plugins/openbeats-gain); its release archive contains both `.clap` and `.vst3` bundles.
-- Download links open the publisher's GitHub Release. There is no silent install and no fake host: **loading plugins into OpenBeats is still not implemented in 1.0.6**. The source-verified Linux host investigation and CLAP-first plan are in [the 1.0.7 report](docs/PLUGIN_HOST_REVERSE_ENGINEERING_1.0.7.md).
+- Download links open the publisher's GitHub Release. There is no silent install. Linux 1.0.7 can scan and load CLAP plugins in a helper process, but the loaded plugin is not inserted into the mixer yet; Windows/macOS keep the existing `plughost-helper` path. The source-verified investigation is in [the 1.0.7 report](docs/PLUGIN_HOST_REVERSE_ENGINEERING_1.0.7.md).
 - Community submissions go through [the plugin submission form](.github/ISSUE_TEMPLATE/plugin-submission.yml); `npm run plugins:check` validates the registry.
 
 ### Desktop integration
@@ -383,7 +383,7 @@ scripts/        icon generation and plugin validation/fetching
 - CI builds the Linux packages on Ubuntu 22.04 (glibc 2.35), so they run on 22.04 and newer. A local build follows the host's glibc and may not start on older distributions.
 - The update checker **notifies** and links to the release. Silent in-app installation is prepared but needs a signed Tauri updater key pair (`TAURI_SIGNING_PRIVATE_KEY`, `plugins.updater.pubkey`) — see the build guide.
 - The desktop build plays through the **native Rust engine**; the browser build uses Web Audio. The two are not sample-identical yet, and the new mixer/automation graph is not wired into the audio callback.
-- **VST3/CLAP hosting** runs out of process on Windows and macOS. It is unavailable on Linux; the plugin browser still works and the app says so plainly.
+- **VST3/CLAP hosting** runs out of process on Windows and macOS. Linux has a separate CLAP-only sidecar that scans and loads plugins. On every platform, inserts are still not routed into the CPAL callback, so loading a plugin does not yet change playback.
 - The assistants are deterministic local DSP, not a hosted language model. Nothing is uploaded.
 - Not implemented yet: stem separation, a WASM wavetable synth, mixer folders, track freeze, PDC, per-clip effects, project snapshots, dockable panels, a spectral editor and a live-performance mode. See [ROADMAP.md](ROADMAP.md).
 

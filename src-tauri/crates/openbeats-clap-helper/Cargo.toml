@@ -1,0 +1,14 @@
+[package]
+name = "openbeats-clap-helper"
+version = "1.0.6"
+edition = "2021"
+rust-version = "1.85"
+description = "Linux-only out-of-process CLAP host for OpenBeats"
+license = "GPL-3.0-or-later"
+
+[[bin]]
+name = "openbeats-clap-helper"
+path = "src/main.rs"
+
+[target.'cfg(target_os = "linux")'.dependencies]
+clack-host = "0.2"

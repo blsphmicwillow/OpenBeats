@@ -11,12 +11,12 @@ Generated from `#[tauri::command]` functions, the `generate_handler!` table in
 
 | Measure | Count |
 | --- | ---: |
-| Rust `#[tauri::command]` functions found by the source scan | 73 |
-| Entries in `generate_handler!` | 78 |
-| Distinct frontend command names invoked | 66 |
-| Registered commands with no frontend caller | 14 |
+| Rust `#[tauri::command]` functions found by the source scan | 75 |
+| Entries in `generate_handler!` | 80 |
+| Distinct frontend command names invoked | 68 |
+| Registered commands with no frontend caller | 12 |
 
-The 78 handler entries include commands defined outside the
+The 80 handler entries include commands defined outside the
 `#[tauri::command]` scan (for example `discord_presence`, `open_external`,
 `save_text_file`) and the app's file/dialog helpers. The audit counts below use
 the command names, not the macro table alone.
@@ -40,6 +40,9 @@ These have a Rust implementation and a handler entry, but no `invoke` call in
 - `stamp_chord`
 - `stop_input`
 - `unload_plugin_chain`
+
+`scan_plugins_linux` and `load_plugin_linux` are new and are invoked by the
+plugin browser; they reach the Linux sidecar but not the mixer or CPAL.
 
 `mixer_order`, `mixer_render`, `automation_value` and `automation_sample` do
 have frontend wrappers, but those wrappers are not called by any component. They
@@ -131,18 +134,21 @@ the existing offline `MixerGraph`.
 
 ## 4. Prompt 1 status: Linux CLAP hosting
 
-Not implemented. The source-verified reason is in
-[PLUGIN_HOST_REVERSE_ENGINEERING_1.0.7.md](PLUGIN_HOST_REVERSE_ENGINEERING_1.0.7.md):
+**Implemented for scan/load/process; mixer insert still pending.** The
+historical `plughost` audit is in
+[PLUGIN_HOST_REVERSE_ENGINEERING_1.0.7.md](PLUGIN_HOST_REVERSE_ENGINEERING_1.0.7.md).
+The new branch adds:
 
-- `plughost-core 0.2.1` has no Linux platform module.
-- Linux compiles `unsupported.rs` and a helper that exits with code 78.
-- No Linux `externalBin` exists; the helper is staged only for Windows/macOS.
-- The Rust commands are registered but never called by React.
-- No mixer insert point exists even on Windows/macOS.
+- `src-tauri/crates/openbeats-clap-helper`: Linux-only `clack-host 0.2` host
+  with SCAN, LOAD, PROCESS and a dedicated audio thread.
+- `scan_plugins_linux` / `load_plugin_linux` Tauri commands with a lazy sidecar
+  and typed `LinuxPluginDescriptor` results.
+- `src-tauri/tauri.linux.conf.json` externalBin plus Linux CI staging.
+- `PluginBrowser.tsx` scan/load section, explicitly labeled as not yet routed
+  into the mixer.
 
-A Linux sidecar is a new host implementation, not a flag. The recommended path
-is a CLAP-first helper using `clack-host 0.2`, plus IPC, a Tauri bundle entry,
-UI scan/load and an audio insert point. That work is not present in this branch.
+The Windows/macOS `plughost` files and configs are untouched. No mixer insert
+point exists on any platform, so a loaded plugin still cannot affect playback.
 
 ## 5. Prompt 2 status: wiring existing tools
 
@@ -170,10 +176,18 @@ of inventing a routing API.
 - `npm run typecheck` — passed.
 - `npm test` — 42/42 passed.
 - `cargo test -p openbeats-audio --lib` — 256/256 passed.
+- `cargo check -p openbeats-clap-helper` — passed.
+- `cargo build -p openbeats-clap-helper` — passed.
+- Sidecar acceptance probe — SCAN found `studio.openbeats.gain`, LOAD returned
+  READY, PROCESS returned 64 finite stereo frames at the input RMS, exit 0.
 - `cargo check -p openbeats-plugins` — passed (Linux stub).
 - `cargo check -p openbeats-plughost-helper` — passed (Linux stub).
 - Linux dependency graph — no `plughost` crate.
 - `npm run build` — passed.
+- `cargo check -p openbeats --lib` — **blocked**, not failed on source: the host
+  lacks `glib-2.0`/GTK development headers (`pkg-config` cannot find
+  `gobject-2.0`, `gio-2.0`, `glib-2.0`). Tauri command code is therefore
+  typechecked only by inspection, not by the Rust compiler.
 - All 1.0.6 release assets verified against `SHA256SUMS.txt` — 7/7 OK.
 
 No audio-output verification was possible on this host: the Linux AppImage was
@@ -184,10 +198,12 @@ tests above are compile/unit/build checks, not a listening test.
 
 Do not add a half-wired plugin button. The next reviewable change should be:
 
-1. A `clack-host` Linux probe that scans and processes `OpenBeatsGain.clap`.
+1. ~~A `clack-host` Linux probe that scans and processes `OpenBeatsGain.clap`.~~
+   Completed; the helper also has Tauri commands, a bundle entry and UI scan/load.
 2. A per-strip bus change in `VoicePool` and `PlaybackProject`, with unit tests
    proving a -6 dB insert and a volume ramp.
-3. Only then wire the UI buttons and the plugin insert slot.
+3. Only then wire the plugin insert slot on all platforms and validate the Tauri
+   desktop compile plus the Linux AppImage launch.
 
 Each step can be green on its own; combining them without the bus change would
 ship controls that do nothing.

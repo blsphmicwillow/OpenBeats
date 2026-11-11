@@ -21,3 +21,6 @@ packaging/arch/*.pkg.tar.zst
 # Rust build output (workspace members build into their own target dirs)
 target/
 **/target/
+
+# Tauri externalBin staging (CI builds these per target).
+src-tauri/binaries/

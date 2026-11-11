@@ -177,6 +177,7 @@ pub fn run() {
         .manage(recovery::RecoveryState::default())
         .manage(system_commands::SystemState::default())
         .manage(plugin_commands::PluginState::new(helper, plugin_cache))
+        .manage(plugin_commands::ClapState::new())
         .invoke_handler(tauri::generate_handler![
             platform,
             open_external,
@@ -268,7 +269,9 @@ pub fn run() {
             plugin_commands::load_plugin_chain,
             plugin_commands::unload_plugin_chain,
             plugin_commands::recover_plugin_chain,
-            plugin_commands::plugin_host_support
+            plugin_commands::plugin_host_support,
+            plugin_commands::scan_plugins_linux,
+            plugin_commands::load_plugin_linux
         ])
         .setup(|_app| Ok(()))
         .run(tauri::generate_context!())

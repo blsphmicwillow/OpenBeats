@@ -1,6 +1,17 @@
 # OpenBeats plugin host — Linux reverse engineering (1.0.7)
 
-Status: **research and implementation plan, not a shipped Linux host**.
+Status: **Linux CLAP scan/load/process implemented; mixer insert and installer
+validation still pending.**
+
+> **Implementation update (11 November 2026):** the Linux-only
+> `openbeats-clap-helper` crate now uses `clack-host 0.2` to scan, load, activate
+> and process `OpenBeatsGain.clap`, and `PluginBrowser.tsx` calls the typed
+> `scan_plugins_linux` / `load_plugin_linux` commands. `tauri.linux.conf.json`
+> bundles the sidecar and the Linux CI job stages it. The historical audit below
+> describes **1.0.6**, when none of that existed; its statements about “no Linux
+> host” are preserved as evidence, not as the current branch state. Mixer insert
+> routing is still blocked (see section 3 and the companion audit).
+
 Source audited: `release/1.0.6` at `855699d` (OpenBeats 1.0.6), plus the
 `plughost-core 0.2.1` and `clack-host 0.2.0` crate sources.
 
@@ -9,7 +20,7 @@ gives a realistic path to Linux plugin compatibility. It deliberately does not
 pretend that removing a compile-time `cfg` is enough.
 
 The companion wiring audit is [AUDIT_WIRING_1.0.7.md](AUDIT_WIRING_1.0.7.md).
-It records the 73 Rust commands, 66 frontend invocations, the 14 registered
+It records the 75 Rust commands, 68 frontend invocations, the 12 registered
 commands with no caller, and the exact per-strip mixer blocker.
 
 ## 1. Short answers
@@ -18,10 +29,10 @@ commands with no caller, and the exact per-strip mixer blocker.
 | --- | --- |
 | How is `plugins/registry.json` wired in? | It is a frontend-only download catalogue. React fetches the JSON, resolves GitHub Releases, and opens asset URLs in the browser. It never enters the Rust backend and never loads a plugin. |
 | What does the Windows/macOS host look like? | `openbeats-plugins/src/host.rs` uses `plughost 0.2.1` to spawn `plughost-helper` for scanning and chains. The helper is bundled only by `tauri.windows.conf.json` and `tauri.macos.conf.json`. The Rust commands are registered, but no React code calls them. |
-| Why is Linux disabled? | It is a **compile-time dependency and module gate**, not a runtime capability check. `plughost` is only a dependency on non-Linux targets; Linux compiles `unsupported.rs`; the Linux helper exits with code 78; no Linux `externalBin` exists. `plughost-core 0.2.1` has no Linux platform implementation. |
-| What would enable it? | A new Linux host implementation, preferably a CLAP-first out-of-process helper built on `clack-host`, plus IPC, Tauri bundle/CI changes, and real UI/mixer wiring. VST3 support can follow. A one-line `cfg` patch cannot work. |
+| Why was Linux disabled in 1.0.6? | It was a **compile-time dependency and module gate**, not a runtime capability check. `plughost` is only a dependency on non-Linux targets; Linux compiles `unsupported.rs`; the Linux helper exits with code 78; no Linux `externalBin` existed. `plughost-core 0.2.1` has no Linux platform implementation. |
+| What enabled it in 1.0.7? | A new Linux host implementation, the CLAP-first out-of-process `openbeats-clap-helper` built on `clack-host`, plus IPC, Tauri bundle/CI changes, and UI scan/load. VST3 support can follow. A one-line `cfg` patch cannot work. |
 
-## 2. Evidence from the repository
+## 2. Evidence from 1.0.6
 
 | File | Finding |
 | --- | --- |
@@ -29,9 +40,9 @@ commands with no caller, and the exact per-strip mixer blocker.
 | `src-tauri/crates/openbeats-plugins/src/lib.rs` | `#[cfg(not(target_os = "linux"))] mod host;` and `#[cfg(target_os = "linux")] mod unsupported;`. There is no runtime `cfg!` branch in the hosting path. |
 | `src-tauri/crates/openbeats-plugins/src/unsupported.rs` | Every hosting call returns: “VST3/CLAP hosting is unavailable on Linux in this build: plughost 0.2.1 does not implement its Linux platform layer.” |
 | `src-tauri/plughost-helper/src/main.rs` | On Linux `main` prints the same reason and calls `std::process::exit(78)`. |
-| `.github/workflows/release.yml` | “Stage plugin host helper” runs only when `matrix.platform != 'ubuntu-22.04'`. Linux neither builds nor stages a helper. |
-| `src-tauri/tauri.windows.conf.json`, `tauri.macos.conf.json` | Each adds `"externalBin": ["binaries/plughost-helper"]`. |
-| `src-tauri/tauri.conf.json` | No base `externalBin`; there is no `tauri.linux.conf.json`. Linux installers therefore contain no helper sidecar. |
+| `.github/workflows/release.yml` | At 1.0.6, “Stage plugin host helper” ran only when `matrix.platform != 'ubuntu-22.04'`. The 1.0.7 branch adds a Linux CLAP staging step. |
+| `src-tauri/tauri.windows.conf.json`, `tauri.macos.conf.json` | Each adds `"externalBin": ["binaries/plughost-helper"]`; these are unchanged. |
+| `src-tauri/tauri.conf.json` | At 1.0.6 there was no base `externalBin` and no `tauri.linux.conf.json`. The 1.0.7 branch adds the Linux config. |
 | `src-tauri/src/lib.rs` | Registers `scan_plugins`, `load_plugin_chain`, `unload_plugin_chain`, `recover_plugin_chain`, `plugin_host_support`. Registration is not reachability. |
 | `src-tauri/src/plugin_commands.rs` | Wraps `PluginHost` in `PluginState`; commands are backend-only. |
 | `src/components/PluginBrowser.tsx` | Reads the registry and calls `openExternal` for downloads. It has no `invokeNative('scan_plugins')` or chain command. Its subtitle still says 1.0.0. |
@@ -334,18 +345,23 @@ that cannot load plugins. A “one-line patch” is not a solution.
 
 ## 8. Testing and acceptance criteria
 
-Before a Linux host can be called working:
+Before a Linux host can be called fully working:
 
-- [ ] `cargo test -p openbeats-plugins` on Linux covers scan/open/process.
-- [ ] Scan finds `OpenBeatsGain.clap` from `~/.clap` and `/usr/lib/clap`.
-- [ ] Load the Gain CLAP, process a known stereo buffer at 44.1 and 48 kHz, and
-      verify the expected gain within tolerance.
+- [x] Scan finds `OpenBeatsGain.clap` from `~/.clap` (sidecar acceptance probe).
+- [x] Load the Gain CLAP, process a known 48 kHz stereo buffer, and verify the
+      output RMS (sidecar acceptance probe). 44.1 kHz is not yet exercised.
+- [x] The plugin browser lists scanned plugins and calls `load_plugin_linux`;
+      this is typechecked and built, not launched in a desktop webview here.
+- [ ] `cargo test -p openbeats-plugins` on Linux covers the new host. The new
+      helper is a separate crate; it has an external acceptance probe, not
+      `cargo test` coverage yet.
 - [ ] A crashing/hanging plugin kills only the helper; the app reports it and
       can recover.
-- [ ] The UI lists scanned plugins and can load/unload one insert.
+- [ ] One insert is routed into a mixer strip and the audio callback.
 - [ ] Offline bounce includes the insert; realtime playback is sample-accurate.
 - [ ] Save/reopen restores plugin id, parameters and state.
-- [ ] Windows/macOS `plughost` tests still pass and their sidecar is unchanged.
+- [ ] Windows/macOS `plughost` runtime tests still pass; their configs and
+      helper are unchanged in this branch.
 - [ ] Linux `.deb`, `.rpm` and `.AppImage` contain the new helper and launch it.
 
 ## 9. Risks and honesty
@@ -371,16 +387,18 @@ Before a Linux host can be called working:
 - **No 1.0.7 release is implied by this document.** The version is a planning
   label until the code and CI exist.
 
-## 10. Recommended next action
+## 10. Next action
 
-Start with a small, testable probe before touching the UI:
+Steps 1–4 are complete on this branch: the helper is the probe and the sidecar,
+and it passed the `OpenBeatsGain.clap` scan/load/process acceptance test. The
+remaining blocker is the mixer bus, not CLAP loading:
 
-1. Add a Linux-only `openbeats-clap-probe` binary using `clack-host`.
-2. Point it at `plugins/openbeats-gain/dist/OpenBeatsGain.clap`.
-3. Scan, instantiate, activate, process a stereo sine, and assert the gain.
-4. Only after that passes, build the sidecar, IPC and Tauri bundle.
-5. Do not bump the app to 1.0.7 or publish installers until the probe and the
-   Linux helper pass CI.
+1. Add per-strip stereo buses to `VoicePool` and `PlaybackProject`.
+2. Route those buses through `MixerGraph`, with measured insert and automation
+   tests.
+3. Only then add the plugin insert slot and call the Windows/macOS host path.
+4. Do not bump the app to 1.0.7 or publish installers until the mixer bus, the
+   desktop compile and the Linux installer launch are green.
 
 This gives a real answer to “does Linux hosting work?” without shipping a
 button that cannot load a plugin.

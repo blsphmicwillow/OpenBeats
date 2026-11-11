@@ -100,8 +100,20 @@ jobs:
         working-directory: src-tauri
         run: cargo test -p openbeats --lib
 
-      # plughost-core has no Linux platform layer. Windows and macOS stage the
-      # sidecar with the target-triple name that Tauri's externalBin expects.
+      # Linux uses the CLAP-only sidecar; Windows and macOS keep plughost.
+      # Both must use the target-triple name Tauri's externalBin expects.
+      - name: Stage Linux CLAP helper
+        if: matrix.platform == 'ubuntu-22.04'
+        shell: bash
+        working-directory: src-tauri
+        run: |
+          set -euo pipefail
+          cargo build --release -p openbeats-clap-helper
+          triple="$(rustc -vV | sed -n 's|host: ||p')"
+          mkdir -p binaries
+          cp "../target/release/openbeats-clap-helper" "binaries/openbeats-clap-helper-${triple}"
+          ls -l binaries
+
       - name: Stage plugin host helper
         if: matrix.platform != 'ubuntu-22.04'
         shell: bash

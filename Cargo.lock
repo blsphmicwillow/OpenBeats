@@ -2948,6 +2948,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "openbeats-clap-helper"
+version = "1.0.6"
+dependencies = [
+ "clack-host",
+]
+
+[[package]]
 name = "openbeats-plughost-helper"
 version = "1.0.0"
 dependencies = [

@@ -1,8 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useApp } from '../store';
 import { Modal } from '../ui/Modal';
-import { openExternal } from '../lib/native';
+import { nativePlatform, openExternal } from '../lib/native';
 import { APP_VERSION } from '../lib/version';
+import {
+  loadLinuxPlugin,
+  scanLinuxPlugins,
+  type LinuxClapPlugin,
+} from '../lib/linuxPlugins';
 import {
   formatBytes,
   loadPluginCatalog,
@@ -27,6 +32,12 @@ export function PluginBrowser() {
   const [format, setFormat] = useState<'all' | PluginFormat>('all');
   const [category, setCategory] = useState('all');
   const [busy, setBusy] = useState(false);
+  const [linuxHost, setLinuxHost] = useState(false);
+  const [localPlugins, setLocalPlugins] = useState<LinuxClapPlugin[]>([]);
+  const [localBusy, setLocalBusy] = useState(false);
+  const [localError, setLocalError] = useState('');
+  const [localLoaded, setLocalLoaded] = useState('');
+  const [loadingLocal, setLoadingLocal] = useState('');
 
   const load = async (force = false) => {
     setBusy(true);
@@ -44,6 +55,46 @@ export function PluginBrowser() {
     // The catalog is fetched once per app session; Refresh forces a live lookup.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, catalog]);
+
+  const scanLocal = async () => {
+    setLocalBusy(true);
+    setLocalError('');
+    setLocalLoaded('');
+    try {
+      const platform = await nativePlatform();
+      if (platform !== 'linux') {
+        setLinuxHost(false);
+        setLocalPlugins([]);
+        return;
+      }
+      setLinuxHost(true);
+      setLocalPlugins(await scanLinuxPlugins());
+    } catch (error) {
+      setLinuxHost(true);
+      setLocalError(error instanceof Error ? error.message : 'Could not scan Linux CLAP plugins');
+    } finally {
+      setLocalBusy(false);
+    }
+  };
+
+  const loadLocal = async (id: string) => {
+    setLoadingLocal(id);
+    setLocalError('');
+    try {
+      await loadLinuxPlugin(id);
+      setLocalLoaded(id);
+    } catch (error) {
+      setLocalError(error instanceof Error ? error.message : 'Could not load the Linux CLAP plugin');
+    } finally {
+      setLoadingLocal('');
+    }
+  };
+
+  useEffect(() => {
+    if (open) void scanLocal();
+    // Scan once whenever the browser opens; the Rescan button is explicit.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
 
   const categories = useMemo(() => {
     if (!catalog) return [];
@@ -78,7 +129,7 @@ export function PluginBrowser() {
   return (
     <Modal
       title="Plugin library"
-      subtitle={`Native VST3/CLAP releases · OpenBeats ${APP_VERSION} browses and downloads; it does not host plugins yet`}
+      subtitle={`Native VST3/CLAP releases · OpenBeats ${APP_VERSION} browses downloads; Linux CLAP plugins scan and load in a sidecar`}
       onClose={close}
       footer={
         <>
@@ -146,6 +197,53 @@ export function PluginBrowser() {
               ))}
             </select>
           </label>
+          {linuxHost && (
+            <div className="plugin-local">
+              <div className="plugin-local-head">
+                <span>Linux CLAP</span>
+                <button
+                  className="link-btn"
+                  onClick={() => void scanLocal()}
+                  disabled={localBusy}
+                >
+                  {localBusy ? 'Scanning…' : 'Rescan'}
+                </button>
+              </div>
+              {localError && <div className="plugin-warning">{localError}</div>}
+              {!localBusy && !localError && localPlugins.length === 0 && (
+                <div className="plugin-empty">
+                  No .clap bundles found in ~/.clap, /usr/lib/clap, /usr/local/lib/clap or
+                  $CLAP_PATH.
+                </div>
+              )}
+              {localPlugins.map((plugin, index) => (
+                <div
+                  className={`plugin-card ${localLoaded === plugin.id ? 'active' : ''}`}
+                  key={`${plugin.id}-${index}`}
+                >
+                  <span className="plugin-card-top">
+                    <b>{plugin.name || plugin.id}</b>
+                    <button
+                      className="link-btn"
+                      onClick={() => void loadLocal(plugin.id)}
+                      disabled={Boolean(loadingLocal)}
+                    >
+                      {loadingLocal === plugin.id ? 'Loading…' : 'Load'}
+                    </button>
+                  </span>
+                  <span className="plugin-card-author">{plugin.vendor || 'Unknown vendor'}</span>
+                  <span className="plugin-card-meta">{plugin.id}</span>
+                </div>
+              ))}
+              {localLoaded && (
+                <div className="tiny-note">
+                  READY:{' '}
+                  {localPlugins.find((plugin) => plugin.id === localLoaded)?.name ?? localLoaded}.
+                  Mixer insert routing is not wired yet.
+                </div>
+              )}
+            </div>
+          )}
           <div className="plugin-list">
             {busy && !catalog && <div className="plugin-empty">Reading registry…</div>}
             {!busy && !filtered.length && (
@@ -272,7 +370,9 @@ export function PluginBrowser() {
               </div>
               <div className="plugin-security">
                 <b>Native binaries:</b> plugins run with your user permissions. Only download from
-                publishers you trust; “reviewed” means provenance was checked, not audited.
+                publishers you trust; “reviewed” means provenance was checked, not audited. Linux
+                CLAP plugins are loaded in a separate helper process; mixer insert routing is still
+                pending.
               </div>
             </>
           )}

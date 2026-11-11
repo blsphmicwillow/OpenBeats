@@ -99,22 +99,31 @@ bundle in `~/.vst3/`, then rescan in a native host.
 | --- | --- | --- | --- | --- |
 | Windows 10/11 | yes | yes | — | supported |
 | macOS | yes | yes | yes | supported |
-| Linux | — | — | — | **not supported** |
+| Linux | — | scan/load | — | **partial** |
 
-Linux is disabled rather than faked: `plughost-core` 0.2.1 does not implement its
-`platform` module for Linux, so the crate does not compile there. The
-`openbeats-plugins` crate therefore compiles to a stub on Linux whose hosting
-calls return:
+Linux does **not** use `plughost`: `plughost-core` 0.2.1 has no Linux platform
+module, so the Rust `openbeats-plugins` crate still compiles to its historical
+stub there. The 1.0.7 branch adds a separate, Linux-only
+`openbeats-clap-helper` built on `clack-host 0.2`. It scans `~/.clap`,
+`/usr/lib/clap`, `/usr/local/lib/clap` and `$CLAP_PATH`, loads an entry, and
+processes stereo f32 blocks on a dedicated thread. Tauri commands
+`scan_plugins_linux` and `load_plugin_linux` are called by the plugin browser;
+`tauri.linux.conf.json` bundles the sidecar, and the Linux CI job stages it.
 
-> VST3/CLAP hosting is unavailable on Linux in this build: plughost 0.2.1 does
-> not implement its Linux platform layer. The plugin browser still works.
+What still does not work: routing the loaded plugin into a mixer strip or the
+CPAL callback, on any platform. VST3 on Linux is also out of scope for this
+helper. The Windows/macOS `plughost-helper` is unchanged.
 
-What still works on Linux: the plugin browser, categories, the bundled Gain
-utility and everything else in the app. The 1.0.7 plan keeps the Windows/macOS
-`plughost-helper` intact and adds a separate CLAP-first Linux sidecar; it does
-not patch `plughost` in place. What does not: scanning for and inserting
-native plugins. The Windows and macOS installers ship the `plughost-helper`
-sidecar; on Linux no helper is bundled.
+Build the Linux sidecar on Linux and stage it where Tauri expects it:
+
+```bash
+cargo build -p openbeats-clap-helper --target x86_64-unknown-linux-gnu
+cp target/x86_64-unknown-linux-gnu/debug/openbeats-clap-helper \
+  src-tauri/binaries/openbeats-clap-helper-x86_64-unknown-linux-gnu
+```
+
+The helper is spawned by Rust with piped stdin/stdout. No `shell:` permission
+is exposed to the webview, so the frontend cannot execute arbitrary programs.
 
 ### Crash handling
 

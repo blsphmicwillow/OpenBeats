@@ -7,6 +7,7 @@ members = [
   "src-tauri",
   "src-tauri/crates/openbeats-audio",
   "src-tauri/crates/openbeats-plugins",
+  "src-tauri/crates/openbeats-clap-helper",
   "src-tauri/plughost-helper",
 ]
 resolver = "2"
