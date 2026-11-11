@@ -30,9 +30,7 @@ provides=('openbeats')
 conflicts=('openbeats' 'openbeats-git')
 options=('!strip')
 source=("openbeats-${pkgver}.AppImage::https://github.com/blsphmicwillow/OpenBeats/releases/download/v${pkgver}/OpenBeats_${pkgver}_amd64.AppImage")
-# The v1.0.5 AppImage is attached by CI after the tag is built; replace SKIP
-# with its sha256 before publishing to the AUR.
-sha256sums=('SKIP')
+sha256sums=('7c613b16986a9ed9ab084776057e0c6799d0978454ec7f7afe4c056c9d233cde')
 
 prepare() {
   cd "$srcdir"
