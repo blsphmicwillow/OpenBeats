@@ -1,26 +1,26 @@
-import assert from 'node:assert/strict';
-import test from 'node:test';
+import { describe, expect, it } from 'vitest';
 import { importPackSafely, packImportErrorMessage } from './packImport.ts';
 
-test('a rejected import reaches the UI error callback', async () => {
-  const shown: string[] = [];
-  const result = await importPackSafely(
-    async () => {
-      throw new Error('zip entry escapes the pack folder: ../../etc/passwd');
-    },
-    (message) => shown.push(message),
-  );
-  assert.equal(result, null);
-  assert.deepEqual(shown, [
-    'Could not import that pack: zip entry escapes the pack folder: ../../etc/passwd',
-  ]);
-});
+describe('pack import', () => {
+  it('reaches the UI error callback when the import is rejected', async () => {
+    const shown: string[] = [];
+    const result = await importPackSafely(
+      async () => {
+        throw new Error('zip entry escapes the pack folder: ../../etc/passwd');
+      },
+      (message) => shown.push(message),
+    );
+    expect(result).toBeNull();
+    expect(shown).toEqual([
+      'Could not import that pack: zip entry escapes the pack folder: ../../etc/passwd',
+    ]);
+  });
 
-test('empty and non-Error failures still produce a readable message', () => {
-  assert.match(packImportErrorMessage(''), /Nothing was changed/);
-  assert.match(packImportErrorMessage({}), /did not return an error message/);
-  assert.equal(
-    packImportErrorMessage(new Error('error: not a readable zip archive')),
-    'Could not import that pack: not a readable zip archive',
-  );
+  it('still produces a readable message for empty and non-Error failures', () => {
+    expect(packImportErrorMessage('')).toMatch(/Nothing was changed/);
+    expect(packImportErrorMessage({})).toMatch(/did not return an error message/);
+    expect(packImportErrorMessage(new Error('error: not a readable zip archive'))).toBe(
+      'Could not import that pack: not a readable zip archive',
+    );
+  });
 });

@@ -1,0 +1,19 @@
+# Root workspace: lets `cargo test -p openbeats` run from the repository root.
+# The Tauri app, the audio engine, the plugin host and the helper sidecar are
+# members; release profiles must live here because Cargo ignores them in
+# non-root members.
+[workspace]
+members = [
+  "src-tauri",
+  "src-tauri/crates/openbeats-audio",
+  "src-tauri/crates/openbeats-plugins",
+  "src-tauri/plughost-helper",
+]
+resolver = "2"
+
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = "s"
+panic = "unwind"
+strip = true

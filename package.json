@@ -1,7 +1,7 @@
 {
   "name": "openbeats",
   "private": true,
-  "version": "1.0.4",
+  "version": "1.0.5",
   "description": "OpenBeats — an open-source beatmaking studio with an FL-style workflow",
   "license": "GPL-3.0-or-later",
   "type": "module",
@@ -10,7 +10,7 @@
     "build": "tsc -b && vite build",
     "preview": "vite preview",
     "typecheck": "tsc -b --pretty false",
-    "test": "node --test src/lib/packImport.test.ts",
+    "test": "vitest run",
     "icons": "node scripts/make-icons.mjs",
     "plugins:check": "node scripts/validate-plugins.mjs",
     "plugins:fetch": "node scripts/fetch-plugins.mjs",
@@ -25,10 +25,14 @@
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2.1.0",
+    "@testing-library/react": "^16.3.3",
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
     "@vitejs/plugin-react": "^4.3.4",
+    "@vitest/ui": "^2.1.9",
+    "jsdom": "^25.0.1",
     "typescript": "^5.6.3",
-    "vite": "^5.4.11"
+    "vite": "^5.4.11",
+    "vitest": "^2.1.9"
   }
 }

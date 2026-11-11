@@ -1,14 +1,12 @@
 [package]
 name = "openbeats"
-version = "1.0.4"
+version = "1.0.5"
 description = "OpenBeats — open-source beatmaking studio"
 authors = ["OpenBeats"]
 edition = "2021"
 rust-version = "1.92"
 
-[workspace]
-members = [".", "crates/openbeats-audio", "crates/openbeats-plugins", "plughost-helper"]
-resolver = "2"
+# Workspace membership and [profile.release] live in the root Cargo.toml.
 
 [lib]
 name = "openbeats_lib"
@@ -35,12 +33,3 @@ zip = { version = "2", default-features = false, features = ["deflate"] }
 openbeats-audio = { path = "crates/openbeats-audio", features = ["device", "fundsp-graph", "decode", "mp3"] }
 # VST3 / CLAP hosting, isolated in the plughost helper process.
 openbeats-plugins = { path = "crates/openbeats-plugins" }
-
-# Keep unwinding in release so the pack command can turn an internal panic into
-# an error instead of terminating the whole app with panic = "abort".
-[profile.release]
-codegen-units = 1
-lto = true
-opt-level = "s"
-panic = "unwind"
-strip = true
