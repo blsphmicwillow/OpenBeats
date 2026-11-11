@@ -26,6 +26,8 @@ Keep this file and `src/lib/changelog.ts` in sync, and bump `APP_VERSION` in `sr
 - Audio clips keep a persisted source offset, so splitting a clip makes the right-hand half resume at the cut point instead of replaying the file from the beginning; the waveform follows the same segment.
 - Slip-edit audio clips by Alt-dragging the clip or using the inspector's Slip field, moving the source window without moving the timeline clip. ENGINE: **Web Audio only**.
 - Copy, cut and paste pattern or audio clips at the playhead with Ctrl/Cmd+C/X/V, and nudge selected clips with Shift+Arrow keys. Pasted audio clips keep their source offset, fades, reverse and normalize flags.
+- Select several clips with Shift/Cmd-click. The batch inspector edits gain and fades across the selection and quantises every start to the snap grid as one undo step; Shift+Arrow nudges the whole selection.
+- **Linked channel creation**: the Channel Rack's Linked menu creates an instrument channel, a playlist track and a mixer strip together, with a shared name and colour and automatic routing to the master.
 - Added original **Glass Keys**, an inharmonic bell instrument implemented in both the Rust/CPAL voice pool and Web Audio.
 - Added original **Velvet Choir** (additive formant pad) and **FM Bass** (two-operator sine bass), both implemented in the Rust/CPAL voice pool and Web Audio.
 - Added original chorus, phaser and bitcrusher inserts. They are Web Audio effects and render into the offline bounce alongside the existing inserts.

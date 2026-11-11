@@ -1160,6 +1160,14 @@ textarea {
   padding: 2px 3px;
   font-size: 10px;
 }
+.clip-inspector-batch {
+  background: color-mix(in srgb, var(--accent) 12%, var(--panel2));
+}
+.clip-inspector-batch .batch-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
 
 .clip {
   position: absolute;

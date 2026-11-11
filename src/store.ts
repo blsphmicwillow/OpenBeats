@@ -196,6 +196,8 @@ export interface AppState {
 
   selectChannel(id: string): void;
   addChannel(preset: PresetId): void;
+  /** Creates a channel, playlist track and mixer strip as one linked unit. */
+  addLinkedChannel(preset: PresetId): void;
   updateChannel(id: string, patch: Partial<Channel>, coalesce?: string): void;
   removeChannel(id: string): void;
   duplicateChannel(id: string): void;
@@ -225,6 +227,8 @@ export interface AppState {
   loopFromMarker(id: string): void;
   addClip(patternId: string, track: number, start: number, len: number): void;
   updateClip(id: string, patch: Partial<Clip>, coalesce?: string): void;
+  /** Batch edit pattern clips in one history entry. */
+  updateClips(ids: string[], patch: Partial<Clip>, coalesce?: string): void;
   removeClip(id: string): void;
   copyClip(id: string): boolean;
   cutClip(id: string): boolean;
@@ -232,6 +236,8 @@ export interface AppState {
   splitClipAt(id: string, atStep: number): boolean;
   addAudioClip(clip: AudioClip): void;
   updateAudioClip(id: string, patch: Partial<AudioClip>, coalesce?: string): void;
+  /** Batch edit audio clips in one history entry. */
+  updateAudioClips(ids: string[], patch: Partial<AudioClip>, coalesce?: string): void;
   removeAudioClip(id: string): void;
   importAudioClipFiles(files: File[], track: number, startTick: number): Promise<number>;
 
@@ -602,6 +608,31 @@ export const useApp = create<AppState>((set, get) => ({
     get().toast('Channel added');
   },
 
+  addLinkedChannel(preset) {
+    const colors = ['#ff8a3d', '#ffc93c', '#6fd08c', '#4cc9f0', '#7b8cff', '#c77dff', '#ff6b9d'];
+    get().patchProject((p) => {
+      const color = colors[p.channels.length % colors.length];
+      const stripId = Math.max(0, ...p.strips.map((s) => s.id)) + 1;
+      const strip = createStrip(stripId, '', color);
+      strip.route = 0;
+      p.strips.push(strip);
+      const channel = createChannel({ preset, color, mixer: stripId });
+      strip.name = channel.name;
+      p.channels.push(channel);
+      p.tracks.push({
+        id: uid('tr'),
+        name: channel.name,
+        color,
+        mute: false,
+        solo: false,
+        height: 92,
+      });
+      p.selectedChannel = channel.id;
+      p.selectedStrip = stripId;
+    });
+    get().toast('Linked channel, playlist track and mixer strip created');
+  },
+
   updateChannel(id, patch, coalesce) {
     get().patchProject(
       (p) => {
@@ -884,6 +915,19 @@ export const useApp = create<AppState>((set, get) => ({
     );
   },
 
+  updateClips(ids, patch, coalesce) {
+    if (!ids.length) return;
+    const selected = new Set(ids);
+    get().patchProject(
+      (p) => {
+        p.clips.forEach((clip) => {
+          if (selected.has(clip.id)) Object.assign(clip, patch);
+        });
+      },
+      { coalesce },
+    );
+  },
+
   removeClip(id) {
     get().patchProject((p) => {
       p.clips = p.clips.filter((c) => c.id !== id);
@@ -971,6 +1015,19 @@ export const useApp = create<AppState>((set, get) => ({
       (p) => {
         const clip = p.audioClips.find((c) => c.id === id);
         if (clip) Object.assign(clip, patch);
+      },
+      { coalesce },
+    );
+  },
+
+  updateAudioClips(ids, patch, coalesce) {
+    if (!ids.length) return;
+    const selected = new Set(ids);
+    get().patchProject(
+      (p) => {
+        p.audioClips.forEach((clip) => {
+          if (selected.has(clip.id)) Object.assign(clip, patch);
+        });
       },
       { coalesce },
     );

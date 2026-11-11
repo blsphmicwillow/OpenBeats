@@ -23,6 +23,7 @@ export function ChannelRack() {
     setUI,
     openMenu,
     addChannel,
+    addLinkedChannel,
     clearChannelSteps,
     transposeChannel,
     selectPattern,
@@ -40,16 +41,20 @@ export function ChannelRack() {
   const anySolo = project.channels.some((c) => c.solo);
   const selected = project.channels.find((c) => c.id === project.selectedChannel) ?? project.channels[0];
 
+  const presetMenuItems = (linked: boolean) =>
+    PRESETS.filter((p) => p.id !== 'sample').map((preset) => ({
+      label: `${preset.name}  ·  ${preset.category}`,
+      onClick: () => (linked ? addLinkedChannel(preset.id as PresetId) : addChannel(preset.id as PresetId)),
+    }));
+
   const addMenu = (e: React.MouseEvent) => {
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-    openMenu(
-      rect.left,
-      rect.bottom + 3,
-      PRESETS.filter((p) => p.id !== 'sample').map((preset) => ({
-        label: `${preset.name}  ·  ${preset.category}`,
-        onClick: () => addChannel(preset.id as PresetId),
-      })),
-    );
+    openMenu(rect.left, rect.bottom + 3, presetMenuItems(false));
+  };
+
+  const linkedMenu = (e: React.MouseEvent) => {
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    openMenu(rect.left, rect.bottom + 3, presetMenuItems(true));
   };
 
   const rowMenu = (e: React.MouseEvent, channel: Channel) => {
@@ -153,6 +158,13 @@ export function ChannelRack() {
         </button>
         <button className="tbtn small" onClick={addMenu} title="Add channel">
           <IconPlus size={10} /> Ch
+        </button>
+        <button
+          className="tbtn small rack-linked"
+          onClick={linkedMenu}
+          title="Add a channel with its own playlist track and mixer strip, routed automatically"
+        >
+          Linked
         </button>
       </div>
 

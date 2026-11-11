@@ -34,6 +34,8 @@ export const CHANGELOG: ChangelogEntry[] = [
           'Audio clips keep a source offset, so splitting resumes the right-hand half at the cut point and the waveform follows the segment.',
           'Slip-edit audio clips with Alt-drag or the inspector Slip field, moving the source window without moving the timeline clip. ENGINE: Web Audio only.',
           'Copy, cut and paste pattern or audio clips at the playhead with Ctrl/Cmd+C/X/V; Shift+Arrow nudges selected clips.',
+          'Shift/Cmd-click selects several clips; batch gain, fades and quantize apply to the whole selection as one undo step.',
+          'Linked channel creation builds the instrument channel, playlist track and mixer strip together with shared naming and automatic routing.',
           'Added Glass Keys, an original inharmonic bell instrument implemented in both the Rust/CPAL and Web Audio engines.',
           'Added Velvet Choir (additive formant pad) and FM Bass (two-operator sine bass), both in the Rust/CPAL and Web Audio engines.',
           'Added original chorus, phaser and bitcrusher inserts. Web Audio only, and included in offline bounces.',

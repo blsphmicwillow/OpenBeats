@@ -15,6 +15,7 @@ import { dropGhost, playlistSnapContext } from '../playlistDrop';
 import { getSampleBuffer, getSampleName, getSamplePeaks, getSampleRef, peakLevelCount } from '../audio/sampleLibrary';
 import { IconGrid, IconPiano, IconPlus, IconTrash } from '../ui/icons';
 import { keepPlayheadVisible } from '../lib/playheadFollow';
+import { quantizeStep, quantizeTick, selectClipId } from '../lib/clipSelection';
 
 const HEAD = 142;
 
@@ -38,7 +39,8 @@ export function Playlist() {
   const ui = useApp((s) => s.ui);
   const clipClipboard = useApp((s) => s.clipClipboard);
   const [zoom, setZoom] = useState(9);
-  const [selectedClip, setSelectedClip] = useState<string | null>(null);
+  const [selectedClips, setSelectedClips] = useState<string[]>([]);
+  const selectedClip = selectedClips.length ? selectedClips[selectedClips.length - 1] : null;
   const drag = useRef<DragState | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const dragStartScroll = useRef(0);
@@ -65,6 +67,7 @@ export function Playlist() {
     loopFromMarker,
     addClip,
     updateClip,
+    updateClips,
     removeClip,
     copyClip,
     cutClip,
@@ -72,6 +75,7 @@ export function Playlist() {
     splitClipAt,
     addAudioClip,
     updateAudioClip,
+    updateAudioClips,
     removeAudioClip,
     importAudioClipFiles,
     addTrack,
@@ -88,6 +92,11 @@ export function Playlist() {
 
   const barSteps = project.beatsPerBar * 4;
   const snap = settings.snap || 0;
+
+  const isSelected = (id: string) => selectedClips.includes(id);
+  const pickClip = (e: { shiftKey: boolean; metaKey: boolean; ctrlKey: boolean }, id: string) => {
+    setSelectedClips((current) => selectClipId(current, id, e.shiftKey || e.metaKey || e.ctrlKey));
+  };
   const contentSteps = Math.max(
     64,
     Math.ceil((songLengthSteps(project) + barSteps) / barSteps) * barSteps,
@@ -388,15 +397,15 @@ export function Playlist() {
       const mod = e.ctrlKey || e.metaKey;
       const key = e.key.toLowerCase();
       if (mod && !e.altKey && (key === 'c' || key === 'x' || key === 'v')) {
-        if (!selectedClip && key !== 'v') return;
+        if (!selectedClips.length && key !== 'v') return;
         e.preventDefault();
         if (key === 'c') copyClip(selectedClip!);
         else if (key === 'x') {
           cutClip(selectedClip!);
-          setSelectedClip(null);
+          setSelectedClips((current) => current.filter((id) => id !== selectedClip));
         } else {
           const id = pasteClipAt(transport.step);
-          if (id) setSelectedClip(id);
+          if (id) setSelectedClips([id]);
         }
         return;
       }
@@ -406,32 +415,35 @@ export function Playlist() {
         !e.altKey &&
         (e.key === 'ArrowLeft' || e.key === 'ArrowRight' || e.key === 'ArrowUp' || e.key === 'ArrowDown')
       ) {
-        if (!selectedClip) return;
+        if (!selectedClips.length) return;
         e.preventDefault();
         const project = state.project;
-        const patternClip = project.clips.find((clip) => clip.id === selectedClip);
-        const audioClip = project.audioClips.find((clip) => clip.id === selectedClip);
-        if (!patternClip && !audioClip) return;
+        const ids = new Set(selectedClips);
+        const patternClips = project.clips.filter((clip) => ids.has(clip.id));
+        const audioClips = project.audioClips.filter((clip) => ids.has(clip.id));
+        if (!patternClips.length && !audioClips.length) return;
         if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
           const direction = e.key === 'ArrowUp' ? -1 : 1;
-          if (patternClip) {
-            updateClip(patternClip.id, { track: Math.max(0, Math.min(project.tracks.length - 1, patternClip.track + direction)) }, `nudge:${patternClip.id}`);
-          } else if (audioClip) {
-            updateAudioClip(audioClip.id, { track: Math.max(0, Math.min(project.tracks.length - 1, audioClip.track + direction)) }, `nudge:${audioClip.id}`);
-          }
+          patternClips.forEach((clip) => {
+            updateClips([clip.id], { track: Math.max(0, Math.min(project.tracks.length - 1, clip.track + direction)) }, `nudge:${clip.id}`);
+          });
+          audioClips.forEach((clip) => {
+            updateAudioClips([clip.id], { track: Math.max(0, Math.min(project.tracks.length - 1, clip.track + direction)) }, `nudge:${clip.id}`);
+          });
         } else {
           const deltaSteps = (e.key === 'ArrowLeft' ? -1 : 1) * (snap || 1);
-          if (patternClip) {
-            updateClip(patternClip.id, { start: Math.max(0, patternClip.start + deltaSteps) }, `nudge:${patternClip.id}`);
-          } else if (audioClip) {
-            updateAudioClip(audioClip.id, { start_tick: Math.max(0, Math.round(audioClip.start_tick + deltaSteps * TICKS_PER_STEP)) }, `nudge:${audioClip.id}`);
-          }
+          patternClips.forEach((clip) => {
+            updateClips([clip.id], { start: Math.max(0, clip.start + deltaSteps) }, `nudge:${clip.id}`);
+          });
+          audioClips.forEach((clip) => {
+            updateAudioClips([clip.id], { start_tick: Math.max(0, Math.round(clip.start_tick + deltaSteps * TICKS_PER_STEP)) }, `nudge:${clip.id}`);
+          });
         }
       }
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [copyClip, cutClip, pasteClipAt, selectedClip, snap, transport.step, updateAudioClip, updateClip]);
+  }, [copyClip, cutClip, pasteClipAt, selectedClip, selectedClips, snap, transport.step, updateAudioClip, updateAudioClips, updateClip, updateClips]);
 
   const nextPatternOverlap = (clip: { id: string; track: number; start: number; len: number }) => {
     const next = project.clips
@@ -468,7 +480,7 @@ export function Playlist() {
       { label: 'Copy clip', shortcut: 'Ctrl+C', onClick: () => copyClip(clip.id) },
       { label: 'Cut clip', shortcut: 'Ctrl+X', onClick: () => {
         cutClip(clip.id);
-        setSelectedClip(null);
+        setSelectedClips((current) => current.filter((id) => id !== clip.id));
       } },
       { separator: true },
       {
@@ -565,7 +577,7 @@ export function Playlist() {
         disabled: !clipClipboard,
         onClick: () => {
           const id = pasteClipAt(transport.step);
-          if (id) setSelectedClip(id);
+          if (id) setSelectedClips([id]);
         },
       },
       { label: `Pattern: ${pat?.name ?? 'unknown'}`, disabled: true },
@@ -583,7 +595,7 @@ export function Playlist() {
       { label: 'Copy clip', shortcut: 'Ctrl+C', onClick: () => copyClip(clip.id) },
       { label: 'Cut clip', shortcut: 'Ctrl+X', onClick: () => {
         cutClip(clip.id);
-        setSelectedClip(null);
+        setSelectedClips((current) => current.filter((id) => id !== clip.id));
       } },
       { separator: true },
       { label: `Gain ${(20 * Math.log10(Math.max(0.001, clip.gain))).toFixed(1)} dB`, disabled: true },
@@ -646,7 +658,7 @@ export function Playlist() {
         disabled: !clipClipboard,
         onClick: () => {
           const id = pasteClipAt(transport.step);
-          if (id) setSelectedClip(id);
+          if (id) setSelectedClips([id]);
         },
       },
       { label: 'Delete clip', danger: true, onClick: () => removeAudioClip(clip.id) },
@@ -742,6 +754,70 @@ export function Playlist() {
     }
   };
 
+  const selectedModels = useMemo(() => {
+    const ids = new Set(selectedClips);
+    return [
+      ...project.clips
+        .filter((clip) => ids.has(clip.id))
+        .map((clip) => ({
+          kind: 'pattern' as const,
+          id: clip.id,
+          gain: clip.gain ?? 1,
+          fadeIn: clip.fadeIn ?? 0,
+          fadeOut: clip.fadeOut ?? 0,
+        })),
+      ...project.audioClips
+        .filter((clip) => ids.has(clip.id))
+        .map((clip) => ({
+          kind: 'audio' as const,
+          id: clip.id,
+          gain: clip.gain,
+          fadeIn: ticksToSteps(clip.fade_in),
+          fadeOut: ticksToSteps(clip.fade_out),
+        })),
+    ];
+  }, [project.clips, project.audioClips, selectedClips]);
+  const patternIds = selectedModels.filter((model) => model.kind === 'pattern').map((model) => model.id);
+  const audioIds = selectedModels.filter((model) => model.kind === 'audio').map((model) => model.id);
+  const batchGain = selectedModels[0]?.gain ?? 1;
+  const batchFadeIn = selectedModels[0]?.fadeIn ?? 0;
+  const batchFadeOut = selectedModels[0]?.fadeOut ?? 0;
+  const applyBatchGain = (value: number) => {
+    if (patternIds.length) updateClips(patternIds, { gain: value }, 'batch:gain');
+    if (audioIds.length) updateAudioClips(audioIds, { gain: value }, 'batch:gain');
+  };
+  const applyBatchFade = (edge: 'in' | 'out', value: number) => {
+    const steps = Math.max(0, Math.min(16, Math.round(value)));
+    if (patternIds.length) {
+      updateClips(patternIds, edge === 'in' ? { fadeIn: steps } : { fadeOut: steps }, `batch:fade-${edge}`);
+    }
+    if (audioIds.length) {
+      updateAudioClips(
+        audioIds,
+        edge === 'in' ? { fade_in: steps * TICKS_PER_STEP } : { fade_out: steps * TICKS_PER_STEP },
+        `batch:fade-${edge}`,
+      );
+    }
+  };
+  const quantizeSelected = () => {
+    if (!selectedModels.length) return;
+    if (!snap) {
+      hint('Set a snap grid before quantising');
+      return;
+    }
+    project.clips.forEach((clip) => {
+      if (!isSelected(clip.id)) return;
+      const start = quantizeStep(clip.start, snap);
+      if (start !== clip.start) updateClips([clip.id], { start }, 'batch:quantize');
+    });
+    project.audioClips.forEach((clip) => {
+      if (!isSelected(clip.id)) return;
+      const start = quantizeTick(clip.start_tick, snap);
+      if (start !== clip.start_tick) updateAudioClips([clip.id], { start_tick: start }, 'batch:quantize');
+    });
+    hint(`Quantised ${selectedModels.length} clips to the snap grid`);
+  };
+
   const bars = useMemo(() => Math.ceil(contentSteps / barSteps), [contentSteps, barSteps]);
 
   return (
@@ -771,7 +847,7 @@ export function Playlist() {
           disabled={!clipClipboard}
           onClick={() => {
             const id = pasteClipAt(transport.step);
-            if (id) setSelectedClip(id);
+            if (id) setSelectedClips([id]);
           }}
           title="Paste the copied clip at the playhead (Ctrl/Cmd+V)"
         >
@@ -842,7 +918,36 @@ export function Playlist() {
         </button>
       </div>
 
-      {(selectedPattern || selectedAudio) && (
+      {selectedClips.length > 1 && (
+        <div className="clip-inspector clip-inspector-batch" role="region" aria-label={`${selectedClips.length} selected clips`}>
+          <strong>{selectedClips.length} clips selected</strong>
+          <label>
+            Gain
+            <input type="range" min={0} max={2} step={0.01} value={batchGain} onChange={(e) => applyBatchGain(Number(e.target.value))} />
+          </label>
+          <label>
+            Fade in
+            <input type="number" min={0} max={16} step={1} value={batchFadeIn} onChange={(e) => applyBatchFade('in', Number(e.target.value))} />
+          </label>
+          <label>
+            Fade out
+            <input type="number" min={0} max={16} step={1} value={batchFadeOut} onChange={(e) => applyBatchFade('out', Number(e.target.value))} />
+          </label>
+          <div className="batch-actions">
+            <button className="tbtn small" disabled={!snap} onClick={quantizeSelected} title="Snap every selected clip start to the current grid">
+              Quantize
+            </button>
+            <button className="tbtn small" onClick={() => setSelectedClips([])}>
+              Clear selection
+            </button>
+          </div>
+          <span className="tiny-note">
+            Batch edits apply to all selected clips. Fades are in 16th steps; audio-clip fades remain Web Audio only.
+          </span>
+        </div>
+      )}
+
+      {selectedClips.length === 1 && (selectedPattern || selectedAudio) && (
         <div className="clip-inspector" role="region" aria-label={`${selectedName ?? 'Clip'} controls`}>
           <strong>{selectedName}</strong>
           <label>
@@ -1178,7 +1283,7 @@ export function Playlist() {
                   if (e.target !== e.currentTarget) return;
                   const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
                   seek(snapStep((e.clientX - rect.left) / zoom));
-                  setSelectedClip(null);
+                  setSelectedClips([]);
                 }}
                 onDoubleClick={(e) => {
                   if (e.target !== e.currentTarget) return;
@@ -1206,16 +1311,16 @@ export function Playlist() {
                     return (
                       <div
                         key={clip.id}
-                        className={`clip ${selectedClip === clip.id ? 'selected' : ''} ${
-                          dragging === 'clip' && selectedClip === clip.id ? 'dragging' : ''
-                        } ${dragging === 'resize' && selectedClip === clip.id ? 'resizing' : ''}`}
+                        className={`clip ${isSelected(clip.id) ? 'selected' : ''} ${
+                          dragging === 'clip' && isSelected(clip.id) ? 'dragging' : ''
+                        } ${dragging === 'resize' && isSelected(clip.id) ? 'resizing' : ''}`}
                         style={{ left: clip.start * zoom, width: clipWidth, ['--clip-color' as string]: color }}
                         title={`${pat?.name ?? 'Pattern'} — drag to move, drag the right edge to resize, double-click to edit`}
                         onPointerDown={(e) => {
                           if (e.button !== 0) return;
                           e.preventDefault();
                           e.stopPropagation();
-                          setSelectedClip(clip.id);
+                          pickClip(e, clip.id);
                           pushHistory();
                           beginDrag(e, { kind: 'clip', id: clip.id, startX: e.clientX, origStart: clip.start, origLen: clip.len });
                         }}
@@ -1245,7 +1350,7 @@ export function Playlist() {
                             />
                           ))}
                         </div>
-                        {selectedClip === clip.id && (
+                        {isSelected(clip.id) && (
                           <>
                             <div
                               className="fade-handle fade-in"
@@ -1254,7 +1359,7 @@ export function Playlist() {
                               onPointerDown={(e) => {
                                 e.preventDefault();
                                 e.stopPropagation();
-                                setSelectedClip(clip.id);
+                                if (!isSelected(clip.id)) setSelectedClips([clip.id]);
                                 pushHistory();
                                 beginDrag(e, { kind: 'fade-in', id: clip.id, audio: false, startX: e.clientX, orig: clip.fadeIn ?? 0, len: clip.len });
                               }}
@@ -1266,7 +1371,7 @@ export function Playlist() {
                               onPointerDown={(e) => {
                                 e.preventDefault();
                                 e.stopPropagation();
-                                setSelectedClip(clip.id);
+                                if (!isSelected(clip.id)) setSelectedClips([clip.id]);
                                 pushHistory();
                                 beginDrag(e, { kind: 'fade-out', id: clip.id, audio: false, startX: e.clientX, orig: clip.fadeOut ?? 0, len: clip.len });
                               }}
@@ -1292,8 +1397,8 @@ export function Playlist() {
                     return (
                       <div
                         key={clip.id}
-                        className={`clip audio-clip ${selectedClip === clip.id ? 'selected' : ''} ${
-                          dragging === 'audio-clip' && selectedClip === clip.id ? 'dragging' : ''
+                        className={`clip audio-clip ${isSelected(clip.id) ? 'selected' : ''} ${
+                          dragging === 'audio-clip' && isSelected(clip.id) ? 'dragging' : ''
                         }`}
                         style={{
                           left: ticksToSteps(clip.start_tick) * zoom,
@@ -1305,7 +1410,7 @@ export function Playlist() {
                           if (e.button !== 0) return;
                           e.preventDefault();
                           e.stopPropagation();
-                          setSelectedClip(clip.id);
+                          pickClip(e, clip.id);
                           pushHistory();
                           if (e.altKey) {
                             beginDrag(e, {
@@ -1354,7 +1459,7 @@ export function Playlist() {
                           onPointerDown={(e) => {
                             e.preventDefault();
                             e.stopPropagation();
-                            setSelectedClip(clip.id);
+                            if (!isSelected(clip.id)) setSelectedClips([clip.id]);
                             pushHistory();
                             beginDrag(e, {
                               kind: 'audio-slip',
@@ -1382,7 +1487,7 @@ export function Playlist() {
                         >
                           <span aria-hidden="true">↔</span> SLIP
                         </div>
-                        {selectedClip === clip.id && (
+                        {isSelected(clip.id) && (
                           <>
                             <div
                               className="fade-handle fade-in"
@@ -1391,7 +1496,7 @@ export function Playlist() {
                               onPointerDown={(e) => {
                                 e.preventDefault();
                                 e.stopPropagation();
-                                setSelectedClip(clip.id);
+                                if (!isSelected(clip.id)) setSelectedClips([clip.id]);
                                 pushHistory();
                                 beginDrag(e, { kind: 'fade-in', id: clip.id, audio: true, startX: e.clientX, orig: clip.fade_in, len: clip.length_ticks });
                               }}
@@ -1403,7 +1508,7 @@ export function Playlist() {
                               onPointerDown={(e) => {
                                 e.preventDefault();
                                 e.stopPropagation();
-                                setSelectedClip(clip.id);
+                                if (!isSelected(clip.id)) setSelectedClips([clip.id]);
                                 pushHistory();
                                 beginDrag(e, { kind: 'fade-out', id: clip.id, audio: true, startX: e.clientX, orig: clip.fade_out, len: clip.length_ticks });
                               }}

@@ -149,7 +149,7 @@ Ranked by where each product invests its tutorials, default workspaces and relea
 | Demand | 1.0.6 today | Gap | Engine to change |
 | --- | --- | --- | --- |
 | Unified channel → playlist track → mixer strip | Manual routing; separate channel/mixer/track entities | **Missing.** No one-click "create linked track" flow | Project model + Rust and Web Audio routing |
-| Insert chain depth | No cap; mixer shows first 4 then "+N more" | **Already ahead** of FL's 10-slot limit | — |
+| Insert chain depth | No cap; mixer shows first 4 then "+N more" | **Already ahead**: FL 2026.1 raised its limit to 25 slots; ours stays uncapped | — |
 | Batch clip editing | Single `selectedClip`; inspector edits one clip | **Missing** multi-select, batch fades/gain/quantize | UI + project model |
 | Custom shortcuts | Fully remappable keymap | **Already solved** | — |
 | Browser preview/search | Audition, tagging, pack import, search | Inline waveform previews and large-library indexing not verified as present | UI + Web Audio |
@@ -224,3 +224,69 @@ Open source:
 - [Ardour tempo-track thread](https://discourse.ardour.org/t/problems-whit-tempo-track/113721)
 - [Zrythm changelog](https://github.com/zrythm/zrythm/blob/master/CHANGELOG.md)
 - [CDM: Ardour 9.2](https://cdm.link/ardour-9-2-free-and-open-daw)
+
+---
+
+## 7. Deeper pass — Image-Line To Do and Ableton Centercode (2026-11-11)
+
+### Image-Line "To Do" (the official suggestion board)
+
+The [To Do board](https://forum.image-line.com/viewforum.php?f=600) is the largest dedicated DAW
+suggestion board I could observe without an account: **18,684 topics and 72,375 posts** on
+10 November 2026 ([forum index](https://forum.image-line.com/)). I sampled its current page and the
+search-indexed threads rather than crawling 18k topics.
+
+Recent clusters on the board:
+
+- Persistent workspace layouts and font consistency.
+- **Batch MIDI editing** (the same batch-edit demand as Ableton's multi-clip threads).
+- BGM/film scoring: dynamic grid, tempo mapping, video player fixes.
+- Mixer routing with positive/negative sends.
+- **Linear / track-based mode** and automatic playlist-mixer-channel unification, including an
+  October 2026 proposal to trigger it from Split by Channel.
+- Key detection panel, live performance/arranger mode, and an open project scripting API for agents.
+
+**Correction to the first pass:** FL 2026.1 ships **25 FX insert slots** per mixer track, per the
+October 2026 thread that calls the updated Split by Channel and 25 slots "amazing additions". That
+supersedes the June 2026 request for 20 slots. OpenBeats still has no insert cap, so it remains
+competitive here, but "FL is stuck at 10" is no longer true.
+
+### Ableton Centercode
+
+Ableton collects suggestions in **Centercode**, behind a signed-in beta account, with up-votes
+reserved for members ([how to submit](https://help.ableton.com/hc/en-us/articles/360011934759-How-to-submit-a-feature-request)).
+The suggestion list is not public, so this pass did **not** log in or bypass the gate; the public
+[Feature Wishlist](https://forum.ableton.com/viewforum.php?f=3) stays the observable proxy.
+
+One shipped feature is direct validation for our own Learn work: Live 12.4 added a **Learn View**
+from the Help menu — structured lessons combining video and text, filterable by topic, with
+**completed** markers ([Live 12 beta notes](https://www.ableton.com/en/release-notes/live-12-beta/)).
+That is the same module/progress model OpenBeats Learn now uses, offline and without an account.
+
+### General sites
+
+- KVR's ["Design your own DAW"](https://www.kvraudio.com/forum/viewtopic.php?t=634113) thread
+  (October 2026) asks for modulation depth (an LFO modulating an LFO), workflow speed and no
+  subscriptions — not more bundled synths.
+- Polyend's public feature board shows sample slicing, more step FX and accessibility/colour options
+  as its most active asks.
+- Steinberg's Cubase wishlist repeats template saving without media and **FX-chain templates**.
+
+### Import list into OpenBeats
+
+| Signal | Import | Status |
+| --- | --- | --- |
+| Batch MIDI/clip editing (Image-Line To Do, Ableton wishlist) | Multi-clip selection with batch gain, fades and quantize | **Shipped in this build** |
+| Learn View with completion tracking (Ableton 12.4) | Local Learn workspace with per-module progress | **Already shipped** |
+| Linear/unified track mode | Linked channel → playlist track → mixer strip creation | **Shipped in this build**; next step is relinking existing channels |
+| 25 FX insert slots | Uncapped insert chains | **Already ahead** |
+| Workspace layouts | Persist panel sizes and collapsed groups as named layouts | Backlog |
+| FX-chain templates | Save and recall insert chains per bus | Backlog |
+| Tempo mapping / follow tempo | Multi-tempo map for imported audio | Backlog, large |
+| Live performance mode | Scene/clip launcher | Backlog, large |
+| Project scripting API for agents | Local JSON-RPC over the existing command layer | Deferred: needs an explicit security decision |
+| Sample slicing in the browser | Slice a sample into a drum map | Backlog |
+
+**Not done in this pass:** no Centercode login, no exhaustive crawl of the 18k To Do topics, and no
+attempt to read members-only forum content. The tiering above still comes from recurrence across
+independent threads, not a scraped vote total.
