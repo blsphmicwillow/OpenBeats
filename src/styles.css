@@ -1087,6 +1087,15 @@ textarea {
 .lane:hover {
   background-color: color-mix(in srgb, var(--accent) 3%, transparent);
 }
+.clip,
+.browser-item,
+.marker-flag,
+.pl-ruler,
+.lane {
+  -webkit-user-select: none;
+  user-select: none;
+}
+
 .clip-fade {
   position: absolute;
   top: 0;

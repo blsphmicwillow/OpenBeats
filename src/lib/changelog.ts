@@ -24,6 +24,8 @@ export const CHANGELOG: ChangelogEntry[] = [
           'Markers are stored in the .obeats project and normalized when older projects load.',
           'Pattern and audio clips have visible fade handles; a selected clip also exposes gain, pan and fade controls in the inspector.',
           'Right-click an overlapping clip to create a one-click crossfade with the next clip.',
+          'Browser samples can be dragged straight onto a playlist lane, and pointer drags no longer select surrounding UI text.',
+          'Offline export now includes playlist audio clips and rehydrates their media when a saved project is bounced in a fresh session.',
         ],
       },
       {

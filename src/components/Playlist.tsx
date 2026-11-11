@@ -2,13 +2,15 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { patternById, useApp } from '../store';
 import { songLengthSteps } from '../audio/sequencer';
 import {
+  AUDIO_CLIP_MIME,
+  createAudioClipFromDrop,
   resolveSnapTick,
   TICKS_PER_STEP,
   ticksToSteps,
   type AudioClip,
 } from '../model/audioClip';
 import { dropGhost, playlistSnapContext } from '../playlistDrop';
-import { getSamplePeaks, peakLevelCount } from '../audio/sampleLibrary';
+import { getSampleBuffer, getSampleName, getSamplePeaks, getSampleRef, peakLevelCount } from '../audio/sampleLibrary';
 import { IconGrid, IconPiano, IconPlus, IconTrash } from '../ui/icons';
 import { keepPlayheadVisible } from '../lib/playheadFollow';
 
@@ -670,6 +672,7 @@ export function Playlist() {
               className={`loop-handle ${dragging === 'loop' ? 'dragging' : ''}`}
               style={{ left: project.loopStart * zoom, borderRadius: '2px 0 0 2px' }}
               onPointerDown={(e) => {
+                e.preventDefault();
                 e.stopPropagation();
                 pushHistory();
                 beginDrag(e, { kind: 'loop', edge: 'start', startX: e.clientX, orig: project.loopStart });
@@ -680,6 +683,7 @@ export function Playlist() {
               className={`loop-handle ${dragging === 'loop' ? 'dragging' : ''}`}
               style={{ left: project.loopEnd * zoom - 7, borderRadius: '0 2px 2px 0' }}
               onPointerDown={(e) => {
+                e.preventDefault();
                 e.stopPropagation();
                 pushHistory();
                 beginDrag(e, { kind: 'loop', edge: 'end', startX: e.clientX, orig: project.loopEnd });
@@ -700,6 +704,7 @@ export function Playlist() {
               style={{ left: transport.step * zoom, top: 2, position: 'absolute' }}
               onPointerDown={(e) => {
                 if (e.button !== 0) return;
+                e.preventDefault();
                 e.stopPropagation();
                 const ruler = (e.currentTarget.parentElement as HTMLElement).getBoundingClientRect();
                 beginDrag(e, { kind: 'playhead', startX: e.clientX, rulerLeft: ruler.left });
@@ -821,17 +826,21 @@ export function Playlist() {
                 data-track={index}
                 style={{ width, backgroundSize: `${barSteps * zoom}px 100%`, opacity: track.mute ? 0.55 : 1 }}
                 onDragOver={(e) => {
-                  if (!e.dataTransfer.types.includes('Files')) return;
+                  const files = e.dataTransfer.types.includes('Files');
+                  const sample = e.dataTransfer.types.includes(AUDIO_CLIP_MIME);
+                  if (!files && !sample) return;
                   e.preventDefault();
                   e.stopPropagation();
                   e.dataTransfer.dropEffect = 'copy';
                   const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
                   const rawTick = ((e.clientX - rect.left) / zoom) * TICKS_PER_STEP;
+                  const sampleId = sample ? e.dataTransfer.getData(AUDIO_CLIP_MIME) : '';
+                  const durationSec = sampleId ? getSampleBuffer(sampleId)?.duration ?? 5 : 5;
                   const ghost = dropGhost(
                     index,
                     rawTick,
                     project.bpm,
-                    5,
+                    durationSec,
                     playlistSnapContext({
                       pointerTick: rawTick,
                       playheadTick: transport.step * TICKS_PER_STEP,
@@ -850,11 +859,12 @@ export function Playlist() {
                   if (e.currentTarget === e.target) setAudioGhost(null);
                 }}
                 onDrop={(e) => {
+                  const sampleId = e.dataTransfer.getData(AUDIO_CLIP_MIME);
                   const files = Array.from(e.dataTransfer.files ?? []).filter(
                     (f) => f.type.startsWith('audio/') || /\.(wav|mp3|ogg|oga|flac|m4a|aiff?|webm)$/i.test(f.name),
                   );
                   setAudioGhost(null);
-                  if (!files.length) return;
+                  if (!sampleId && !files.length) return;
                   e.preventDefault();
                   e.stopPropagation();
                   const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
@@ -866,6 +876,27 @@ export function Playlist() {
                     pixelsPerStep: zoom,
                     neighbourTicks: audioEdgesFor(index),
                   });
+                  if (sampleId) {
+                    const buffer = getSampleBuffer(sampleId);
+                    const ref = getSampleRef(sampleId);
+                    if (!buffer || !ref) {
+                      hint('That sample is no longer loaded — add it from the browser again');
+                      return;
+                    }
+                    addAudioClip(
+                      createAudioClipFromDrop({
+                        id: `ac_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`,
+                        sampleId,
+                        mediaRef: ref,
+                        name: getSampleName(sampleId),
+                        bpm: project.bpm,
+                        durationSec: buffer.duration,
+                        track: index,
+                        startTick: resolveSnapTick(rawTick, context),
+                      }),
+                    );
+                    return;
+                  }
                   void importAudioClipFiles(files, index, resolveSnapTick(rawTick, context));
                 }}
                 onClick={(e) => {
@@ -907,6 +938,7 @@ export function Playlist() {
                         title={`${pat?.name ?? 'Pattern'} — drag to move, drag the right edge to resize, double-click to edit`}
                         onPointerDown={(e) => {
                           if (e.button !== 0) return;
+                          e.preventDefault();
                           e.stopPropagation();
                           setSelectedClip(clip.id);
                           pushHistory();
@@ -945,6 +977,7 @@ export function Playlist() {
                               style={{ left: Math.max(2, Math.min(clipWidth - 4, (clip.fadeIn ?? 0) * zoom)) }}
                               title="Drag to set fade in (steps)"
                               onPointerDown={(e) => {
+                                e.preventDefault();
                                 e.stopPropagation();
                                 setSelectedClip(clip.id);
                                 pushHistory();
@@ -956,6 +989,7 @@ export function Playlist() {
                               style={{ left: Math.max(2, Math.min(clipWidth - 4, clipWidth - (clip.fadeOut ?? 0) * zoom)) }}
                               title="Drag to set fade out (steps)"
                               onPointerDown={(e) => {
+                                e.preventDefault();
                                 e.stopPropagation();
                                 setSelectedClip(clip.id);
                                 pushHistory();
@@ -967,6 +1001,7 @@ export function Playlist() {
                         <div
                           className="clip-resize"
                           onPointerDown={(e) => {
+                            e.preventDefault();
                             e.stopPropagation();
                             pushHistory();
                             beginDrag(e, { kind: 'resize', id: clip.id, startX: e.clientX, origLen: clip.len });
@@ -993,6 +1028,7 @@ export function Playlist() {
                         title={`${clip.name} — Web Audio clip (native playback pending). Drag to move, right-click for gain, pan and loop.`}
                         onPointerDown={(e) => {
                           if (e.button !== 0) return;
+                          e.preventDefault();
                           e.stopPropagation();
                           setSelectedClip(clip.id);
                           pushHistory();
@@ -1021,6 +1057,7 @@ export function Playlist() {
                               style={{ left: Math.max(2, Math.min(width - 4, ticksToSteps(clip.fade_in) * zoom)) }}
                               title="Drag to set audio fade in"
                               onPointerDown={(e) => {
+                                e.preventDefault();
                                 e.stopPropagation();
                                 setSelectedClip(clip.id);
                                 pushHistory();
@@ -1032,6 +1069,7 @@ export function Playlist() {
                               style={{ left: Math.max(2, Math.min(width - 4, width - ticksToSteps(clip.fade_out) * zoom)) }}
                               title="Drag to set audio fade out"
                               onPointerDown={(e) => {
+                                e.preventDefault();
                                 e.stopPropagation();
                                 setSelectedClip(clip.id);
                                 pushHistory();

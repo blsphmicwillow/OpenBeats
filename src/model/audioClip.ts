@@ -127,6 +127,8 @@ export function resolveSnapTick(rawTick: number, ctx: SnapContext): number {
   return raw;
 }
 
+export const AUDIO_CLIP_MIME = 'application/x-openbeats-audio-clip';
+
 export interface CreateAudioClipInput {
   sampleId: string;
   mediaRef: MediaRef;

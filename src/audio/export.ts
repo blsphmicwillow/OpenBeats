@@ -4,6 +4,10 @@ import { playVoice } from './instruments';
 import { songEvents, songLengthSteps, stepsToSeconds, swingOffset, isChannelAudible } from './sequencer';
 import { masterBuffer, masterProfile, type MasterTarget } from '../lib/mastering';
 import type { Project } from '../model/types';
+import { ticksToSteps, type AudioClip } from '../model/audioClip';
+import { applyClipGain, scheduleWindows } from './audioClipScheduler';
+import { buffersForClips, registerSample } from './sampleLibrary';
+import { getSample } from './mediaStore';
 
 function encodeWav(buffer: AudioBuffer): Blob {
   const numCh = buffer.numberOfChannels;
@@ -40,15 +44,102 @@ function encodeWav(buffer: AudioBuffer): Blob {
 }
 
 /**
- * Renders the whole playlist offline — the same graph and voices used live, so
- * what you hear is what you bounce.
+ * Rehydrates audio-clip buffers from the media store when a saved project is
+ * bounced in a fresh session. Without this the offline renderer would silently
+ * skip clips whose bytes are no longer in the session sample map.
+ */
+async function hydrateAudioClipBuffers(
+  ctx: OfflineAudioContext,
+  clips: AudioClip[],
+): Promise<Map<string, AudioBuffer>> {
+  const buffers = buffersForClips(clips);
+  for (const clip of clips) {
+    if (buffers.has(clip.id)) continue;
+    try {
+      const bytes = await getSample(clip.media_ref);
+      if (!bytes) continue;
+      const buffer = await ctx.decodeAudioData(bytes);
+      registerSample(clip.sample_id, buffer, clip.media_ref);
+      buffers.set(clip.id, buffer);
+    } catch {
+      // A missing or corrupt media file is skipped; the rest still bounces.
+    }
+  }
+  return buffers;
+}
+
+/** Schedules playlist audio clips into the same offline destination as notes. */
+function scheduleAudioClipWindows(
+  ctx: OfflineAudioContext,
+  destination: AudioNode,
+  clips: AudioClip[],
+  buffers: Map<string, AudioBuffer>,
+  bpm: number,
+  horizonSec: number,
+): void {
+  const durations: Record<string, number> = {};
+  for (const [clipId, buffer] of buffers) durations[clipId] = buffer.duration;
+  const windows = scheduleWindows(
+    clips,
+    {
+      bpm,
+      fromTick: 0,
+      horizonSec,
+      loop: false,
+      loopStartTick: 0,
+      loopEndTick: 0,
+    },
+    durations,
+  );
+  const byId = new Map(clips.map((clip) => [clip.id, clip]));
+  for (const window of windows) {
+    const clip = byId.get(window.clipId);
+    const buffer = buffers.get(window.clipId);
+    if (!clip || !buffer) continue;
+    try {
+      const source = ctx.createBufferSource();
+      source.buffer = buffer;
+      if (window.loopWithinSource) {
+        source.loop = true;
+        source.loopStart = 0;
+        source.loopEnd = buffer.duration;
+      }
+      const gain = ctx.createGain();
+      applyClipGain(gain, clip, buffer.duration, window.whenSec);
+      let tail: AudioNode = gain;
+      if (typeof ctx.createStereoPanner === 'function' && clip.pan !== 0) {
+        const panner = ctx.createStereoPanner();
+        panner.pan.value = Math.max(-1, Math.min(1, clip.pan));
+        gain.connect(panner);
+        tail = panner;
+      }
+      tail.connect(destination);
+      source.connect(gain);
+      source.start(
+        window.whenSec,
+        window.offsetSec,
+        window.loopWithinSource ? undefined : window.durationSec,
+      );
+    } catch {
+      // Keep exporting the rest of the song if one clip cannot be scheduled.
+    }
+  }
+}
+
+/**
+ * Renders the whole playlist offline — pattern notes and audio clips — with the
+ * same graph and voices used live, so what you hear is what you bounce.
  */
 export async function renderSongToBuffer(
   project: Project,
   opts: { sampleRate?: number; tailSeconds?: number } = {},
 ): Promise<AudioBuffer> {
   const sampleRate = opts.sampleRate ?? 44100;
-  const length = songLengthSteps(project);
+  const audioEndSteps = Math.max(
+    0,
+    ...project.audioClips.map((clip) => ticksToSteps(clip.start_tick + clip.length_ticks)),
+  );
+  const length = Math.max(songLengthSteps(project), audioEndSteps);
   const stepSec = stepsToSeconds(1, project.bpm);
   const duration = length * stepSec + (opts.tailSeconds ?? 3);
   const OfflineCtor: typeof OfflineAudioContext =
@@ -64,6 +155,11 @@ export async function renderSongToBuffer(
     if (!input) continue;
     const when = event.step * stepSec + swingOffset(event.step, project.swing, stepSec);
     playVoice(ctx as unknown as BaseAudioContext, input, channel, event.pitch, event.vel, when, event.lenSteps * stepSec * 0.96);
+  }
+
+  if (project.audioClips.length) {
+    const buffers = await hydrateAudioClipBuffers(ctx, project.audioClips);
+    scheduleAudioClipWindows(ctx, graph.master, project.audioClips, buffers, project.bpm, duration);
   }
 
   return ctx.startRendering();

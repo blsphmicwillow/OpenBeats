@@ -15,6 +15,8 @@ Keep this file and `src/lib/changelog.ts` in sync, and bump `APP_VERSION` in `sr
 - Markers are persisted in `.obeats` projects and old projects load with an empty marker list.
 - Pattern and audio clips have visible fade handles. Selecting a clip exposes gain, pan and fade controls in the inspector.
 - Right-clicking an overlapping clip offers a one-click crossfade with the next clip.
+- Browser samples can be dragged onto playlist lanes, and playlist drags no longer select surrounding interface text.
+- Offline export now includes playlist audio clips and reloads their media for saved projects before rendering.
 - REAPER `.rpp` export writes the marker list and import reads it back.
 
 Markers are arrangement data only and do not change which engine plays audio. Pattern clips keep the Rust/Web Audio split; playlist audio clips remain **Web Audio only** with native playback pending.

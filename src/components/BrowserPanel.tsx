@@ -18,6 +18,7 @@ import { isNative } from '../lib/native';
 import { PackImportReport } from './PackImportReport';
 import { IconDownload, IconFolder, IconPlus, IconSearch, IconWave } from '../ui/icons';
 import type { PresetId } from '../model/types';
+import { AUDIO_CLIP_MIME } from '../model/audioClip';
 
 type Tab = 'packs' | 'projects' | 'samples';
 
@@ -347,8 +348,13 @@ export function BrowserPanel() {
                 <div
                   key={id}
                   className="browser-item"
+                  draggable
+                  onDragStart={(e) => {
+                    e.dataTransfer.setData(AUDIO_CLIP_MIME, id);
+                    e.dataTransfer.effectAllowed = 'copy';
+                  }}
                   onClick={() => channel && previewChannel(channel)}
-                  title={`${buffer.duration.toFixed(2)}s · ${buffer.sampleRate} Hz`}
+                  title={`${buffer.duration.toFixed(2)}s · ${buffer.sampleRate} Hz · drag to a playlist lane`}
                 >
                   <span className="dot" style={{ background: 'var(--accent)' }} />
                   <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
