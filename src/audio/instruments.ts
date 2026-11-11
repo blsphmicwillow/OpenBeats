@@ -307,6 +307,36 @@ export function playVoice(
       stopAt([carrier, mod, shimmer], t + Math.max(dur + env.release + 0.2, 0.4));
       break;
     }
+    case 'glass': {
+      const freq = mtof(pitch + (channel.transpose ?? 0));
+      const partials = [
+        { ratio: 1, level: 0.55 },
+        { ratio: 2.01, level: 0.24 },
+        { ratio: 3.99, level: 0.13 },
+        { ratio: 5.02, level: 0.07 },
+      ];
+      const filter = ctx.createBiquadFilter();
+      filter.type = 'lowpass';
+      filter.Q.value = 0.7;
+      filter.frequency.setValueAtTime(2400 + env.tone * 9000, t);
+      filter.frequency.exponentialRampToValueAtTime(700 + env.tone * 1800, t + 0.35 + env.decay * 0.7);
+      const g = adsr(ctx, vel * 0.52, t, dur, env);
+      filter.connect(g).connect(out);
+      const oscs: OscillatorNode[] = [];
+      partials.forEach((partial, index) => {
+        const osc = ctx.createOscillator();
+        osc.type = 'sine';
+        osc.frequency.value = freq * partial.ratio;
+        osc.detune.value = index % 2 === 0 ? 3 : -3;
+        const level = ctx.createGain();
+        level.gain.value = partial.level * (index === 0 ? 1 : 0.55 + env.tone * 0.8);
+        osc.connect(level).connect(filter);
+        osc.start(t);
+        oscs.push(osc);
+      });
+      stopAt(oscs, t + Math.max(dur + env.release + 0.25, 0.5));
+      break;
+    }
     case 'pluck': {
       const freq = mtof(pitch + (channel.transpose ?? 0));
       const osc = ctx.createOscillator();

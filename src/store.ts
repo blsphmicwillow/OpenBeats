@@ -507,12 +507,39 @@ export const useApp = create<AppState>((set, get) => ({
       // Native playback keeps the stream open and seeks the sequencer, so a
       // playhead drag does not click or drop the audio device.
       void import('./lib/nativeAudio').then((mod) => mod.nativeSetPlayhead(target));
-      set((s) => ({ transport: { ...s.transport, step: target, anchorStep: target } }));
+      set((s) => ({
+        transport: {
+          ...s.transport,
+          step: target,
+          anchorStep: target,
+          anchorTime: performance.now() / 1000,
+        },
+      }));
+      return;
+    }
+    if (wasPlaying && engine.ctx) {
+      // Keep the Web Audio context and play timer alive. Restarting the whole
+      // transport on every pointer frame was the source of playhead-drag lag.
+      const project = get().project;
+      nextStep = target;
+      nextTime = engine.now + 0.04;
+      set((s) => ({
+        transport: {
+          ...s.transport,
+          step: target,
+          anchorStep: target,
+          anchorTime: nextTime,
+        },
+      }));
+      if (engine.graph) startAudioClips(engine.ctx, engine.graph.master, project, target);
+      if (projectHasAutomation(project)) {
+        engine.clearAutomation(project);
+        engine.scheduleAutomation(project, target, nextTime);
+      }
       return;
     }
     get().stop();
     set((s) => ({ transport: { ...s.transport, step: target, anchorStep: target } }));
-    if (wasPlaying) get().play(target);
   },
 
   setBpm(value) {
@@ -1588,6 +1615,11 @@ export function previewChannel(channel: Channel) {
 
 let nativeActive = false;
 let nativePoll: number | null = null;
+
+/** Clock used by the visual playhead; native and Web Audio use different epochs. */
+export function transportNow(): number {
+  return nativeActive ? performance.now() / 1000 : engine.now;
+}
 
 /** True inside the Tauri shell, where the Rust engine can take the transport. */
 function nativeShell(): boolean {

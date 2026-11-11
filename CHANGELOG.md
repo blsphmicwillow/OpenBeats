@@ -26,6 +26,9 @@ Keep this file and `src/lib/changelog.ts` in sync, and bump `APP_VERSION` in `sr
 - Audio clips keep a persisted source offset, so splitting a clip makes the right-hand half resume at the cut point instead of replaying the file from the beginning; the waveform follows the same segment.
 - Slip-edit audio clips by Alt-dragging the clip or using the inspector's Slip field, moving the source window without moving the timeline clip. ENGINE: **Web Audio only**.
 - Copy, cut and paste pattern or audio clips at the playhead with Ctrl/Cmd+C/X/V, and nudge selected clips with Shift+Arrow keys. Pasted audio clips keep their source offset, fades, reverse and normalize flags.
+- Added original **Glass Keys**, an inharmonic bell instrument implemented in both the Rust/CPAL voice pool and Web Audio.
+- Added original chorus, phaser and bitcrusher inserts. They are Web Audio effects and render into the offline bounce alongside the existing inserts.
+- The visual playhead now paints at display refresh rate from the transport clock, while pointer drags commit at a throttled rate and Web Audio seeks no longer stop and restart playback.
 - Fixed offline export using pattern-local note steps instead of absolute song steps; later arrangement clips no longer collapse toward the start of the bounce.
 - REAPER `.rpp` export writes the marker list and import reads it back.
 

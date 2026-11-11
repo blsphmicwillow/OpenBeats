@@ -45,6 +45,7 @@ export const PRESETS: PresetDef[] = [
   { id: 'sub', name: 'Deep Sub', category: 'Bass', blurb: 'Clean sine sub for 808 lines', root: 31, tone: 0.15, decay: 0.6, attack: 0.01, release: 0.25, gain: 0.85, poly: false },
   { id: 'lead', name: 'Lead', category: 'Synth', blurb: 'Detuned saw lead', root: 69, tone: 0.55, decay: 0.45, attack: 0.01, release: 0.25, gain: 0.7, poly: true },
   { id: 'keys', name: 'FM Keys', category: 'Keys', blurb: 'Bell-ish FM electric keys', root: 60, tone: 0.5, decay: 0.5, attack: 0.01, release: 0.35, gain: 0.75, poly: true },
+  { id: 'glass', name: 'Glass Keys', category: 'Keys', blurb: 'Bright inharmonic glass bell with a soft tail', root: 72, tone: 0.62, decay: 0.55, attack: 0.008, release: 0.4, gain: 0.68, poly: true },
   { id: 'chords', name: 'Chord Stack', category: 'Keys', blurb: 'Wide detuned supersaw chords', root: 57, tone: 0.45, decay: 0.6, attack: 0.12, release: 0.45, gain: 0.62, poly: true },
   { id: 'pluck', name: 'Pluck', category: 'Synth', blurb: 'Short filtered pluck', root: 72, tone: 0.6, decay: 0.28, attack: 0.005, release: 0.2, gain: 0.7, poly: true },
   { id: 'pad', name: 'Warm Pad', category: 'Synth', blurb: 'Slow evolving pad', root: 60, tone: 0.4, decay: 0.8, attack: 0.45, release: 0.7, gain: 0.55, poly: true },
@@ -150,6 +151,40 @@ export const EFFECT_DEFS: Record<EffectType, EffectDef> = {
       { key: 'feedback', label: 'Feedback', min: 0, max: 0.9, step: 0.01, def: 0.35 },
       { key: 'tone', label: 'Tone', min: 0, max: 1, step: 0.01, def: 0.5 },
       { key: 'mix', label: 'Mix', min: 0, max: 1, step: 0.01, def: 0.25 },
+    ],
+  },
+  chorus: {
+    type: 'chorus',
+    name: 'Chorus',
+    category: 'Modulation',
+    blurb: 'Short modulated delay for width and shimmer.',
+    params: [
+      { key: 'rate', label: 'Rate', min: 0, max: 1, step: 0.01, def: 0.3 },
+      { key: 'depth', label: 'Depth', min: 0, max: 1, step: 0.01, def: 0.4 },
+      { key: 'mix', label: 'Mix', min: 0, max: 1, step: 0.01, def: 0.35 },
+    ],
+  },
+  phaser: {
+    type: 'phaser',
+    name: 'Phaser',
+    category: 'Modulation',
+    blurb: 'Sweeping all-pass stages for movement and stereo-like motion.',
+    params: [
+      { key: 'rate', label: 'Rate', min: 0, max: 1, step: 0.01, def: 0.28 },
+      { key: 'depth', label: 'Depth', min: 0, max: 1, step: 0.01, def: 0.5 },
+      { key: 'feedback', label: 'Feedback', min: 0, max: 0.85, step: 0.01, def: 0.25 },
+      { key: 'mix', label: 'Mix', min: 0, max: 1, step: 0.01, def: 0.5 },
+    ],
+  },
+  bitcrush: {
+    type: 'bitcrush',
+    name: 'Bitcrusher',
+    category: 'Distortion',
+    blurb: 'Quantises the signal for lo-fi grit, with a tone control.',
+    params: [
+      { key: 'bits', label: 'Bits', min: 4, max: 16, step: 1, def: 8 },
+      { key: 'tone', label: 'Tone', min: 0, max: 1, step: 0.01, def: 0.55 },
+      { key: 'mix', label: 'Mix', min: 0, max: 1, step: 0.01, def: 0.8 },
     ],
   },
   drive: {

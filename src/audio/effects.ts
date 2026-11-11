@@ -41,6 +41,17 @@ function softClipCurve(amount: number): Float32Array<ArrayBuffer> {
   return curve;
 }
 
+export function bitCrushCurve(bits: number): Float32Array<ArrayBuffer> {
+  const n = 2048;
+  const levels = Math.max(2, 2 ** Math.max(1, Math.min(16, Math.round(bits))));
+  const curve = new Float32Array(new ArrayBuffer(n * 4));
+  for (let i = 0; i < n; i += 1) {
+    const x = (i / (n - 1)) * 2 - 1;
+    curve[i] = Math.round(x * levels) / levels;
+  }
+  return curve;
+}
+
 /**
  * Native effects. They are plain Web Audio graphs so they run inside the DAW,
  * follow the theme in the UI and can be exported offline without plugins.
@@ -226,6 +237,104 @@ export function createEffectNode(ctx: BaseAudioContext, effect: Effect): EffectN
         },
         dispose() {
           [delayL, delayR, fb, tone, merger, dry, wet, splitter].forEach((n) => n.disconnect());
+        },
+      };
+    }
+    case 'chorus': {
+      const delay = ctx.createDelay(0.1);
+      const lfo = ctx.createOscillator();
+      const depth = ctx.createGain();
+      const { dry, wet } = makeDryWet(p.mix ?? 0.35);
+      delay.delayTime.value = 0.012 + (p.depth ?? 0.4) * 0.012;
+      lfo.type = 'sine';
+      lfo.frequency.value = 0.08 + (p.rate ?? 0.3) * 4.5;
+      depth.gain.value = 0.001 + (p.depth ?? 0.4) * 0.006;
+      lfo.connect(depth).connect(delay.delayTime);
+      input.connect(dry).connect(output);
+      input.connect(delay).connect(wet).connect(output);
+      lfo.start();
+      return {
+        input,
+        output,
+        update(next) {
+          lfo.frequency.setTargetAtTime(0.08 + (next.rate ?? 0.3) * 4.5, ctx.currentTime, 0.03);
+          depth.gain.setTargetAtTime(0.001 + (next.depth ?? 0.4) * 0.006, ctx.currentTime, 0.03);
+          const m = next.mix ?? 0.35;
+          dry.gain.setTargetAtTime(1 - m, ctx.currentTime, 0.02);
+          wet.gain.setTargetAtTime(m, ctx.currentTime, 0.02);
+        },
+        dispose() {
+          try { lfo.stop(); } catch { /* already stopped */ }
+          [lfo, depth, delay, dry, wet].forEach((node) => node.disconnect());
+        },
+      };
+    }
+    case 'phaser': {
+      const stages = [0, 1, 2, 3].map((index) => {
+        const filter = ctx.createBiquadFilter();
+        filter.type = 'allpass';
+        filter.frequency.value = 350 + index * 520;
+        filter.Q.value = 1.2;
+        return filter;
+      });
+      const lfo = ctx.createOscillator();
+      const depth = ctx.createGain();
+      const feedback = ctx.createGain();
+      const { dry, wet } = makeDryWet(p.mix ?? 0.5);
+      lfo.type = 'sine';
+      lfo.frequency.value = 0.06 + (p.rate ?? 0.28) * 4;
+      depth.gain.value = 250 + (p.depth ?? 0.5) * 1800;
+      feedback.gain.value = p.feedback ?? 0.25;
+      lfo.connect(depth);
+      stages.forEach((stage) => depth.connect(stage.frequency));
+      let chain: AudioNode = input;
+      stages.forEach((stage) => {
+        chain.connect(stage);
+        chain = stage;
+      });
+      chain.connect(feedback);
+      feedback.connect(stages[0]);
+      chain.connect(wet).connect(output);
+      input.connect(dry).connect(output);
+      lfo.start();
+      return {
+        input,
+        output,
+        update(next) {
+          lfo.frequency.setTargetAtTime(0.06 + (next.rate ?? 0.28) * 4, ctx.currentTime, 0.03);
+          depth.gain.setTargetAtTime(250 + (next.depth ?? 0.5) * 1800, ctx.currentTime, 0.03);
+          feedback.gain.setTargetAtTime(clamp(next.feedback ?? 0.25, 0, 0.85), ctx.currentTime, 0.02);
+          const m = next.mix ?? 0.5;
+          dry.gain.setTargetAtTime(1 - m, ctx.currentTime, 0.02);
+          wet.gain.setTargetAtTime(m, ctx.currentTime, 0.02);
+        },
+        dispose() {
+          try { lfo.stop(); } catch { /* already stopped */ }
+          [lfo, depth, feedback, dry, wet, ...stages].forEach((node) => node.disconnect());
+        },
+      };
+    }
+    case 'bitcrush': {
+      const shaper = ctx.createWaveShaper();
+      const tone = ctx.createBiquadFilter();
+      const { dry, wet } = makeDryWet(p.mix ?? 0.8);
+      shaper.curve = bitCrushCurve(p.bits ?? 8);
+      tone.type = 'lowpass';
+      tone.frequency.value = 800 + (p.tone ?? 0.55) * 9000;
+      input.connect(shaper).connect(tone).connect(wet).connect(output);
+      input.connect(dry).connect(output);
+      return {
+        input,
+        output,
+        update(next) {
+          shaper.curve = bitCrushCurve(next.bits ?? 8);
+          tone.frequency.setTargetAtTime(800 + (next.tone ?? 0.55) * 9000, ctx.currentTime, 0.02);
+          const m = next.mix ?? 0.8;
+          dry.gain.setTargetAtTime(1 - m, ctx.currentTime, 0.02);
+          wet.gain.setTargetAtTime(m, ctx.currentTime, 0.02);
+        },
+        dispose() {
+          [shaper, tone, dry, wet].forEach((node) => node.disconnect());
         },
       };
     }

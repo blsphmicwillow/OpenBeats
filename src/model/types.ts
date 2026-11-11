@@ -22,6 +22,7 @@ export type PresetId =
   | 'sub'
   | 'lead'
   | 'keys'
+  | 'glass'
   | 'chords'
   | 'pluck'
   | 'pad'
@@ -36,7 +37,10 @@ export type EffectType =
   | 'reverb'
   | 'delay'
   | 'drive'
-  | 'filter';
+  | 'filter'
+  | 'chorus'
+  | 'phaser'
+  | 'bitcrush';
 
 export interface Note {
   id: string;

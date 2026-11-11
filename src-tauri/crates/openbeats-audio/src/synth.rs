@@ -24,6 +24,7 @@ pub enum Preset {
     Sub,
     Lead,
     Keys,
+    Glass,
     Chords,
     Pluck,
     Pad,
@@ -45,6 +46,7 @@ impl Preset {
             "sub" => Preset::Sub,
             "lead" => Preset::Lead,
             "keys" => Preset::Keys,
+            "glass" => Preset::Glass,
             "chords" => Preset::Chords,
             "pluck" => Preset::Pluck,
             "pad" => Preset::Pad,
@@ -61,6 +63,7 @@ impl Preset {
                 | Preset::Sub
                 | Preset::Lead
                 | Preset::Keys
+                | Preset::Glass
                 | Preset::Chords
                 | Preset::Pluck
                 | Preset::Pad
@@ -184,6 +187,11 @@ impl Voice {
             Preset::Bass => (2.0 * p - 1.0) * 0.7 + (2.0 * PI * p).sin() * 0.3,
             Preset::Lead => (2.0 * p - 1.0) * 0.6 + (2.0 * p2 - 1.0) * 0.4,
             Preset::Keys => (2.0 * PI * p).sin() + (2.0 * PI * p * 3.0).sin() * 0.18,
+            Preset::Glass => {
+                (2.0 * PI * p).sin()
+                    + (2.0 * PI * p * 2.01).sin() * 0.24
+                    + (2.0 * PI * p * 3.99).sin() * 0.13
+            }
             Preset::Chords => {
                 (2.0 * p - 1.0) * 0.35 + (2.0 * p2 - 1.0) * 0.35 + (2.0 * PI * p).sin() * 0.3
             }

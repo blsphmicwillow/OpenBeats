@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { patternById, useApp } from '../store';
+import { patternById, transportNow, useApp } from '../store';
 import { songLengthSteps } from '../audio/sequencer';
 import {
   AUDIO_CLIP_MIME,
@@ -44,6 +44,12 @@ export function Playlist() {
   const dragStartScroll = useRef(0);
   const lastPointerX = useRef(0);
   const autoEdgeRef = useRef<'left' | 'right' | null>(null);
+  const playheadLineRef = useRef<HTMLDivElement>(null);
+  const playheadHeadRef = useRef<HTMLDivElement>(null);
+  const playheadReadoutRef = useRef<HTMLDivElement>(null);
+  const lastPlayheadStep = useRef(0);
+  const lastPlayheadSeekAt = useRef(0);
+  const paintPlayheadRef = useRef<(step: number) => void>(() => {});
   const [autoEdge, setAutoEdge] = useState<'left' | 'right' | null>(null);
   const [dragging, setDragging] = useState<DragState['kind'] | null>(null);
   const [renaming, setRenaming] = useState<number | null>(null);
@@ -112,6 +118,7 @@ export function Playlist() {
   // dragged element under the pointer, and sets the visible affordance.
   const beginDrag = useCallback((e: React.PointerEvent, next: DragState) => {
     drag.current = next;
+    if (next.kind === 'playhead') lastPlayheadStep.current = useApp.getState().transport.step;
     dragStartScroll.current = scrollRef.current?.scrollLeft ?? 0;
     lastPointerX.current = e.clientX;
     setDragging(next.kind);
@@ -150,7 +157,16 @@ export function Playlist() {
       } else if (d.kind === 'resize') {
         updateClip(d.id, { len: Math.max(1, snapStep(d.origLen + deltaSteps)) }, `clip-resize:${d.id}`);
       } else if (d.kind === 'playhead') {
-        state.seek(Math.max(0, snapStep((pointer - d.rulerLeft) / zoom)));
+        const nextStep = Math.max(0, snapStep((pointer - d.rulerLeft) / zoom));
+        lastPlayheadStep.current = nextStep;
+        paintPlayheadRef.current(nextStep);
+        // While paused, keep the expensive store/engine commit until release.
+        // While rolling, seek at ~30fps so audio follows without restarting it.
+        const now = performance.now();
+        if (state.transport.playing && now - lastPlayheadSeekAt.current >= 32) {
+          lastPlayheadSeekAt.current = now;
+          state.seek(nextStep);
+        }
       } else if (d.kind === 'audio-clip') {
         const rawTick = d.origStartTick + deltaSteps * TICKS_PER_STEP;
         const edges: number[] = [];
@@ -263,10 +279,14 @@ export function Playlist() {
       // The edge loop keeps scrolling even when the pointer stops moving.
       if (!autoFrame) autoFrame = requestAnimationFrame(tick);
     };
-    const finish = () => {
+    const finish = (commitPlayhead = true) => {
       if (frame) {
         cancelAnimationFrame(frame);
         apply();
+      }
+      const d = drag.current;
+      if (d?.kind === 'playhead' && commitPlayhead) {
+        useApp.getState().seek(lastPlayheadStep.current);
       }
       if (autoFrame) cancelAnimationFrame(autoFrame);
       autoFrame = 0;
@@ -285,20 +305,57 @@ export function Playlist() {
       } else if (d && d.kind === 'audio-slip') {
         useApp.getState().updateAudioClip(d.id, { source_offset_ticks: d.origOffset });
       }
-      finish();
+      finish(false);
     };
+    const up = () => finish();
     window.addEventListener('pointermove', move);
-    window.addEventListener('pointerup', finish);
+    window.addEventListener('pointerup', up);
     window.addEventListener('pointercancel', cancel);
     return () => {
       window.removeEventListener('pointermove', move);
-      window.removeEventListener('pointerup', finish);
+      window.removeEventListener('pointerup', up);
       window.removeEventListener('pointercancel', cancel);
       if (frame) cancelAnimationFrame(frame);
       if (autoFrame) cancelAnimationFrame(autoFrame);
       document.body.style.cursor = '';
     };
   }, [zoom, snap, updateClip, updateAudioClip, beginDrag]);
+
+  paintPlayheadRef.current = (step: number) => {
+    const x = HEAD + step * zoom;
+    if (playheadLineRef.current) playheadLineRef.current.style.left = `${x}px`;
+    if (playheadHeadRef.current) playheadHeadRef.current.style.left = `${step * zoom}px`;
+    const readout = playheadReadoutRef.current;
+    if (readout) {
+      const bars = Math.max(1, barSteps);
+      readout.style.left = `${Math.max(0, Math.min(step * zoom - 4, width - 110))}px`;
+      readout.textContent = `Bar ${Math.floor(step / bars) + 1} · Beat ${Math.floor((step % bars) / 4) + 1}`;
+    }
+  };
+
+  // Smooth playhead: paint from the transport clock every frame without
+  // committing a Zustand update. The store still advances at 16th-note
+  // resolution for scheduling and readouts.
+  useEffect(() => {
+    let raf = 0;
+    const frame = () => {
+      const state = useApp.getState();
+      const current = state.transport;
+      let step = current.step;
+      if (current.playing) {
+        const stepSec = 60 / (Math.max(20, state.project.bpm) * 4);
+        const total = state.transport.songMode
+          ? Math.max(1, Math.ceil(songLengthSteps(state.project)))
+          : Math.max(1, Math.ceil((state.project.patterns.find((p) => p.id === state.project.currentPattern)?.bars ?? 2) * state.project.beatsPerBar * 4));
+        const elapsed = Math.max(0, transportNow() - current.anchorTime);
+        step = (current.anchorStep + elapsed / stepSec) % total;
+      }
+      paintPlayheadRef.current(step);
+      if (current.playing) raf = requestAnimationFrame(frame);
+    };
+    frame();
+    return () => cancelAnimationFrame(raf);
+  }, [zoom, transport.playing, transport.step, transport.anchorStep, transport.anchorTime, project.bpm, project.currentPattern, project.loopEnd, project.loopStart, project.clips, project.patterns]);
 
   // Follow the transport while it rolls: scroll only when the playhead would
   // leave the viewport, so manual scrolling is not fought every step.
@@ -915,6 +972,7 @@ export function Playlist() {
               </div>
             )}
             <div
+              ref={playheadHeadRef}
               className={`playhead-head ${dragging === 'playhead' ? 'dragging' : ''}`}
               style={{ left: transport.step * zoom, top: 2, position: 'absolute' }}
               onPointerDown={(e) => {
@@ -928,6 +986,7 @@ export function Playlist() {
             />
             {dragging === 'playhead' && (
               <div
+                ref={playheadReadoutRef}
                 className="playhead-readout"
                 style={{ left: Math.max(0, Math.min(transport.step * zoom - 4, width - 110)) }}
               >
@@ -1370,6 +1429,7 @@ export function Playlist() {
           ))}
 
           <div
+            ref={playheadLineRef}
             className={`playhead-line ${dragging === 'playhead' ? 'dragging' : ''}`}
             style={{ left: HEAD + transport.step * zoom, top: 24, zIndex: 4 }}
           />
