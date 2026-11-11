@@ -8,6 +8,10 @@ This document answers the four questions directly, records the evidence, and
 gives a realistic path to Linux plugin compatibility. It deliberately does not
 pretend that removing a compile-time `cfg` is enough.
 
+The companion wiring audit is [AUDIT_WIRING_1.0.7.md](AUDIT_WIRING_1.0.7.md).
+It records the 73 Rust commands, 66 frontend invocations, the 14 registered
+commands with no caller, and the exact per-strip mixer blocker.
+
 ## 1. Short answers
 
 | Question | Answer |

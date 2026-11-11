@@ -1,0 +1,193 @@
+# OpenBeats wiring audit — 1.0.7
+
+Source audited: `release/1.0.6` at `855699d`, plus the local
+`release/1.0.7` planning branch. This is a **wiring audit and blocker report**,
+not a claim that the missing paths were implemented.
+
+## 1. Command inventory
+
+Generated from `#[tauri::command]` functions, the `generate_handler!` table in
+`src-tauri/src/lib.rs`, and `nativeInvoke`/`invokeNative` calls under `src/`.
+
+| Measure | Count |
+| --- | ---: |
+| Rust `#[tauri::command]` functions found by the source scan | 73 |
+| Entries in `generate_handler!` | 78 |
+| Distinct frontend command names invoked | 66 |
+| Registered commands with no frontend caller | 14 |
+
+The 78 handler entries include commands defined outside the
+`#[tauri::command]` scan (for example `discord_presence`, `open_external`,
+`save_text_file`) and the app's file/dialog helpers. The audit counts below use
+the command names, not the macro table alone.
+
+### 1.1 Registered but never invoked from React
+
+These have a Rust implementation and a handler entry, but no `invoke` call in
+`src/`:
+
+- `audio_engine_info`
+- `automation_apply`
+- `check_for_updates`
+- `export_audio`
+- `key_labels`
+- `load_plugin_chain`
+- `plugin_host_support`
+- `recover_plugin_chain`
+- `recovery_flush`
+- `render_effect_graph`
+- `scan_plugins`
+- `stamp_chord`
+- `stop_input`
+- `unload_plugin_chain`
+
+`mixer_order`, `mixer_render`, `automation_value` and `automation_sample` do
+have frontend wrappers, but those wrappers are not called by any component. They
+are therefore "UI bridge exists, UI caller does not".
+
+### 1.2 Frontend helpers with no caller
+
+These are exported from `src/lib/nativeAudio.ts` but have no call site under
+`src/`:
+
+- `nativeMixerOrder`
+- `nativeMixerRender`
+- `nativeAutomationValue`
+- `nativeAutomationSample`
+- `nativeAutomationApply`
+- `nativeEffectGraphOrder`
+- all plugin host commands (`scan_plugins`, `load_plugin_chain`,
+  `unload_plugin_chain`, `recover_plugin_chain`, `plugin_host_support`)
+
+The plugin library (`PluginBrowser.tsx`) is registry-only: it calls
+`loadPluginCatalog` and `openExternal`, never the host commands.
+
+### 1.3 End-to-end audio commands (working path)
+
+These reach the CPAL engine and are the reference for a wired feature:
+
+`start_playback`, `stop_playback`, `playback_state`, `play_test_tone`,
+`play_test_note`, `play_metronome`, `set_playhead_position`, `set_cue_gain`,
+`select_audio_device`, `set_low_latency`, `get_audio_devices`.
+
+### 1.4 UI/offline-only commands
+
+`mixer_order`, `mixer_render`, `automation_value`, `automation_sample`,
+`automation_apply`, `effect_graph_order`, `render_effect_graph` operate on
+explicit data passed in the command. They do not read or write the running
+`CallbackState`, so they cannot affect playback.
+
+## 2. Rust audio graph reality
+
+### 2.1 What the CPAL callback actually runs
+
+`src-tauri/crates/openbeats-audio/src/engine.rs`, `CallbackState::next_frame`:
+
+```text
+Sequencer triggers
+  -> VoicePool::next_frame()          (global stereo pair)
+  -> Eq3 per channel
+  -> Compressor per channel
+  -> TruePeakLimiter
+  -> master_gain
+  -> clamp and output
+```
+
+Everything before the master chain is summed into one stereo pair. There is no
+per-strip bus, no insert slot, no send bus and no automation evaluation in the
+callback.
+
+### 2.2 What exists but is offline-only
+
+| Module | Capability | Why it is not in the callback |
+| --- | --- | --- |
+| `mixer.rs` | `MixerGraph` with routing, sends, solo/mute, sidechain, cycle refusal; `render()` takes `&[(f32, f32)]` | The callback has one summed input, not one input per strip. `render()` is an offline helper. |
+| `automation.rs` | `AutomationLane`/`AutomationSet` with linear, hold and curved segments; `value()`/`sample()` | Nothing in `CallbackState` owns an `AutomationSet`, and no command updates one while the stream is running. |
+| `effect_graph.rs` | Mono modular graph (gain, low-pass, high-pass, drive) with cycle refusal | `ModularGraph::process()` is called by a Tauri command, not by `next_frame`; it is mono, while the callback is stereo. |
+| `plugins` | `PluginHost` scan/open/process/recover on Windows/macOS; Linux stub | No frontend caller; no mixer insert point; no Linux platform layer. |
+| `dsp/*` | EQ3, compressor, limiter, true-peak, dynamic EQ, mid/side, transmitter | Only EQ3, compressor and limiter are wired into `next_frame`. |
+
+## 3. Exact architectural blocker
+
+**Per-strip mixer inserts cannot be wired in the current callback.**
+
+`src-tauri/crates/openbeats-audio/src/sequencer.rs:76` defines
+`PlaybackProject` with `channels`, `notes`, `clips` and `patterns`. It has no
+`strips`, `inserts`, `sends` or `automation` fields.
+
+`src-tauri/crates/openbeats-audio/src/synth.rs:510` shows
+`VoicePool::next_frame()` returning a single `(f32, f32)`. The voice pool does
+not expose per-channel frames or channel IDs to the callback.
+
+`src-tauri/crates/openbeats-audio/src/engine.rs:197` sums the voice output and
+runs the fixed master chain. There is no point where a strip-specific buffer
+exists, so `MixerGraph::render` cannot be called per strip without changing the
+voice pool and the project snapshot.
+
+A master-only insert would be possible by adding a master effect slot to
+`CallbackState`, but that would not satisfy the requested per-track inserts,
+routing, sends or automation. It would also create a second mixer model next to
+the existing offline `MixerGraph`.
+
+## 4. Prompt 1 status: Linux CLAP hosting
+
+Not implemented. The source-verified reason is in
+[PLUGIN_HOST_REVERSE_ENGINEERING_1.0.7.md](PLUGIN_HOST_REVERSE_ENGINEERING_1.0.7.md):
+
+- `plughost-core 0.2.1` has no Linux platform module.
+- Linux compiles `unsupported.rs` and a helper that exits with code 78.
+- No Linux `externalBin` exists; the helper is staged only for Windows/macOS.
+- The Rust commands are registered but never called by React.
+- No mixer insert point exists even on Windows/macOS.
+
+A Linux sidecar is a new host implementation, not a flag. The recommended path
+is a CLAP-first helper using `clack-host 0.2`, plus IPC, a Tauri bundle entry,
+UI scan/load and an audio insert point. That work is not present in this branch.
+
+## 5. Prompt 2 status: wiring existing tools
+
+The audit found two honest options:
+
+1. **Implement a master insert/automation path first** (smaller, but not the
+   requested per-track mixer graph). This would add a master effect slot to
+   `CallbackState`, extend `PlaybackProject` with master automation, and map a
+   UI control to it. It would still leave `MixerGraph` offline.
+2. **Redesign the native voice path for per-strip buses** (correct, larger):
+   - `VoicePool` renders per-channel stereo buffers or exposes a bus index;
+   - `PlaybackProject` carries strips, inserts, sends and automation;
+   - `CallbackState` owns a `MixerGraph` and per-strip processors;
+   - the callback renders each strip, then mixes through `MixerGraph`;
+   - the frontend snapshot sends the same mixer model the UI edits;
+   - tests compare a -6 dB insert and a volume ramp against known buffers.
+
+The second option is required for the prompt as written. It is a mixer/voice
+engine change, not a wiring patch, so work stopped here as instructed instead
+of inventing a routing API.
+
+## 6. Verification performed
+
+- `npm run docs:check` — passed.
+- `npm run typecheck` — passed.
+- `npm test` — 42/42 passed.
+- `cargo test -p openbeats-audio --lib` — 256/256 passed.
+- `cargo check -p openbeats-plugins` — passed (Linux stub).
+- `cargo check -p openbeats-plughost-helper` — passed (Linux stub).
+- Linux dependency graph — no `plughost` crate.
+- `npm run build` — passed.
+- All 1.0.6 release assets verified against `SHA256SUMS.txt` — 7/7 OK.
+
+No audio-output verification was possible on this host: the Linux AppImage was
+not launched, and the workspace lacks a working desktop audio session. The
+tests above are compile/unit/build checks, not a listening test.
+
+## 7. Recommended next patch
+
+Do not add a half-wired plugin button. The next reviewable change should be:
+
+1. A `clack-host` Linux probe that scans and processes `OpenBeatsGain.clap`.
+2. A per-strip bus change in `VoicePool` and `PlaybackProject`, with unit tests
+   proving a -6 dB insert and a volume ramp.
+3. Only then wire the UI buttons and the plugin insert slot.
+
+Each step can be green on its own; combining them without the bus change would
+ship controls that do nothing.
