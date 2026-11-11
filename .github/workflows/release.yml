@@ -194,12 +194,12 @@ jobs:
         run: |
           set -euo pipefail
 
-          deb="$(find target/release/bundle/deb -maxdepth 1 -name '*.deb' -print -quit)"
+          deb="$(find "$GITHUB_WORKSPACE/target/release/bundle/deb" -maxdepth 1 -name '*.deb' -print -quit)"
           test -n "$deb" || { echo '::error::No deb was produced'; exit 1; }
           dpkg-deb -f "$deb" Depends | grep -Fq 'gstreamer1.0-pulseaudio'
           dpkg-deb -f "$deb" Depends | grep -Fq 'gstreamer1.0-plugins-good'
 
-          rpm="$(find target/release/bundle/rpm -maxdepth 1 -name '*.rpm' -print -quit)"
+          rpm="$(find "$GITHUB_WORKSPACE/target/release/bundle/rpm" -maxdepth 1 -name '*.rpm' -print -quit)"
           test -n "$rpm" || { echo '::error::No RPM was produced'; exit 1; }
           rpm -qp --requires "$rpm" | grep -Fq 'gstreamer1-plugins-good'
 
