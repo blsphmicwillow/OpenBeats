@@ -987,13 +987,67 @@ export async function nativeCloseSplash(): Promise<boolean> {
 }
 
 /** Decodes and previews a file on the separate preview stream. */
-export async function nativePreviewSample(path: string): Promise<string | null> {
+export async function nativePreviewSample(
+  path: string,
+  device?: string | null,
+): Promise<string | null> {
   if (!isNative()) return null;
-  try {
-    return await nativeInvoke<string>('preview_sample', { path });
-  } catch {
-    return null;
+  return invokeNative<string>('preview_sample', { path, device: device ?? null });
+}
+
+/** The first seconds of a decoded one-shot, interleaved for the native path. */
+export interface PreviewPcm {
+  pcm: Float32Array;
+  channels: number;
+  sampleRate: number;
+  frames: number;
+}
+
+export const MAX_PREVIEW_SECONDS = 12;
+
+export function interleavePreview(
+  buffer: AudioBuffer,
+  maxSeconds = MAX_PREVIEW_SECONDS,
+): PreviewPcm {
+  const channels = Math.max(1, Math.min(8, buffer.numberOfChannels));
+  const frames = Math.min(
+    buffer.length,
+    Math.max(1, Math.round(buffer.sampleRate * Math.max(0.1, maxSeconds))),
+  );
+  const pcm = new Float32Array(frames * channels);
+  const data = Array.from({ length: channels }, (_, channel) => buffer.getChannelData(channel));
+  for (let frame = 0; frame < frames; frame += 1) {
+    for (let channel = 0; channel < channels; channel += 1) {
+      pcm[frame * channels + channel] = data[channel]?.[frame] ?? 0;
+    }
   }
+  return { pcm, channels, sampleRate: buffer.sampleRate, frames };
+}
+
+function base64FromBytes(bytes: Uint8Array): string {
+  const chunk = 0x8000;
+  let binary = '';
+  for (let i = 0; i < bytes.length; i += chunk) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + chunk));
+  }
+  return btoa(binary);
+}
+
+/** Sends a decoded sample to CPAL, so browser auditions never use Web Audio. */
+export async function nativePreviewPcm(
+  buffer: AudioBuffer,
+  device?: string | null,
+): Promise<string | null> {
+  if (!isNative()) return null;
+  const preview = interleavePreview(buffer);
+  const bytes = new Uint8Array(preview.pcm.buffer, preview.pcm.byteOffset, preview.pcm.byteLength);
+  return invokeNative<string>('preview_pcm', {
+    pcmBase64: base64FromBytes(bytes),
+    channels: preview.channels,
+    sampleRate: preview.sampleRate,
+    device: device ?? null,
+    name: 'Sample',
+  });
 }
 
 export async function nativeStopPreview(): Promise<boolean> {
@@ -1063,6 +1117,12 @@ export async function nativeStartInputRecording(): Promise<boolean> {
 export async function nativeStopInputRecording(): Promise<{ path: string; seconds: number } | null> {
   if (!isNative()) return null;
   return nativeInvoke<{ path: string; seconds: number }>('stop_input_recording', { path: null });
+}
+
+/** Closes the input and monitor streams (used when saving a new input). */
+export async function nativeStopInput(): Promise<boolean> {
+  if (!isNative()) return false;
+  return Boolean(await nativeInvoke<boolean>('stop_input'));
 }
 
 export async function nativeInputStatus(): Promise<NativeInputReading | null> {

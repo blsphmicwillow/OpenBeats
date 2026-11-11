@@ -451,10 +451,28 @@ pub async fn perform_update(
     }
 }
 
+/// Keeps the preview stream on the saved output, rebuilding it only when the
+/// selected device changed. This is what makes browser auditions follow the
+/// same Windows/macOS/Linux output as the transport.
+fn ensure_preview(guard: &mut Option<PreviewEngine>, device: Option<&str>) -> Result<(), String> {
+    if guard
+        .as_ref()
+        .is_some_and(|preview| preview.matches_request(device))
+    {
+        return Ok(());
+    }
+    *guard = Some(PreviewEngine::start_with(device.map(str::to_string))?);
+    Ok(())
+}
+
 /// Decodes a file and plays it on the preview stream, replacing any preview
 /// already playing. The project engine is untouched.
 #[tauri::command]
-pub fn preview_sample(state: State<'_, SystemState>, path: String) -> Result<String, String> {
+pub fn preview_sample(
+    state: State<'_, SystemState>,
+    path: String,
+    device: Option<String>,
+) -> Result<String, String> {
     let file = PathBuf::from(&path);
     let metadata =
         std::fs::metadata(&file).map_err(|e| format!("could not inspect the sample: {e}"))?;
@@ -469,20 +487,70 @@ pub fn preview_sample(state: State<'_, SystemState>, path: String) -> Result<Str
         .preview
         .lock()
         .map_err(|_| "the preview state is unavailable".to_string())?;
-    if guard.is_none() {
-        *guard = Some(PreviewEngine::start()?);
-    }
+    ensure_preview(&mut guard, device.as_deref())?;
     let preview = guard.as_ref().ok_or("the preview stream did not start")?;
-    preview.play(decoded.samples, decoded.channels)?;
+    preview.play(decoded.samples, decoded.channels, decoded.sample_rate)?;
     preview.set_gain(0.9);
     Ok(format!(
-        "{} · {:.2}s · {} Hz",
+        "{} · {:.2}s · {} Hz · {}",
         PathBuf::from(&path)
             .file_name()
             .map(|n| n.to_string_lossy().to_string())
             .unwrap_or_default(),
         decoded.seconds,
-        decoded.sample_rate
+        decoded.sample_rate,
+        preview.device_name()
+    ))
+}
+
+/// Plays an in-memory sample on the native preview stream. The browser sends
+/// interleaved f32 PCM as base64 so a decoded one-shot can be auditioned
+/// without a filesystem path, and the same selected output is used on every OS.
+#[tauri::command]
+pub fn preview_pcm(
+    state: State<'_, SystemState>,
+    pcm_base64: String,
+    channels: u16,
+    sample_rate: u32,
+    device: Option<String>,
+    name: Option<String>,
+) -> Result<String, String> {
+    if channels == 0 || channels > 8 {
+        return Err("the preview has an unsupported channel count".into());
+    }
+    if sample_rate == 0 || sample_rate > 384_000 {
+        return Err("the preview has an unsupported sample rate".into());
+    }
+    let bytes = STANDARD
+        .decode(pcm_base64)
+        .map_err(|_| "the preview audio was not valid base64".to_string())?;
+    let frame_bytes = channels as usize * 4;
+    if bytes.is_empty() || bytes.len() % frame_bytes != 0 {
+        return Err("the preview audio had an invalid frame size".into());
+    }
+    let samples: Vec<f32> = bytes
+        .chunks_exact(4)
+        .map(|chunk| f32::from_le_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]))
+        .collect();
+    let frames = samples.len() / channels as usize;
+    if frames == 0 || frames > sample_rate as usize * 60 {
+        return Err("the preview audio must be between 1 sample and 60 seconds".into());
+    }
+
+    let mut guard = state
+        .preview
+        .lock()
+        .map_err(|_| "the preview state is unavailable".to_string())?;
+    ensure_preview(&mut guard, device.as_deref())?;
+    let preview = guard.as_ref().ok_or("the preview stream did not start")?;
+    preview.play(samples, channels, sample_rate)?;
+    preview.set_gain(0.9);
+    Ok(format!(
+        "{} · {:.2}s · {} Hz · {}",
+        name.unwrap_or_else(|| "sample".into()),
+        frames as f32 / sample_rate as f32,
+        sample_rate,
+        preview.device_name()
     ))
 }
 

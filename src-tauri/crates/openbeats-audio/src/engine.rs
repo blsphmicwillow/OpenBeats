@@ -602,6 +602,34 @@ fn has_output_config(device: &cpal::Device) -> bool {
 
 /// Input capture understands F32, I16 and U16, so only advertise devices that
 /// can provide one of those native formats.
+fn host_by_name(name: &str) -> Option<cpal::Host> {
+    cpal::available_hosts()
+        .into_iter()
+        .find(|id| id.name().eq_ignore_ascii_case(name))
+        .and_then(|id| cpal::host_from_id(id).ok())
+}
+
+/// The desktop picker sends host-qualified ids. Honour the host (WASAPI vs
+/// ASIO on Windows, CoreAudio on macOS) instead of searching only the default
+/// backend, otherwise a selected device can silently open on another host.
+fn configured_host() -> cpal::Host {
+    #[cfg(target_os = "windows")]
+    {
+        for name in ["WASAPI", "ASIO"] {
+            if let Some(host) = host_by_name(name) {
+                return host;
+            }
+        }
+    }
+    #[cfg(target_os = "macos")]
+    {
+        if let Ok(host) = cpal::host_from_id(cpal::HostId::CoreAudio) {
+            return host;
+        }
+    }
+    cpal::default_host()
+}
+
 fn has_input_config(device: &cpal::Device) -> bool {
     device
         .supported_input_configs()
@@ -727,7 +755,10 @@ fn open_session(
     #[cfg(not(target_os = "linux"))]
     let sink: Option<String> = None;
 
-    let host = cpal::default_host();
+    let host = requested
+        .and_then(|id| devices::split_device_id(id).0)
+        .and_then(host_by_name)
+        .unwrap_or_else(configured_host);
     let default_name = host.default_output_device().and_then(|d| d.name().ok());
 
     let mut devices = Vec::new();

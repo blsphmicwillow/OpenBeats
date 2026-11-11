@@ -6,6 +6,7 @@ import {
   nativeSetInputMonitor,
   nativeStartInput,
   nativeStartInputRecording,
+  nativeStopInput,
   nativeStopInputRecording,
   type AudioDevices,
   type NativeInputReading,
@@ -33,21 +34,18 @@ export function InputPanel() {
   const [reading, setReading] = useState<NativeInputReading | null>(null);
   const [note, setNote] = useState<string | null>(null);
   const [devMode, setDevMode] = useState(readDevMode);
+  const [draftDevice, setDraftDevice] = useState(audio.inputId ?? '');
   const device = audio.inputId ?? '';
   const gain = audio.monitorGain;
+
+  useEffect(() => {
+    setDraftDevice(audio.inputId ?? '');
+  }, [audio.inputId]);
 
   const refreshInputs = useCallback(async () => {
     const list = await getAudioDevices();
     setDevices(list);
-    const current = useApp.getState().settings.audio;
-    const preferred =
-      list.inputs.find((d) => d.id === current.inputId) ??
-      list.inputs.find((d) => d.is_default) ??
-      list.inputs[0];
-    if (preferred && preferred.id !== current.inputId) {
-      patchSettings({ audio: { ...current, inputId: preferred.id } });
-    }
-  }, [patchSettings]);
+  }, []);
 
   useEffect(() => {
     void refreshInputs();
@@ -118,6 +116,22 @@ export function InputPanel() {
 
   const inputs = devices.inputs;
   const tuning = reading?.tuning ?? null;
+  const savedMissing = Boolean(device) && !inputs.some((input) => input.id === device);
+  const inputPending = draftDevice !== device;
+
+  const saveInput = async () => {
+    if (recording) {
+      setNote('Stop the take before switching input.');
+      return;
+    }
+    patchSettings({
+      audio: { ...useApp.getState().settings.audio, inputId: draftDevice || null },
+    });
+    setOpen(false);
+    setMonitor(false);
+    await nativeStopInput();
+    setNote(draftDevice ? 'Input device saved — reopen Monitor or Record to use it.' : 'Using the system default input.');
+  };
 
   return (
     <>
@@ -127,25 +141,31 @@ export function InputPanel() {
           <small>
             {inputs.length === 0
               ? 'No input device was reported.'
-              : `${inputs.length} input${inputs.length === 1 ? '' : 's'} available`}
+              : inputPending
+                ? 'Unsaved input — press Save to use it.'
+                : savedMissing
+                  ? 'The saved input is unavailable; choose another device and press Save.'
+                  : `${inputs.length} input${inputs.length === 1 ? '' : 's'} available`}
           </small>
         </div>
         <div className="field-control" style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           <select
             className="text-input"
             style={{ flex: 1 }}
-            value={device}
+            value={draftDevice}
+            onMouseDown={() => void refreshInputs()}
             onChange={(e) => {
-              patchSettings({
-                audio: { ...useApp.getState().settings.audio, inputId: e.target.value || null },
-              });
-              setOpen(false);
-              setNote('Input device saved.');
+              setDraftDevice(e.target.value);
+              setNote('Unsaved input — press Save to use it.');
             }}
             aria-label="Input device"
             disabled={inputs.length === 0}
           >
             {inputs.length === 0 && <option value="">No inputs found</option>}
+            <option value="">System default</option>
+            {savedMissing && (
+              <option value={device}>{audio.inputId} · unavailable</option>
+            )}
             {inputs.map((d) => (
               <option key={d.id} value={d.id}>
                 {devMode ? d.id : d.friendly_name}
@@ -153,8 +173,12 @@ export function InputPanel() {
               </option>
             ))}
           </select>
-          <button className="btn ghost" onClick={() => void refreshInputs()}>
-            Refresh
+          <button
+            className="btn primary"
+            onClick={() => void saveInput()}
+            disabled={!inputPending || recording}
+          >
+            Save
           </button>
         </div>
       </div>

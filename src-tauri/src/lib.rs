@@ -254,6 +254,7 @@ pub fn run() {
             audio_commands::play_chime,
             // Sample preview and packs
             system_commands::preview_sample,
+            system_commands::preview_pcm,
             system_commands::stop_preview,
             system_commands::import_pack,
             system_commands::get_packs,

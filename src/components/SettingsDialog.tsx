@@ -15,6 +15,7 @@ import {
   readRecovery,
   recoverAudioLog,
   configureNativeAudio,
+  nativeStopPreview,
   setCueGain,
   type AudioDevices,
   type NativePlaybackState,
@@ -800,7 +801,8 @@ function AudioTab() {
       <p className="hinttext">
         The desktop build plays through the Rust engine and CPAL. Pick a device here if the default one is silent — on
         Linux the PulseAudio/PipeWire bridge is preferred automatically, because ALSA’s default device can point at a
-        null sink while the step counter keeps moving. Output, input, latency and cue choices save immediately.
+        null sink while the step counter keeps moving. Choose an output, then press Save to rebuild the stream; the cue
+        level saves immediately.
       </p>
       <NativeDevicePanel />
       <InputPanel />
@@ -888,22 +890,17 @@ function NativeDevicePanel() {
   const [snapshot, setSnapshot] = useState<NativePlaybackState | null>(null);
   const [note, setNote] = useState<string | null>(null);
   const [devMode, setDevMode] = useState(readDevMode);
+  const [draftOutput, setDraftOutput] = useState(audio.outputId ?? '');
+
+  useEffect(() => {
+    setDraftOutput(audio.outputId ?? '');
+  }, [audio.outputId]);
 
   const refresh = useCallback(async () => {
     const list = await getAudioDevices();
     setDevices(list);
     setSnapshot(await nativePlaybackState());
-    const current = useApp.getState().settings.audio;
-    const out =
-      list.outputs.find((d) => d.id === current.outputId) ??
-      list.outputs.find((d) => d.is_default) ??
-      list.outputs[0];
-    if (out && (out.id !== current.outputId || out.friendly_name !== current.outputLabel)) {
-      patchSettings({
-        audio: { ...current, outputId: out.id, outputLabel: out.friendly_name },
-      });
-    }
-  }, [patchSettings]);
+  }, []);
 
   useEffect(() => {
     void refresh();
@@ -913,29 +910,33 @@ function NativeDevicePanel() {
     return () => window.clearInterval(id);
   }, [refresh]);
 
-  const output = audio.outputId ?? '';
   const outputs = devices.outputs;
-  const selectedOutput = outputs.find((device) => device.id === output);
+  const savedOutput = audio.outputId ?? '';
+  const output = draftOutput;
+  const pending = output !== savedOutput;
+  const savedMissing = Boolean(savedOutput) && !outputs.some((device) => device.id === savedOutput);
+  const selectedOutput = outputs.find((device) => device.id === savedOutput);
   const openName =
-    selectedOutput?.friendly_name ??
-    audio.outputLabel ??
-    friendlyDeviceName(snapshot?.device || 'none');
+    selectedOutput?.friendly_name ?? audio.outputLabel ?? friendlyDeviceName(snapshot?.device || 'none');
 
-  const chooseOutput = async (id: string) => {
-    const label = outputs.find((device) => device.id === id)?.friendly_name ?? null;
+  const saveOutput = async () => {
+    const label = outputs.find((device) => device.id === output)?.friendly_name ?? null;
     const nextAudio = {
       ...useApp.getState().settings.audio,
-      outputId: id || null,
+      outputId: output || null,
       outputLabel: label,
     };
-    patchSettings({ audio: nextAudio });
     try {
+      await nativeStopPreview();
       const next = await configureNativeAudio(nextAudio);
-      if (next) setSnapshot(next);
+      if (!next) {
+        setNote('Device selection needs the desktop build.');
+        return;
+      }
+      patchSettings({ audio: nextAudio });
+      setSnapshot(next);
       setNote(
-        next
-          ? `Rebuilt the stream on ${label || next.device || 'the system default'}.`
-          : 'Device selection needs the desktop build.',
+        `Saved. Stream open on ${friendlyDeviceName(next.device || 'the system default')}.`,
       );
     } catch (err) {
       setNote(errorText(err));
@@ -977,11 +978,15 @@ function NativeDevicePanel() {
         <div className="field-label">
           Output device
           <small>
-            {snapshot && snapshot.sample_rate > 0
-              ? `Open: ${devMode ? snapshot.device || 'none' : openName} · ${Math.round(
-                  snapshot.sample_rate,
-                )} Hz · ${snapshot.channels} ch`
-              : 'The stream opens on the first play or test tone.'}
+            {pending
+              ? 'Unsaved output — press Save to switch the stream.'
+              : savedMissing
+                ? 'The saved output is unavailable; choose another device and press Save.'
+                : snapshot && snapshot.sample_rate > 0
+                  ? `Open: ${devMode ? snapshot.device || 'none' : openName} · ${Math.round(
+                      snapshot.sample_rate,
+                    )} Hz · ${snapshot.channels} ch`
+                  : 'The stream opens on the first play or test tone.'}
           </small>
         </div>
         <div className="field-control" style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
@@ -989,11 +994,19 @@ function NativeDevicePanel() {
             className="text-input"
             style={{ flex: 1 }}
             value={output}
-            onChange={(e) => void chooseOutput(e.target.value)}
+            onMouseDown={() => void refresh()}
+            onChange={(e) => {
+              setDraftOutput(e.target.value);
+              setNote('Unsaved output — press Save to switch the stream.');
+            }}
             disabled={outputs.length === 0}
             aria-label="Output device"
           >
             {outputs.length === 0 && <option value="">No native devices (browser build)</option>}
+            <option value="">System default</option>
+            {savedMissing && (
+              <option value={savedOutput}>{audio.outputLabel ?? 'Saved device'} · unavailable</option>
+            )}
             {outputs.map((device) => (
               <option key={device.id} value={device.id} title={device.id}>
                 {devMode ? device.id : device.friendly_name}
@@ -1001,8 +1014,12 @@ function NativeDevicePanel() {
               </option>
             ))}
           </select>
-          <button className="btn ghost" onClick={() => void refresh()}>
-            Refresh
+          <button
+            className="btn primary"
+            onClick={() => void saveOutput()}
+            disabled={!pending || outputs.length === 0}
+          >
+            Save
           </button>
         </div>
       </div>

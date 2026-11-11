@@ -17,6 +17,7 @@ use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use cpal::{FromSample, SampleFormat, SizedSample, SupportedBufferSize};
 
 use crate::pitch::{detect, Tuning};
+use crate::preview::resample_interleaved;
 
 fn store_f32(slot: &AtomicU32, value: f32) {
     slot.store(value.to_bits(), Ordering::Relaxed);
@@ -51,7 +52,7 @@ impl Default for PreviewShared {
 }
 
 enum PreviewCommand {
-    Play(Vec<f32>, u16),
+    Play(Vec<f32>, u16, u32),
     Stop,
     Shutdown,
 }
@@ -62,17 +63,25 @@ pub struct PreviewEngine {
     shared: Arc<PreviewShared>,
     thread: Option<JoinHandle<()>>,
     device: String,
+    requested: Option<String>,
 }
 
 impl PreviewEngine {
     pub fn start() -> Result<Self, String> {
+        Self::start_with(None)
+    }
+
+    /// Opens the saved output (or the platform default) for sample auditions.
+    pub fn start_with(requested: Option<String>) -> Result<Self, String> {
+        let requested = normalize_preview_request(requested);
         let shared = Arc::new(PreviewShared::default());
         let (tx, rx) = mpsc::channel();
         let (ready_tx, ready_rx) = mpsc::channel::<Result<String, String>>();
         let thread_shared = Arc::clone(&shared);
+        let thread_request = requested.clone();
         let thread = std::thread::Builder::new()
             .name("openbeats-preview".into())
-            .spawn(move || preview_thread(rx, thread_shared, ready_tx))
+            .spawn(move || preview_thread(rx, thread_shared, ready_tx, thread_request))
             .map_err(|e| format!("could not start the preview thread: {e}"))?;
         let device = ready_rx
             .recv_timeout(Duration::from_secs(8))
@@ -82,13 +91,18 @@ impl PreviewEngine {
             shared,
             thread: Some(thread),
             device,
+            requested,
         })
     }
 
     /// Plays interleaved samples, replacing anything already playing.
-    pub fn play(&self, samples: Vec<f32>, channels: u16) -> Result<(), String> {
+    pub fn play(&self, samples: Vec<f32>, channels: u16, sample_rate: u32) -> Result<(), String> {
         self.commands
-            .send(PreviewCommand::Play(samples, channels.max(1)))
+            .send(PreviewCommand::Play(
+                samples,
+                channels.max(1),
+                sample_rate.max(1),
+            ))
             .map_err(|_| "the preview stream stopped".to_string())
     }
 
@@ -107,6 +121,17 @@ impl PreviewEngine {
     pub fn device_name(&self) -> &str {
         &self.device
     }
+
+    /// True when this stream is already opening the requested output.
+    pub fn matches_request(&self, requested: Option<&str>) -> bool {
+        self.requested.as_deref() == requested.map(str::trim).filter(|value| !value.is_empty())
+    }
+}
+
+fn normalize_preview_request(requested: Option<String>) -> Option<String> {
+    requested
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
 }
 
 impl Drop for PreviewEngine {
@@ -122,27 +147,62 @@ fn preview_thread(
     commands: Receiver<PreviewCommand>,
     shared: Arc<PreviewShared>,
     ready: Sender<Result<String, String>>,
+    requested: Option<String>,
 ) {
-    let host = cpal::default_host();
-    let Some(device) = host.default_output_device() else {
+    let (host, requested_name, sink) = preview_host(requested.as_deref());
+    #[cfg(target_os = "linux")]
+    let _route = crate::linux_audio::route_sink(sink.as_deref());
+    #[cfg(not(target_os = "linux"))]
+    let _ = sink;
+
+    let default_name = host.default_output_device().and_then(|d| d.name().ok());
+    let mut devices = Vec::new();
+    let mut candidates = Vec::new();
+    if let Ok(outputs) = host.output_devices() {
+        for device in outputs {
+            let Ok(name) = device.name() else { continue };
+            candidates.push(crate::devices::Candidate {
+                is_default: default_name.as_deref() == Some(name.as_str()),
+                name,
+            });
+            devices.push(device);
+        }
+    }
+    let Some(index) = crate::devices::pick(
+        &candidates,
+        requested_name.as_deref(),
+        cfg!(target_os = "linux"),
+    ) else {
         let _ = ready.send(Err("no output device for the preview stream".into()));
         return;
     };
-    let name = device.name().unwrap_or_else(|_| "default output".into());
-    let config = match device.default_output_config() {
+    let device = &devices[index];
+    let name = candidates[index].name.clone();
+    if let Some(want) = requested_name.as_deref() {
+        if !name.eq_ignore_ascii_case(want) {
+            eprintln!("openbeats: preview output \"{want}\" is unavailable; using \"{name}\"");
+        }
+    }
+
+    let config = match choose_preview_config(device) {
         Ok(config) => config,
-        Err(e) => {
-            let _ = ready.send(Err(format!("preview device has no config: {e}")));
+        Err(error) => {
+            let _ = ready.send(Err(error));
             return;
         }
     };
-    let stream_config: cpal::StreamConfig = config.clone().into();
     let sample_format = config.sample_format();
+    let stream_config: cpal::StreamConfig = config.clone().into();
+    let output_rate = config.sample_rate().0;
 
     let stream = match sample_format {
-        SampleFormat::F32 => build_preview::<f32>(&device, &stream_config, Arc::clone(&shared)),
-        SampleFormat::I16 => build_preview::<i16>(&device, &stream_config, Arc::clone(&shared)),
-        SampleFormat::U16 => build_preview::<u16>(&device, &stream_config, Arc::clone(&shared)),
+        SampleFormat::F32 => build_preview::<f32>(device, &stream_config, Arc::clone(&shared)),
+        SampleFormat::F64 => build_preview::<f64>(device, &stream_config, Arc::clone(&shared)),
+        SampleFormat::I8 => build_preview::<i8>(device, &stream_config, Arc::clone(&shared)),
+        SampleFormat::I16 => build_preview::<i16>(device, &stream_config, Arc::clone(&shared)),
+        SampleFormat::I32 => build_preview::<i32>(device, &stream_config, Arc::clone(&shared)),
+        SampleFormat::U8 => build_preview::<u8>(device, &stream_config, Arc::clone(&shared)),
+        SampleFormat::U16 => build_preview::<u16>(device, &stream_config, Arc::clone(&shared)),
         other => Err(format!("preview: unsupported sample format {other:?}")),
     };
     let stream = match stream {
@@ -160,7 +220,9 @@ fn preview_thread(
 
     loop {
         match commands.recv_timeout(Duration::from_millis(250)) {
-            Ok(PreviewCommand::Play(samples, channels)) => {
+            Ok(PreviewCommand::Play(samples, channels, sample_rate)) => {
+                let channels = channels.max(1) as usize;
+                let samples = resample_interleaved(&samples, channels, sample_rate, output_rate);
                 if let Ok(mut buffer) = shared.samples.lock() {
                     *buffer = samples;
                 }
@@ -176,6 +238,33 @@ fn preview_thread(
         }
     }
     drop(stream);
+}
+
+fn preview_format_supported(format: SampleFormat) -> bool {
+    matches!(
+        format,
+        SampleFormat::F32
+            | SampleFormat::F64
+            | SampleFormat::I8
+            | SampleFormat::I16
+            | SampleFormat::I32
+            | SampleFormat::U8
+            | SampleFormat::U16
+    )
+}
+
+fn choose_preview_config(device: &cpal::Device) -> Result<cpal::SupportedStreamConfig, String> {
+    if let Ok(config) = device.default_output_config() {
+        if preview_format_supported(config.sample_format()) {
+            return Ok(config);
+        }
+    }
+    device
+        .supported_output_configs()
+        .map_err(|error| format!("preview device has no config: {error}"))?
+        .find(|range| preview_format_supported(range.sample_format()))
+        .map(|range| range.with_max_sample_rate())
+        .ok_or_else(|| "preview device has no supported sample format".to_string())
 }
 
 fn build_preview<T>(
@@ -375,7 +464,7 @@ fn host_by_name(name: &str) -> Option<cpal::Host> {
 /// Windows prefers WASAPI and falls back to ASIO when the installed build has
 /// the ASIO backend. macOS always uses CoreAudio so the microphone permission
 /// prompt is attached to the correct host. Linux keeps the host default.
-fn configured_input_host() -> cpal::Host {
+fn configured_host() -> cpal::Host {
     #[cfg(target_os = "windows")]
     {
         for name in ["WASAPI", "ASIO"] {
@@ -395,13 +484,33 @@ fn configured_input_host() -> cpal::Host {
 
 fn requested_input_host(requested: Option<&str>) -> (cpal::Host, Option<String>) {
     let Some(id) = requested else {
-        return (configured_input_host(), None);
+        return (configured_host(), None);
     };
     let (host_name, device_name) = crate::devices::split_device_id(id);
     let host = host_name
         .and_then(host_by_name)
-        .unwrap_or_else(configured_input_host);
+        .unwrap_or_else(configured_host);
     (host, Some(device_name.to_string()))
+}
+
+/// Resolves a host-qualified output id for the preview stream. Linux synthetic
+/// sink ids are routed with `PULSE_SINK`/`PIPEWIRE_NODE`; Windows WASAPI/ASIO
+/// and macOS CoreAudio ids open the host the picker named.
+fn preview_host(requested: Option<&str>) -> (cpal::Host, Option<String>, Option<String>) {
+    let Some(id) = requested else {
+        return (configured_host(), None, None);
+    };
+    let (host_name, device_name) = crate::devices::split_device_id(id);
+    let host = host_name
+        .and_then(host_by_name)
+        .unwrap_or_else(configured_host);
+    #[cfg(target_os = "linux")]
+    let sink = crate::devices::requested_sink(id).map(str::to_string);
+    #[cfg(not(target_os = "linux"))]
+    let sink = None;
+    let name = (!device_name.is_empty() && !device_name.starts_with("sink:"))
+        .then(|| device_name.to_string());
+    (host, name, sink)
 }
 
 fn find_input_device(host: &cpal::Host, requested: Option<&str>) -> Option<cpal::Device> {

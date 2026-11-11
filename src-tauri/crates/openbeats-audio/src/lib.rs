@@ -39,6 +39,7 @@ pub mod packs;
 pub mod piano_tools;
 pub mod pitch;
 pub mod playlist_tools;
+mod preview;
 pub mod progression;
 pub mod sequencer;
 pub mod spectral_freeze;

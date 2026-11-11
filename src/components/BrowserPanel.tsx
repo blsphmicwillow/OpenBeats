@@ -5,6 +5,7 @@ import { SAMPLE_BANK } from '../audio/instruments';
 import {
   nativeGetPacks,
   nativeImportPack,
+  nativePreviewPcm,
   nativePreviewSample,
   nativeReadSample,
   nativeRemovePack,
@@ -32,6 +33,7 @@ const PACK_FORMAT: Record<NativePackFormat, string> = {
 export function BrowserPanel() {
   const ui = useApp((s) => s.ui);
   const project = useApp((s) => s.project);
+  const outputId = useApp((s) => s.settings.audio.outputId);
   const [tab, setTab] = useState<Tab>('packs');
   const [query, setQuery] = useState('');
   const [packs, setPacks] = useState<NativePack[]>([]);
@@ -124,8 +126,30 @@ export function BrowserPanel() {
     .slice(0, 200);
 
   const audition = async (path: string) => {
-    const result = await nativePreviewSample(path);
-    if (result) hint(`Preview: ${result}`);
+    try {
+      const result = await nativePreviewSample(path, outputId);
+      if (result) hint(`Preview: ${result}`);
+      else toast('Sample previews need the desktop build');
+    } catch (error) {
+      console.error('Sample preview failed', error);
+      toast(error instanceof Error ? error.message : 'That sample could not be previewed');
+    }
+  };
+
+  const auditionSample = async (id: string, channel: (typeof project.channels)[number] | undefined) => {
+    const buffer = SAMPLE_BANK.get(id);
+    if (!buffer) return;
+    if (isNative()) {
+      try {
+        const result = await nativePreviewPcm(buffer, outputId);
+        if (result) hint(`Preview: ${result}`);
+      } catch (error) {
+        console.error('Sample preview failed', error);
+        toast(error instanceof Error ? error.message : 'That sample could not be previewed');
+      }
+      return;
+    }
+    if (channel) previewChannel(channel);
   };
 
   const addPackSample = async (path: string) => {
@@ -353,7 +377,7 @@ export function BrowserPanel() {
                     e.dataTransfer.setData(AUDIO_CLIP_MIME, id);
                     e.dataTransfer.effectAllowed = 'copy';
                   }}
-                  onClick={() => channel && previewChannel(channel)}
+                  onClick={() => void auditionSample(id, channel)}
                   title={`${buffer.duration.toFixed(2)}s · ${buffer.sampleRate} Hz · drag to a playlist lane`}
                 >
                   <span className="dot" style={{ background: 'var(--accent)' }} />
