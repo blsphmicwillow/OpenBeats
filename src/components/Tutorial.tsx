@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useState } from 'react';
 import { useApp } from '../store';
+import { APP_VERSION } from '../lib/version';
 import type { WorkspaceTab } from '../model/types';
 
 interface Step {
@@ -12,7 +13,7 @@ interface Step {
 
 const STEPS: Step[] = [
   {
-    title: 'Welcome to OpenBeats 1.0.1',
+    title: `Welcome to OpenBeats ${APP_VERSION}`,
     body: (
       <>
         <p>

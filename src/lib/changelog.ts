@@ -28,6 +28,7 @@ export const CHANGELOG: ChangelogEntry[] = [
           'Offline export now includes playlist audio clips and rehydrates their media when a saved project is bounced in a fresh session.',
           'Mixer volume and pan automation lanes with linear, hold and smooth segments, editing in the mixer and offline-bounce support.',
           'Tempo-synced automation presets for a four-bar fade-in, 1/8 tremolo and 1/4 ducking pulse.',
+          'The tutorial welcome title and native splash read the package version, so both always match the release.',
           'Automation is Web Audio only: native CPAL playback ignores it, so projects with automation points use the Web Audio transport and the mixer labels that limit.',
           'Fixed offline export using pattern-local steps instead of absolute song steps, so later arrangement clips no longer collapse toward the start of the bounce.',
         ],
