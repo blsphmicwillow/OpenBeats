@@ -62,6 +62,7 @@ import { exportFormat, type ExportFormatId } from './lib/exportFormats';
 import { checkForUpdate } from './lib/updates';
 import { APP_VERSION, DEFAULT_UPDATE_REPO } from './lib/version';
 import { isNative, openTextNative, saveBinaryNative, saveTextNative } from './lib/native';
+import { friendlyDeviceName } from './lib/deviceNames';
 import { parseMidi, writeMidi } from './lib/daw/midi';
 import { parseAls } from './lib/daw/als';
 import { parseRpp, writeRpp } from './lib/daw/rpp';
@@ -112,11 +113,27 @@ export function normalizeSettings(raw: Partial<Settings> | null): Settings {
     !storedRepo || storedRepo.toLowerCase() === 'openbeats/openbeats'
       ? DEFAULT_UPDATE_REPO
       : storedRepo;
+  const storedAudio = raw.audio;
+  const audio = {
+    outputId: typeof storedAudio?.outputId === 'string' ? storedAudio.outputId : null,
+    outputLabel: typeof storedAudio?.outputLabel === 'string' ? storedAudio.outputLabel : null,
+    inputId: typeof storedAudio?.inputId === 'string' ? storedAudio.inputId : null,
+    lowLatency: storedAudio?.lowLatency === true,
+    cueGain:
+      typeof storedAudio?.cueGain === 'number' && Number.isFinite(storedAudio.cueGain)
+        ? Math.max(0, Math.min(2, storedAudio.cueGain))
+        : base.audio.cueGain,
+    monitorGain:
+      typeof storedAudio?.monitorGain === 'number' && Number.isFinite(storedAudio.monitorGain)
+        ? Math.max(0, Math.min(1, storedAudio.monitorGain))
+        : base.audio.monitorGain,
+  };
   return {
     ...base,
     ...raw,
     updateRepo,
     autosaveMinutes: minutes,
+    audio,
     keymap: { ...DEFAULT_KEYMAP, ...(raw.keymap ?? {}) },
     customTheme: { ...base.customTheme, ...(raw.customTheme ?? {}) },
     fxChains: Array.isArray(raw.fxChains) ? raw.fxChains : [],
@@ -407,7 +424,17 @@ export const useApp = create<AppState>((set, get) => ({
   },
 
   patchSettings(patch) {
-    set((s) => ({ settings: { ...s.settings, ...patch } }));
+    set((s) => {
+      const settings = { ...s.settings, ...patch };
+      // Audio choices take effect immediately; write them through now instead of
+      // waiting for the debounced autosave tick.
+      try {
+        localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+      } catch {
+        /* storage can be blocked; the in-memory setting still applies */
+      }
+      return { settings };
+    });
   },
 
   setUI(patch) {
@@ -1854,11 +1881,20 @@ function nativeShell(): boolean {
 }
 
 async function startNativeFromSnapshot(start: number): Promise<boolean> {
-  const { buildPlaybackSnapshot, startNativePlayback } = await import('./lib/nativeAudio');
-  const { project, transport } = useApp.getState();
+  const { buildPlaybackSnapshot, configureNativeAudio, nativePlaybackState, startNativePlayback } = await import(
+    './lib/nativeAudio'
+  );
+  const { project, transport, settings } = useApp.getState();
+  const current = await nativePlaybackState();
+  if (!current || current.sample_rate <= 0) {
+    // The startup chime normally opens the saved device; this covers a disabled
+    // chime and the first play after launch.
+    await configureNativeAudio(settings.audio);
+  }
   const snapshot = buildPlaybackSnapshot(project, transport.songMode, start);
   const status = await startNativePlayback(snapshot);
   if (!status) return false;
+  const outputName = settings.audio.outputLabel || friendlyDeviceName(status.device);
 
   nativeActive = true;
   if (playTimer) {
@@ -1875,7 +1911,7 @@ async function startNativeFromSnapshot(start: number): Promise<boolean> {
       anchorTime: performance.now() / 1000,
       step: start,
     },
-    ui: { ...s.ui, hint: `Playing natively on ${status.device} — Space to stop.` },
+    ui: { ...s.ui, hint: `Playing natively on ${outputName} — Space to stop.` },
   }));
   if (nativePoll) clearInterval(nativePoll);
   nativePoll = window.setInterval(() => {

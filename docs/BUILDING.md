@@ -90,12 +90,14 @@ find squashfs-root -name 'libgstpulseaudio.so' -o -name 'libgstalsa.so'
 
 ### Versioning
 
-The version lives in three places and must match:
-- `package.json`
+The version must stay in sync across:
+- `package.json` and `package-lock.json` (`npm version` updates both)
 - `src-tauri/tauri.conf.json` → `version`
-- `src-tauri/Cargo.toml` → `[package] version`
+- `src-tauri/Cargo.toml` and each `src-tauri/crates/*/Cargo.toml`
+- `src/lib/version.ts`
+- both `Cargo.lock` files
 
-`src/lib/version.ts` exposes it to the UI. Bump all four together and add a `CHANGELOG.md` entry (the app's Changelog tab reads `src/lib/changelog.ts`, which should mirror it).
+Bump them together and add a `CHANGELOG.md` entry (the app's Changelog tab reads `src/lib/changelog.ts`, which should mirror it).
 
 ## Releases (GitHub Actions)
 
@@ -105,7 +107,7 @@ The version lives in three places and must match:
 2. Each job installs Node and Rust, installs the Linux system packages only on Ubuntu, runs `npm ci`, `npm run desktop:build -- --bundles …`, and uploads that platform's installers as workflow artifacts.
 3. A single **release** job waits for all three builds. On a `v*` tag it downloads every artifact and attaches the `.deb`, `.rpm`, `.AppImage`, `.msi`, NSIS `.exe`, `.dmg` and zipped `.app` to the GitHub Release with `softprops/action-gh-release`.
 
-Manual run: **Actions → Release → Run workflow**. Every build also keeps its installers as downloadable workflow artifacts, so you can test a package without creating a tag. Tagging `v1.0.7` is enough to create or update the matching release.
+Manual run: **Actions → Release → Run workflow**. Every build also keeps its installers as downloadable workflow artifacts, so you can test a package without creating a tag. Tagging `v1.0.8` is enough to create or update the matching release.
 
 #### Platform notes
 

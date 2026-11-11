@@ -58,6 +58,11 @@ pub enum EngineCommand {
     SwitchDevice(Option<String>),
     /// Reopen the stream with the device's smallest buffer, or the default one.
     SetLowLatency(bool),
+    /// Apply an output and latency choice together, avoiding two stream rebuilds.
+    Reconfigure {
+        device: Option<String>,
+        low_latency: bool,
+    },
     Shutdown,
 }
 
@@ -462,6 +467,16 @@ impl NativeEngine {
             .map_err(|_| "the audio engine stopped".to_string())
     }
 
+    /// Reopens the stream with a device and latency setting in one rebuild.
+    pub fn reconfigure(&self, device: Option<String>, low_latency: bool) -> Result<(), String> {
+        self.commands
+            .send(EngineCommand::Reconfigure {
+                device,
+                low_latency,
+            })
+            .map_err(|_| "the audio engine stopped".to_string())
+    }
+
     pub fn test_tone(&self, seconds: f32) {
         let _ = self.commands.send(EngineCommand::TestTone(seconds));
     }
@@ -532,12 +547,45 @@ impl Drop for NativeEngine {
     }
 }
 
+/// Formats the renderer can convert from `f32` without a custom I24 path.
+fn output_format_supported(format: SampleFormat) -> bool {
+    matches!(
+        format,
+        SampleFormat::F32
+            | SampleFormat::F64
+            | SampleFormat::I8
+            | SampleFormat::I16
+            | SampleFormat::I32
+            | SampleFormat::U8
+            | SampleFormat::U16
+    )
+}
+
+/// Some ALSA devices advertise I24/U24 as their default but cannot open a
+/// stream with the formats this renderer supports. Pick the first compatible
+/// configuration instead of reporting the device as unusable or opening it with
+/// a format that immediately fails.
+fn choose_output_config(device: &cpal::Device) -> Result<cpal::SupportedStreamConfig, String> {
+    if let Ok(config) = device.default_output_config() {
+        if output_format_supported(config.sample_format()) {
+            return Ok(config);
+        }
+    }
+    device
+        .supported_output_configs()
+        .map_err(|err| err.to_string())?
+        .find(|range| output_format_supported(range.sample_format()))
+        .map(|range| range.with_max_sample_rate())
+        .ok_or_else(|| "it has no sample format this engine can render".to_string())
+}
+
 /// A device is only useful to the app when the host reports at least one
-/// stream configuration for it. Broken/ghost endpoints are filtered out here.
+/// stream configuration this renderer can open. Broken/ghost endpoints are
+/// filtered out here.
 fn has_output_config(device: &cpal::Device) -> bool {
     device
         .supported_output_configs()
-        .map(|mut configs| configs.next().is_some())
+        .map(|mut configs| configs.any(|range| output_format_supported(range.sample_format())))
         .unwrap_or(false)
 }
 
@@ -563,6 +611,25 @@ fn has_input_config(device: &cpal::Device) -> bool {
 pub fn list_devices() -> AudioDevices {
     let mut devices = AudioDevices::default();
 
+    #[cfg(target_os = "linux")]
+    let pulse_outputs = crate::linux_audio::outputs();
+    #[cfg(target_os = "linux")]
+    let pulse_inputs = crate::linux_audio::inputs();
+    #[cfg(target_os = "linux")]
+    let default_output_label = pulse_outputs
+        .iter()
+        .find(|endpoint| endpoint.is_default)
+        .map(|endpoint| endpoint.label.clone());
+    #[cfg(target_os = "linux")]
+    let default_input_label = pulse_inputs
+        .iter()
+        .find(|endpoint| endpoint.is_default)
+        .map(|endpoint| endpoint.label.clone());
+    #[cfg(target_os = "linux")]
+    let names = crate::linux_audio::FriendlyNames::new();
+    #[cfg(target_os = "linux")]
+    let hide_raw_bridges = !pulse_outputs.is_empty();
+
     for host_id in cpal::available_hosts() {
         let Ok(host) = cpal::host_from_id(host_id) else {
             continue;
@@ -577,10 +644,18 @@ pub fn list_devices() -> AudioDevices {
                 if !has_output_config(&device) {
                     continue;
                 }
+                #[cfg(target_os = "linux")]
+                if hide_raw_bridges && crate::linux_audio::is_bridge_name(&name) {
+                    continue;
+                }
+                #[cfg(target_os = "linux")]
+                let friendly_name = names.label(&name, default_output_label.as_deref());
+                #[cfg(not(target_os = "linux"))]
+                let friendly_name = name.clone();
                 devices.outputs.push(DeviceInfo {
                     id: devices::device_id(&host_name, &name),
                     is_default: default_output.as_deref() == Some(name.as_str()),
-                    friendly_name: name,
+                    friendly_name,
                 });
             }
         }
@@ -591,13 +666,31 @@ pub fn list_devices() -> AudioDevices {
                 if !has_input_config(&device) {
                     continue;
                 }
+                #[cfg(target_os = "linux")]
+                let friendly_name = names.label(&name, default_input_label.as_deref());
+                #[cfg(not(target_os = "linux"))]
+                let friendly_name = name.clone();
                 devices.inputs.push(DeviceInfo {
                     id: devices::device_id(&host_name, &name),
                     is_default: default_input.as_deref() == Some(name.as_str()),
-                    friendly_name: name,
+                    friendly_name,
                 });
             }
         }
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        let mut endpoints: Vec<DeviceInfo> = pulse_outputs
+            .iter()
+            .map(|endpoint| DeviceInfo {
+                id: devices::device_id("PulseAudio", &format!("sink:{}", endpoint.name)),
+                friendly_name: endpoint.label.clone(),
+                is_default: endpoint.is_default,
+            })
+            .collect();
+        endpoints.append(&mut devices.outputs);
+        devices.outputs = endpoints;
     }
 
     devices
@@ -610,6 +703,12 @@ fn open_session(
     shared: &Arc<Shared>,
     logger_slot: &LoggerSlot,
 ) -> Result<Session, String> {
+    let requested_name = requested.and_then(devices::requested_device_name);
+    #[cfg(target_os = "linux")]
+    let requested_sink = requested.and_then(devices::requested_sink);
+    #[cfg(target_os = "linux")]
+    let _route = crate::linux_audio::route_sink(requested_sink);
+
     let host = cpal::default_host();
     let default_name = host.default_output_device().and_then(|d| d.name().ok());
 
@@ -628,12 +727,12 @@ fn open_session(
 
     // PipeWire/PulseAudio is the audible path on most Linux desktops; ALSA's
     // default PCM may be a null sink, so prefer the bridge there.
-    let index = devices::pick(&candidates, requested, cfg!(target_os = "linux"))
+    let index = devices::pick(&candidates, requested_name, cfg!(target_os = "linux"))
         .ok_or_else(|| "no audio output device was found".to_string())?;
     let device = &devices[index];
     let name = candidates[index].name.clone();
 
-    let supported = device.default_output_config().map_err(|err| {
+    let supported = choose_output_config(device).map_err(|err| {
         format!("the output device \"{name}\" has no usable configuration: {err}")
     })?;
     let sample_format = supported.sample_format();
@@ -684,8 +783,10 @@ fn open_session(
     let stream = match sample_format {
         SampleFormat::F32 => open_stream!(f32),
         SampleFormat::F64 => open_stream!(f64),
+        SampleFormat::I8 => open_stream!(i8),
         SampleFormat::I16 => open_stream!(i16),
         SampleFormat::I32 => open_stream!(i32),
+        SampleFormat::U8 => open_stream!(u8),
         SampleFormat::U16 => open_stream!(u16),
         other => {
             return Err(format!(
@@ -794,7 +895,9 @@ fn apply_command(state: &mut CallbackState, shared: &Arc<Shared>, command: Engin
             state.chime_step = rate as f32 / state.sample_rate.max(1.0);
         }
         // Handled by the session loop, which has to drop and rebuild the stream.
-        EngineCommand::SwitchDevice(_) | EngineCommand::SetLowLatency(_) => {}
+        EngineCommand::SwitchDevice(_)
+        | EngineCommand::SetLowLatency(_)
+        | EngineCommand::Reconfigure { .. } => {}
         EngineCommand::Shutdown => {}
     }
 }
@@ -848,6 +951,14 @@ fn audio_thread(
                 }
                 Ok(EngineCommand::SetLowLatency(on)) => {
                     low_latency = on;
+                    break;
+                }
+                Ok(EngineCommand::Reconfigure {
+                    device,
+                    low_latency: next_low_latency,
+                }) => {
+                    requested = device;
+                    low_latency = next_low_latency;
                     break;
                 }
                 Ok(command) => match session.state.lock() {

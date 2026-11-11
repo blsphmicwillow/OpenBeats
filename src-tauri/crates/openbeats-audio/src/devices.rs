@@ -84,6 +84,20 @@ pub fn split_device_id(id: &str) -> (Option<&str>, &str) {
     }
 }
 
+/// The routing target encoded in a synthetic PipeWire/Pulse output id.
+/// `PulseAudio|sink:alsa_output.pci-...` becomes `Some("alsa_output.pci-...")`.
+pub fn requested_sink(id: &str) -> Option<&str> {
+    let (_, name) = split_device_id(id);
+    name.strip_prefix("sink:").filter(|sink| !sink.is_empty())
+}
+
+/// The raw CPAL device name encoded in an id. Synthetic sink ids return `None`
+/// because they are routed by the sink environment, not by an ALSA PCM name.
+pub fn requested_device_name(id: &str) -> Option<&str> {
+    let (_, name) = split_device_id(id);
+    (!name.is_empty() && !name.starts_with("sink:")).then_some(name)
+}
+
 /// One input or output device, as serialized to the settings UI.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct DeviceInfo {
@@ -177,6 +191,15 @@ mod tests {
     fn legacy_plain_device_names_still_work() {
         assert_eq!(split_device_id("Speakers"), (None, "Speakers"));
         assert_eq!(split_device_id("|Speakers"), (None, "|Speakers"));
+    }
+
+    #[test]
+    fn synthetic_sink_ids_keep_the_sink_name_for_routing() {
+        let id = device_id("PulseAudio", "sink:bluez_sink.AC_12");
+        assert_eq!(requested_sink(&id), Some("bluez_sink.AC_12"));
+        assert_eq!(requested_device_name(&id), None);
+        assert_eq!(requested_sink("pulse"), None);
+        assert_eq!(requested_device_name("pulse"), Some("pulse"));
     }
 
     #[test]

@@ -3,6 +3,29 @@
 The same entries are bundled into the app and shown in the **Changelog** tab, so the notes ship with the build.
 Keep this file and `src/lib/changelog.ts` in sync, and bump `APP_VERSION` in `src/lib/version.ts`.
 
+## 1.0.8 — 2026-11-11
+
+**OpenBeats v1.0.8 — audio settings that survive restarts, and Linux devices you can identify.**
+
+Native installers for Linux, Windows and macOS are built by CI from the `v1.0.8` tag and attached to that GitHub release.
+
+### Audio settings
+
+- Output and input device choices, low-latency mode, cue level and input monitor level are saved with your settings and restored on launch.
+- The saved output and latency are applied before the startup chime and before the first playback; if the device has disappeared, playback falls back to the system default.
+- The playback hint shows the chosen device's friendly label instead of the raw CPAL backend name.
+
+### Linux audio devices
+
+- PipeWire/PulseAudio sinks are listed with their real descriptions, including Bluetooth/BlueZ, HDMI/DisplayPort (`screen`) and USB outputs.
+- ALSA card names are read from `/proc/asound/cards`; generic `default`/`pulse`/`pipewire` entries no longer hide the actual endpoint.
+- Selecting a PipeWire/Pulse sink routes the stream to that sink using `PULSE_SINK`/`PIPEWIRE_NODE`, with the previous environment restored after opening.
+- Output devices whose default format is an unsupported I24/U24 configuration now fall back to a supported format; I8/U8 output is also accepted.
+
+### Verification
+
+- Added settings migration and immediate-persistence tests plus device-ID routing tests.
+
 ## 1.0.7 — 2026-11-11
 
 **OpenBeats v1.0.7 — native mixer inserts and routing, plus Linux master-volume control.**

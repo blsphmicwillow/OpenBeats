@@ -14,9 +14,8 @@ import {
   playNativeTestTone,
   readRecovery,
   recoverAudioLog,
-  selectAudioDevice,
+  configureNativeAudio,
   setCueGain,
-  setLowLatency,
   type AudioDevices,
   type NativePlaybackState,
 } from '../lib/nativeAudio';
@@ -801,7 +800,7 @@ function AudioTab() {
       <p className="hinttext">
         The desktop build plays through the Rust engine and CPAL. Pick a device here if the default one is silent — on
         Linux the PulseAudio/PipeWire bridge is preferred automatically, because ALSA’s default device can point at a
-        null sink while the step counter keeps moving.
+        null sink while the step counter keeps moving. Output, input, latency and cue choices save immediately.
       </p>
       <NativeDevicePanel />
       <InputPanel />
@@ -883,12 +882,10 @@ function errorText(err: unknown): string {
  * device list is empty and the panel explains why.
  */
 function NativeDevicePanel() {
+  const audio = useApp((s) => s.settings.audio);
+  const patchSettings = useApp((s) => s.patchSettings);
   const [devices, setDevices] = useState<AudioDevices>({ inputs: [], outputs: [] });
   const [snapshot, setSnapshot] = useState<NativePlaybackState | null>(null);
-  const [output, setOutput] = useState('');
-  const [input, setInput] = useState('');
-  const [lowLatency, setLowLatencyMode] = useState(false);
-  const [cue, setCue] = useState(1);
   const [note, setNote] = useState<string | null>(null);
   const [devMode, setDevMode] = useState(readDevMode);
 
@@ -896,11 +893,17 @@ function NativeDevicePanel() {
     const list = await getAudioDevices();
     setDevices(list);
     setSnapshot(await nativePlaybackState());
-    const out = list.outputs.find((d) => d.is_default) ?? list.outputs[0];
-    const inp = list.inputs.find((d) => d.is_default) ?? list.inputs[0];
-    setOutput((current) => current || out?.friendly_name || '');
-    setInput((current) => current || inp?.id || '');
-  }, []);
+    const current = useApp.getState().settings.audio;
+    const out =
+      list.outputs.find((d) => d.id === current.outputId) ??
+      list.outputs.find((d) => d.is_default) ??
+      list.outputs[0];
+    if (out && (out.id !== current.outputId || out.friendly_name !== current.outputLabel)) {
+      patchSettings({
+        audio: { ...current, outputId: out.id, outputLabel: out.friendly_name },
+      });
+    }
+  }, [patchSettings]);
 
   useEffect(() => {
     void refresh();
@@ -910,24 +913,40 @@ function NativeDevicePanel() {
     return () => window.clearInterval(id);
   }, [refresh]);
 
+  const output = audio.outputId ?? '';
   const outputs = devices.outputs;
-  const inputs = devices.inputs;
+  const selectedOutput = outputs.find((device) => device.id === output);
+  const openName =
+    selectedOutput?.friendly_name ??
+    audio.outputLabel ??
+    friendlyDeviceName(snapshot?.device || 'none');
 
-  const chooseOutput = async (name: string) => {
-    setOutput(name);
+  const chooseOutput = async (id: string) => {
+    const label = outputs.find((device) => device.id === id)?.friendly_name ?? null;
+    const nextAudio = {
+      ...useApp.getState().settings.audio,
+      outputId: id || null,
+      outputLabel: label,
+    };
+    patchSettings({ audio: nextAudio });
     try {
-      const next = await selectAudioDevice(name || null);
+      const next = await configureNativeAudio(nextAudio);
       if (next) setSnapshot(next);
-      setNote(next ? `Rebuilt the stream on ${next.device || 'the system default'}.` : 'Device selection needs the desktop build.');
+      setNote(
+        next
+          ? `Rebuilt the stream on ${label || next.device || 'the system default'}.`
+          : 'Device selection needs the desktop build.',
+      );
     } catch (err) {
       setNote(errorText(err));
     }
   };
 
   const toggleLowLatency = async (enabled: boolean) => {
-    setLowLatencyMode(enabled);
+    const nextAudio = { ...useApp.getState().settings.audio, lowLatency: enabled };
+    patchSettings({ audio: nextAudio });
     try {
-      const next = await setLowLatency(enabled);
+      const next = await configureNativeAudio(nextAudio);
       if (next) setSnapshot(next);
       setNote(enabled ? 'Using the device minimum buffer.' : 'Using the device default buffer.');
     } catch (err) {
@@ -958,16 +977,17 @@ function NativeDevicePanel() {
         <div className="field-label">
           Output device
           <small>
-            {snapshot
-              ? `Open: ${devMode ? snapshot.device || 'none' : friendlyDeviceName(snapshot.device || 'none')} · ${Math.round(
+            {snapshot && snapshot.sample_rate > 0
+              ? `Open: ${devMode ? snapshot.device || 'none' : openName} · ${Math.round(
                   snapshot.sample_rate,
                 )} Hz · ${snapshot.channels} ch`
               : 'The stream opens on the first play or test tone.'}
           </small>
         </div>
-        <div className="field-control">
+        <div className="field-control" style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           <select
             className="text-input"
+            style={{ flex: 1 }}
             value={output}
             onChange={(e) => void chooseOutput(e.target.value)}
             disabled={outputs.length === 0}
@@ -975,35 +995,15 @@ function NativeDevicePanel() {
           >
             {outputs.length === 0 && <option value="">No native devices (browser build)</option>}
             {outputs.map((device) => (
-              <option key={device.id} value={device.friendly_name}>
+              <option key={device.id} value={device.id} title={device.id}>
                 {devMode ? device.id : device.friendly_name}
                 {device.is_default ? ' · default' : ''}
               </option>
             ))}
           </select>
-        </div>
-      </div>
-      <div className="field">
-        <div className="field-label">
-          Input device
-          <small>Inputs are enumerated for recording; playback always uses the output above.</small>
-        </div>
-        <div className="field-control">
-          <select
-            className="text-input"
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            disabled={inputs.length === 0}
-            aria-label="Input device"
-          >
-            {inputs.length === 0 && <option value="">No inputs found</option>}
-            {inputs.map((device) => (
-              <option key={device.id} value={device.id}>
-                {devMode ? device.id : device.friendly_name}
-                {device.is_default ? ' · default' : ''}
-              </option>
-            ))}
-          </select>
+          <button className="btn ghost" onClick={() => void refresh()}>
+            Refresh
+          </button>
         </div>
       </div>
       <div className="field">
@@ -1032,7 +1032,7 @@ function NativeDevicePanel() {
         <div className="field-control">
           <input
             type="checkbox"
-            checked={lowLatency}
+            checked={audio.lowLatency}
             onChange={(e) => void toggleLowLatency(e.target.checked)}
             aria-label="Low-latency mode"
           />
@@ -1050,15 +1050,17 @@ function NativeDevicePanel() {
             min={0}
             max={1}
             step={0.01}
-            value={cue}
+            value={audio.cueGain}
             onChange={(e) => {
               const value = Number(e.target.value);
-              setCue(value);
+              patchSettings({
+                audio: { ...useApp.getState().settings.audio, cueGain: value },
+              });
               void setCueGain(value);
             }}
             aria-label="Cue level"
           />
-          <span className="tiny-note">{Math.round(cue * 100)}%</span>
+          <span className="tiny-note">{Math.round(audio.cueGain * 100)}%</span>
         </div>
       </div>
       <div className="field">

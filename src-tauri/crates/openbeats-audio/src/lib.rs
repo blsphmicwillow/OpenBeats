@@ -28,6 +28,8 @@ pub mod effect_graph;
 pub mod export;
 pub mod granular;
 pub mod insert_fx;
+#[cfg(target_os = "linux")]
+pub mod linux_audio;
 pub mod logger;
 pub mod melody;
 pub mod mixer;

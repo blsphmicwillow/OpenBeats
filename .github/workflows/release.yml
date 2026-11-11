@@ -349,12 +349,17 @@ jobs:
               manager reports `InvalidExe`, install FUSE 3 or run with
               `--appimage-extract-and-run`.
             - Playlist audio clips, per-clip effects and pan automation remain
-              Web Audio only in 1.0.7; native CPAL audio-clip playback is pending.
+              Web Audio only in 1.0.8; native CPAL audio-clip playback is pending.
+            - Audio output/input choices, low-latency mode, cue level and input
+              monitor level now persist and are reapplied before playback.
+            - Linux device names identify Bluetooth/BlueZ, HDMI/DisplayPort and USB
+              endpoints from PipeWire/PulseAudio, and the saved sink is routed
+              through the system audio server.
             - Linux master volume now reaches the native CPAL engine; no separate
               plugin or audio-group setup is required.
 
-            Full notes: [CHANGELOG.md](https://github.com/blsphmicwillow/OpenBeats/blob/main/CHANGELOG.md).
-            Install help: [docs/INSTALL.md](https://github.com/blsphmicwillow/OpenBeats/blob/main/docs/INSTALL.md).
+            Full notes: [CHANGELOG.md](https://github.com/blsphmicwillow/OpenBeats/blob/v1.0.8/CHANGELOG.md).
+            Install help: [docs/INSTALL.md](https://github.com/blsphmicwillow/OpenBeats/blob/v1.0.8/docs/INSTALL.md).
           files: release-files/*
           fail_on_unmatched_files: true
           draft: false

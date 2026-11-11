@@ -223,6 +223,7 @@ pub fn run() {
             audio_commands::render_effect_graph,
             // Device selection, low latency and cue routing
             audio_commands::get_audio_devices,
+            audio_commands::configure_audio,
             audio_commands::select_audio_device,
             audio_commands::set_low_latency,
             audio_commands::set_master_gain,

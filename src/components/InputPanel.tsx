@@ -10,20 +10,7 @@ import {
   type AudioDevices,
   type NativeInputReading,
 } from '../lib/nativeAudio';
-
-const DEV_KEY = 'openbeats.devMode';
-
-/** Turns a raw backend string into a friendly name for the default view. */
-export function friendlyDeviceName(raw: string): string {
-  let name = raw
-    .replace(/^(alsa|pulseaudio|pipewire|wasapi|coreaudio|jack)[:\s]+/i, '')
-    .replace(/^(sysdefault|default|hw):/i, '')
-    .replace(/[_.]+/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
-  if (!name) name = raw;
-  return name.charAt(0).toUpperCase() + name.slice(1);
-}
+import { friendlyDeviceName, readDevMode, writeDevMode } from '../lib/deviceNames';
 
 function errorText(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
@@ -37,29 +24,34 @@ function noteName(midi: number): string {
 /** Input monitoring, one-take recording and the tuner, plus the Dev Mode view. */
 export function InputPanel() {
   const toast = useApp((s) => s.ui.toast);
+  const audio = useApp((s) => s.settings.audio);
+  const patchSettings = useApp((s) => s.patchSettings);
   const [devices, setDevices] = useState<AudioDevices>({ inputs: [], outputs: [] });
-  const [device, setDevice] = useState('');
   const [open, setOpen] = useState(false);
   const [monitor, setMonitor] = useState(false);
-  const [gain, setGain] = useState(0.7);
   const [recording, setRecording] = useState(false);
   const [reading, setReading] = useState<NativeInputReading | null>(null);
   const [note, setNote] = useState<string | null>(null);
-  const [devMode, setDevMode] = useState(() => {
-    try {
-      return localStorage.getItem(DEV_KEY) === '1';
-    } catch {
-      return false;
+  const [devMode, setDevMode] = useState(readDevMode);
+  const device = audio.inputId ?? '';
+  const gain = audio.monitorGain;
+
+  const refreshInputs = useCallback(async () => {
+    const list = await getAudioDevices();
+    setDevices(list);
+    const current = useApp.getState().settings.audio;
+    const preferred =
+      list.inputs.find((d) => d.id === current.inputId) ??
+      list.inputs.find((d) => d.is_default) ??
+      list.inputs[0];
+    if (preferred && preferred.id !== current.inputId) {
+      patchSettings({ audio: { ...current, inputId: preferred.id } });
     }
-  });
+  }, [patchSettings]);
 
   useEffect(() => {
-    void getAudioDevices().then((list) => {
-      setDevices(list);
-      const preferred = list.inputs.find((d) => d.is_default) ?? list.inputs[0];
-      setDevice((current) => current || preferred?.id || '');
-    });
-  }, []);
+    void refreshInputs();
+  }, [refreshInputs]);
 
   useEffect(() => {
     if (!open) return;
@@ -71,11 +63,7 @@ export function InputPanel() {
 
   const toggleDevMode = (value: boolean) => {
     setDevMode(value);
-    try {
-      localStorage.setItem(DEV_KEY, value ? '1' : '0');
-    } catch {
-      /* storage blocked */
-    }
+    writeDevMode(value);
   };
 
   const openInput = useCallback(async (): Promise<boolean> => {
@@ -142,13 +130,17 @@ export function InputPanel() {
               : `${inputs.length} input${inputs.length === 1 ? '' : 's'} available`}
           </small>
         </div>
-        <div className="field-control">
+        <div className="field-control" style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           <select
             className="text-input"
+            style={{ flex: 1 }}
             value={device}
             onChange={(e) => {
-              setDevice(e.target.value);
+              patchSettings({
+                audio: { ...useApp.getState().settings.audio, inputId: e.target.value || null },
+              });
               setOpen(false);
+              setNote('Input device saved.');
             }}
             aria-label="Input device"
             disabled={inputs.length === 0}
@@ -161,6 +153,9 @@ export function InputPanel() {
               </option>
             ))}
           </select>
+          <button className="btn ghost" onClick={() => void refreshInputs()}>
+            Refresh
+          </button>
         </div>
       </div>
 
@@ -181,7 +176,9 @@ export function InputPanel() {
             value={gain}
             onChange={(e) => {
               const value = Number(e.target.value);
-              setGain(value);
+              patchSettings({
+                audio: { ...useApp.getState().settings.audio, monitorGain: value },
+              });
               if (monitor) {
                 void nativeSetInputMonitor(true, value).catch((err) => setNote(errorText(err)));
               }

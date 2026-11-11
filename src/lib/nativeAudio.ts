@@ -7,7 +7,7 @@
  * keeps using the Web Audio engine.
  */
 
-import type { Project, UpdateAsset } from '../model/types';
+import type { AudioPreferences, Project, UpdateAsset } from '../model/types';
 import {
   eventsAtPatternStep,
   eventsAtSongStep,
@@ -164,7 +164,7 @@ export interface NativePlaybackState {
 }
 
 export interface DeviceInfo {
-  /** Host-qualified id sent back to the native input stream. */
+  /** Host-qualified id sent back to the native output or input stream. */
   id: string;
   friendly_name: string;
   is_default: boolean;
@@ -517,6 +517,21 @@ export async function selectAudioDevice(
 export async function setLowLatency(enabled: boolean): Promise<NativePlaybackState | null> {
   if (!isNative()) return null;
   return nativeInvoke<NativePlaybackState>('set_low_latency', { enabled });
+}
+
+/**
+ * Applies the saved output, latency and cue level together. The first call also
+ * opens the stream, which lets the startup chime use the chosen device.
+ */
+export async function configureNativeAudio(
+  audio: AudioPreferences,
+): Promise<NativePlaybackState | null> {
+  if (!isNative()) return null;
+  return nativeInvoke<NativePlaybackState>('configure_audio', {
+    device: audio.outputId,
+    lowLatency: audio.lowLatency,
+    cueGain: audio.cueGain,
+  });
 }
 
 /** Level of the native master output (0..2). */

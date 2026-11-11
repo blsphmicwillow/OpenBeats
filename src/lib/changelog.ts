@@ -11,6 +11,36 @@ export interface ChangelogEntry {
  */
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '1.0.8',
+    date: '2026-11-11',
+    headline: 'Persistent audio settings and human-readable Linux audio devices.',
+    groups: [
+      {
+        title: 'Audio settings',
+        items: [
+          'Output and input choices, low-latency mode, cue level and input monitor level are saved with your settings and restored on launch.',
+          'The saved output and latency are applied before the startup chime and before the first playback; a missing device falls back to the system default.',
+          "The playback hint shows the chosen device's friendly label instead of the raw CPAL backend name.",
+        ],
+      },
+      {
+        title: 'Linux audio devices',
+        items: [
+          'PipeWire/PulseAudio sinks show their real descriptions, including Bluetooth/BlueZ, HDMI/DisplayPort (screen) and USB outputs.',
+          'ALSA card names are read from /proc/asound/cards; generic default, pulse and pipewire entries no longer hide the actual endpoint.',
+          'Selecting a PipeWire/Pulse sink routes the stream with PULSE_SINK/PIPEWIRE_NODE and restores the previous environment after opening.',
+          'Devices that default to an unsupported I24/U24 format fall back to a supported format; I8/U8 output is also accepted.',
+        ],
+      },
+      {
+        title: 'Verification',
+        items: [
+          'Added settings migration and immediate-persistence tests plus device-ID routing tests.',
+        ],
+      },
+    ],
+  },
+  {
     version: '1.0.7',
     date: '2026-11-11',
     headline: 'Native mixer inserts and routing, plus Linux master-volume control.',

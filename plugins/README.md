@@ -2,7 +2,7 @@
 
 This directory is the source of truth for the **plugin library** in OpenBeats.
 It is a discovery and download index, not a plugin host. OpenBeats 1.0.6 can
-browse the registry and open GitHub Release downloads. The 1.0.7 branch adds a
+browse the registry and open GitHub Release downloads. The 1.0.8 branch adds a
 Linux CLAP-only sidecar that can scan and load local bundles, but the loaded
 plugin is not routed into the mixer yet. The source-verified implementation
 report is in [`docs/PLUGIN_HOST_REVERSE_ENGINEERING_1.0.7.md`](../docs/PLUGIN_HOST_REVERSE_ENGINEERING_1.0.7.md). See

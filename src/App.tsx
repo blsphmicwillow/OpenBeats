@@ -13,6 +13,7 @@ import { SplashScreen } from './components/SplashScreen';
 import { playStartupChime } from './lib/startupChime';
 import { KEY_TO_SEMITONE, comboFromEvent } from './ui/keymapLabels';
 import { nativeInvoke } from './lib/native';
+import { configureNativeAudio } from './lib/nativeAudio';
 import { IconGrid, IconMixer, IconPiano, IconWave } from './ui/icons';
 import type { KeyAction, WorkspaceTab } from './model/types';
 
@@ -65,12 +66,28 @@ export default function App() {
   useEffect(() => {
     const startup = useApp.getState().settings;
     const native = Boolean((window as unknown as { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__);
-    if (startup.startupChime) {
-      // The desktop build plays the bundled chime through CPAL, not Web Audio.
-      if (native) void nativeInvoke('play_chime');
-      else playStartupChime();
+    if (native) {
+      // Apply the saved output before any native sound can open a stream. With
+      // the chime off we only need to do this when a device or latency choice
+      // was actually saved; otherwise the first preview can keep the default.
+      if (
+        startup.startupChime ||
+        startup.audio.outputId ||
+        startup.audio.lowLatency ||
+        startup.audio.cueGain !== 1
+      ) {
+        void configureNativeAudio(startup.audio)
+          .then(() => {
+            if (startup.startupChime) void nativeInvoke('play_chime');
+          })
+          .catch(() => {
+            if (startup.startupChime) void nativeInvoke('play_chime');
+          });
+      }
+      void nativeInvoke('close_splash');
+    } else if (startup.startupChime) {
+      playStartupChime();
     }
-    if (native) void nativeInvoke('close_splash');
     const hold = startup.reduceMotion ? 650 : 1600;
     const leave = window.setTimeout(() => setSplash('leaving'), hold);
     const hide = window.setTimeout(() => setSplash('hidden'), hold + 380);

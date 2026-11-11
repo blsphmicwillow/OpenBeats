@@ -4,6 +4,7 @@
 //! transport, the synth voices, the master chain and the recovery buffer.
 
 use std::sync::Mutex;
+use std::time::Duration;
 
 use openbeats_audio::analyzer::SpectralAnalyzer;
 use openbeats_audio::arp::{ArpEvent, Arpeggiator};
@@ -121,6 +122,50 @@ pub fn playback_state(state: State<'_, AudioState>) -> Result<EngineSnapshot, St
         .as_ref()
         .map(|engine| engine.snapshot())
         .unwrap_or_else(stopped_snapshot))
+}
+
+/// Applies the persisted audio preferences. On the first call this opens the
+/// saved output with the saved latency, so the startup chime and first playback
+/// do not briefly open the wrong device. Later calls rebuild once, if needed.
+#[tauri::command]
+pub fn configure_audio(
+    state: State<'_, AudioState>,
+    device: Option<String>,
+    low_latency: Option<bool>,
+    cue_gain: Option<f32>,
+) -> Result<EngineSnapshot, String> {
+    let low_latency = low_latency.unwrap_or(false);
+    let cue_gain = cue_gain.unwrap_or(1.0).clamp(0.0, 2.0);
+    let mut guard = state
+        .engine
+        .lock()
+        .map_err(|_| "the audio state is unavailable".to_string())?;
+    let existed = guard.is_some();
+
+    if !existed {
+        let engine = match NativeEngine::start_with(device.clone(), low_latency) {
+            Ok(engine) => engine,
+            Err(err) if device.is_some() => {
+                eprintln!(
+                    "openbeats: saved output device could not be opened ({err}); using the system default"
+                );
+                NativeEngine::start_with(None, low_latency)?
+            }
+            Err(err) => return Err(err),
+        };
+        *guard = Some(engine);
+    }
+
+    let engine = guard
+        .as_ref()
+        .ok_or_else(|| "the audio engine did not start".to_string())?;
+    if existed {
+        engine.reconfigure(device, low_latency)?;
+    }
+    engine.set_cue_gain(cue_gain);
+    // Let the reopen complete before the caller starts the chime or playback.
+    std::thread::sleep(Duration::from_millis(350));
+    Ok(engine.snapshot())
 }
 
 #[tauri::command]

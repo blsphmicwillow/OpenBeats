@@ -317,6 +317,21 @@ export interface WorkspaceLayout {
   collapsedGroups: string[];
 }
 
+export interface AudioPreferences {
+  /** Host-qualified output id, including synthetic PipeWire/Pulse sink ids. */
+  outputId: string | null;
+  /** Display name for the selected output, retained while it is unplugged. */
+  outputLabel: string | null;
+  /** Host-qualified input id used by monitoring and one-take recording. */
+  inputId: string | null;
+  /** Reopen the output with the device minimum buffer. */
+  lowLatency: boolean;
+  /** Cue bus level on outputs 3/4. */
+  cueGain: number;
+  /** Input monitoring level. */
+  monitorGain: number;
+}
+
 export interface Settings {
   themeId: string;
   /** Classic FL-style chrome or the modernised vector skin. Themes apply to both. */
@@ -344,6 +359,8 @@ export interface Settings {
   showMeters: boolean;
   /** Short synthesized sound when the app opens. */
   startupChime: boolean;
+  /** Native output/input choice and per-device levels. */
+  audio: AudioPreferences;
   reduceMotion: boolean;
   /** Stronger borders and text for low-vision use. */
   highContrast: boolean;
