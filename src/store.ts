@@ -34,6 +34,12 @@ import { SAMPLE_BANK } from './audio/instruments';
 import { advanceAudioClips, startAudioClips, stopAudioClips } from './audio/audioClipTransport';
 import { createAudioClipFromDrop, normalizeAudioClips, TICKS_PER_STEP, type AudioClip } from './model/audioClip';
 import { splitAudioClip, splitPatternClip } from './model/clipSplit';
+import {
+  pasteAudioClip,
+  pastePatternClip,
+  snapshotClip,
+  type ClipClipboard,
+} from './model/clipClipboard';
 import { markerLoopRange, nextMarker, normalizeMarkers, previousMarker } from './model/markers';
 import { normalizeAutomation, projectHasAutomation } from './model/automation';
 import { putSample } from './audio/mediaStore';
@@ -161,6 +167,8 @@ export interface AppState {
   audioReady: boolean;
   audioError: string | null;
   lastSaved: number | null;
+  /** Transient; clip copy/cut/paste is intentionally not saved in the project. */
+  clipClipboard: ClipClipboard | null;
 
   patchProject(updater: (p: Project) => void, opts?: { history?: boolean; coalesce?: string }): void;
   pushHistory(coalesce?: string): void;
@@ -218,6 +226,9 @@ export interface AppState {
   addClip(patternId: string, track: number, start: number, len: number): void;
   updateClip(id: string, patch: Partial<Clip>, coalesce?: string): void;
   removeClip(id: string): void;
+  copyClip(id: string): boolean;
+  cutClip(id: string): boolean;
+  pasteClipAt(atStep: number): string | null;
   splitClipAt(id: string, atStep: number): boolean;
   addAudioClip(clip: AudioClip): void;
   updateAudioClip(id: string, patch: Partial<AudioClip>, coalesce?: string): void;
@@ -329,6 +340,7 @@ export const useApp = create<AppState>((set, get) => ({
   audioReady: false,
   audioError: null,
   lastSaved: loadStored<{ savedAt: number }>(AUTOSAVE_KEY)?.savedAt ?? null,
+  clipClipboard: null,
 
   patchProject(updater, opts) {
     if (opts?.history !== false) get().pushHistory(opts?.coalesce);
@@ -848,6 +860,51 @@ export const useApp = create<AppState>((set, get) => ({
     get().patchProject((p) => {
       p.clips = p.clips.filter((c) => c.id !== id);
     });
+  },
+
+  copyClip(id) {
+    const entry = snapshotClip(get().project, id);
+    if (!entry) return false;
+    set({ clipClipboard: entry });
+    get().hint(`${entry.kind === 'audio' ? 'Audio' : 'Pattern'} clip copied`);
+    return true;
+  },
+
+  cutClip(id) {
+    const entry = snapshotClip(get().project, id);
+    if (!entry) return false;
+    set({ clipClipboard: entry });
+    if (entry.kind === 'pattern') get().removeClip(id);
+    else get().removeAudioClip(id);
+    get().toast('Clip cut — paste it at the playhead');
+    return true;
+  },
+
+  pasteClipAt(atStep) {
+    const entry = get().clipClipboard;
+    if (!entry) {
+      get().hint('Clipboard is empty');
+      return null;
+    }
+    if (entry.kind === 'pattern' && !get().project.patterns.some((p) => p.id === entry.clip.pattern)) {
+      get().toast('The copied pattern no longer exists');
+      return null;
+    }
+    let newId: string | null = null;
+    get().patchProject((p) => {
+      const track = Math.max(0, Math.min(entry.clip.track, Math.max(0, p.tracks.length - 1)));
+      if (entry.kind === 'pattern') {
+        const id = uid('cl');
+        newId = id;
+        p.clips.push(pastePatternClip(entry.clip, atStep, track, id));
+      } else {
+        const id = uid('ac');
+        newId = id;
+        p.audioClips.push(pasteAudioClip(entry.clip, atStep, track, id));
+      }
+    });
+    if (newId) get().toast('Clip pasted at the playhead');
+    return newId;
   },
 
   splitClipAt(id, atStep) {

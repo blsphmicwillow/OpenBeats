@@ -36,6 +36,7 @@ export function Playlist() {
   const settings = useApp((s) => s.settings);
   const transport = useApp((s) => s.transport);
   const ui = useApp((s) => s.ui);
+  const clipClipboard = useApp((s) => s.clipClipboard);
   const [zoom, setZoom] = useState(9);
   const [selectedClip, setSelectedClip] = useState<string | null>(null);
   const drag = useRef<DragState | null>(null);
@@ -59,6 +60,9 @@ export function Playlist() {
     addClip,
     updateClip,
     removeClip,
+    copyClip,
+    cutClip,
+    pasteClipAt,
     splitClipAt,
     addAudioClip,
     updateAudioClip,
@@ -302,6 +306,75 @@ export function Playlist() {
     if (transport.playing) keepPlayheadVisible(scrollRef.current, '.playhead-line', 96);
   }, [transport.step, transport.playing]);
 
+  // Clipboard and arrow-key editing are playlist-local: they must not fire
+  // while a dialog is open or a text field has focus.
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      const typing =
+        target &&
+        (target.tagName === 'INPUT' ||
+          target.tagName === 'TEXTAREA' ||
+          target.tagName === 'SELECT' ||
+          target.isContentEditable);
+      const state = useApp.getState();
+      if (
+        typing ||
+        state.ui.settingsOpen ||
+        state.ui.aboutOpen ||
+        state.ui.tutorialStep !== null ||
+        state.ui.paletteOpen
+      ) {
+        return;
+      }
+      const mod = e.ctrlKey || e.metaKey;
+      const key = e.key.toLowerCase();
+      if (mod && !e.altKey && (key === 'c' || key === 'x' || key === 'v')) {
+        if (!selectedClip && key !== 'v') return;
+        e.preventDefault();
+        if (key === 'c') copyClip(selectedClip!);
+        else if (key === 'x') {
+          cutClip(selectedClip!);
+          setSelectedClip(null);
+        } else {
+          const id = pasteClipAt(transport.step);
+          if (id) setSelectedClip(id);
+        }
+        return;
+      }
+      if (
+        e.shiftKey &&
+        !mod &&
+        !e.altKey &&
+        (e.key === 'ArrowLeft' || e.key === 'ArrowRight' || e.key === 'ArrowUp' || e.key === 'ArrowDown')
+      ) {
+        if (!selectedClip) return;
+        e.preventDefault();
+        const project = state.project;
+        const patternClip = project.clips.find((clip) => clip.id === selectedClip);
+        const audioClip = project.audioClips.find((clip) => clip.id === selectedClip);
+        if (!patternClip && !audioClip) return;
+        if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+          const direction = e.key === 'ArrowUp' ? -1 : 1;
+          if (patternClip) {
+            updateClip(patternClip.id, { track: Math.max(0, Math.min(project.tracks.length - 1, patternClip.track + direction)) }, `nudge:${patternClip.id}`);
+          } else if (audioClip) {
+            updateAudioClip(audioClip.id, { track: Math.max(0, Math.min(project.tracks.length - 1, audioClip.track + direction)) }, `nudge:${audioClip.id}`);
+          }
+        } else {
+          const deltaSteps = (e.key === 'ArrowLeft' ? -1 : 1) * (snap || 1);
+          if (patternClip) {
+            updateClip(patternClip.id, { start: Math.max(0, patternClip.start + deltaSteps) }, `nudge:${patternClip.id}`);
+          } else if (audioClip) {
+            updateAudioClip(audioClip.id, { start_tick: Math.max(0, Math.round(audioClip.start_tick + deltaSteps * TICKS_PER_STEP)) }, `nudge:${audioClip.id}`);
+          }
+        }
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [copyClip, cutClip, pasteClipAt, selectedClip, snap, transport.step, updateAudioClip, updateClip]);
+
   const nextPatternOverlap = (clip: { id: string; track: number; start: number; len: number }) => {
     const next = project.clips
       .filter((c) => c.track === clip.track && c.id !== clip.id && c.start > clip.start)
@@ -334,6 +407,12 @@ export function Playlist() {
         label: 'Clone clip',
         onClick: () => addClip(clip.pattern, clip.track, clip.start + clip.len, clip.len),
       },
+      { label: 'Copy clip', shortcut: 'Ctrl+C', onClick: () => copyClip(clip.id) },
+      { label: 'Cut clip', shortcut: 'Ctrl+X', onClick: () => {
+        cutClip(clip.id);
+        setSelectedClip(null);
+      } },
+      { separator: true },
       {
         label: 'Move up a track',
         disabled: clip.track === 0,
@@ -422,6 +501,15 @@ export function Playlist() {
         disabled: transport.step <= clip.start || transport.step >= clip.start + clip.len,
         onClick: () => splitClipAt(clip.id, transport.step) && hint('Clip split at the playhead'),
       },
+      {
+        label: 'Paste at playhead',
+        shortcut: 'Ctrl+V',
+        disabled: !clipClipboard,
+        onClick: () => {
+          const id = pasteClipAt(transport.step);
+          if (id) setSelectedClip(id);
+        },
+      },
       { label: `Pattern: ${pat?.name ?? 'unknown'}`, disabled: true },
       { label: 'Delete clip', danger: true, onClick: () => removeClip(clip.id) },
     ]);
@@ -434,6 +522,12 @@ export function Playlist() {
     if (!clip) return;
     openMenu(e.clientX, e.clientY, [
       { label: `${clip.name} — Web Audio clip`, disabled: true },
+      { label: 'Copy clip', shortcut: 'Ctrl+C', onClick: () => copyClip(clip.id) },
+      { label: 'Cut clip', shortcut: 'Ctrl+X', onClick: () => {
+        cutClip(clip.id);
+        setSelectedClip(null);
+      } },
+      { separator: true },
       { label: `Gain ${(20 * Math.log10(Math.max(0.001, clip.gain))).toFixed(1)} dB`, disabled: true },
       { label: 'Gain +1 dB', onClick: () => updateAudioClip(clip.id, { gain: Math.min(4, clip.gain * 1.122) }) },
       { label: 'Gain −1 dB', onClick: () => updateAudioClip(clip.id, { gain: Math.max(0, clip.gain / 1.122) }) },
@@ -487,6 +581,15 @@ export function Playlist() {
         label: 'Split at playhead',
         disabled: transport.step * TICKS_PER_STEP <= clip.start_tick || transport.step * TICKS_PER_STEP >= clip.start_tick + clip.length_ticks,
         onClick: () => splitClipAt(clip.id, transport.step) && hint('Audio clip split at the playhead'),
+      },
+      {
+        label: 'Paste at playhead',
+        shortcut: 'Ctrl+V',
+        disabled: !clipClipboard,
+        onClick: () => {
+          const id = pasteClipAt(transport.step);
+          if (id) setSelectedClip(id);
+        },
       },
       { label: 'Delete clip', danger: true, onClick: () => removeAudioClip(clip.id) },
     ]);
@@ -604,6 +707,17 @@ export function Playlist() {
         </button>
         <button className="tbtn small" disabled={!selectedCanSplit} onClick={splitSelected} title="Split the selected clip at the playhead">
           Split
+        </button>
+        <button
+          className="tbtn small"
+          disabled={!clipClipboard}
+          onClick={() => {
+            const id = pasteClipAt(transport.step);
+            if (id) setSelectedClip(id);
+          }}
+          title="Paste the copied clip at the playhead (Ctrl/Cmd+V)"
+        >
+          Paste
         </button>
         <button className="tbtn small" onClick={() => addMarker()} title="Add a marker at the playhead (M)">
           <IconPlus size={10} /> Marker

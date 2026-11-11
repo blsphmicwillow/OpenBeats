@@ -33,6 +33,7 @@ export const CHANGELOG: ChangelogEntry[] = [
           'Reverse and peak-normalize audio clips. ENGINE: Web Audio only, with the same processing in live playback and offline bounce.',
           'Audio clips keep a source offset, so splitting resumes the right-hand half at the cut point and the waveform follows the segment.',
           'Slip-edit audio clips with Alt-drag or the inspector Slip field, moving the source window without moving the timeline clip. ENGINE: Web Audio only.',
+          'Copy, cut and paste pattern or audio clips at the playhead with Ctrl/Cmd+C/X/V; Shift+Arrow nudges selected clips.',
           'Automation is Web Audio only: native CPAL playback ignores it, so projects with automation points use the Web Audio transport and the mixer labels that limit.',
           'Fixed offline export using pattern-local steps instead of absolute song steps, so later arrangement clips no longer collapse toward the start of the bounce.',
         ],
