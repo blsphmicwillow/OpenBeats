@@ -4,8 +4,9 @@ name: PR checks
 # Tauri-only break (a Tauri command, config or sidecar wiring) previously reached
 # main without the desktop crate ever being compiled on a PR.
 on:
+  # Every pull request, not only ones targeting main: release work lands on
+  # stacked branches and still needs the checks before it reaches main.
   pull_request:
-    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -41,6 +42,70 @@ jobs:
 
       - name: Docs version and relative links
         run: npm run docs:check
+
+  audio:
+    name: Audio smoke (${{ matrix.label }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - label: Linux
+            platform: ubuntu-22.04
+          - label: Windows
+            platform: windows-latest
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust build
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: Linux audio dependencies
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y \
+            libasound2-dev pulseaudio-utils
+
+      # No device is opened here. This is the check that runs on every platform,
+      # including Windows runners, which have no audio endpoint at all.
+      - name: Offline render produces audio
+        working-directory: src-tauri
+        run: cargo run -q -p openbeats-audio --example audio_smoke -- --offline --seconds 2
+
+      # GitHub's runner has no sound card and ALSA enumerates nothing, so
+      # opening a stream there is diagnostic only (`--list` prints what the host
+      # offers). Compiling the ALSA backend for real — headers, linker, CPAL
+      # device feature — is the part that is gated here.
+      # Answers "which bridge package does this image actually have?" from the
+      # image itself instead of from memory: jammy has no pipewire-alsa.
+      - name: Report the ALSA bridge packages this image offers
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          . /etc/os-release
+          echo "image: $PRETTY_NAME ($VERSION_CODENAME)"
+          apt-cache policy pipewire-alsa libasound2-plugins pipewire-pulse | sed 's/^/  /'
+          echo '--- exact-name search for pipewire-alsa ---'
+          apt-cache search --names-only '^pipewire-alsa$' || true
+
+      - name: Device layer compiles against ALSA
+        if: matrix.platform == 'ubuntu-22.04'
+        working-directory: src-tauri
+        run: cargo build -q -p openbeats-audio --features device --example audio_smoke
+
+      - name: Open the ALSA null PCM (diagnostic)
+        if: matrix.platform == 'ubuntu-22.04'
+        continue-on-error: true
+        working-directory: src-tauri
+        run: |
+          cargo run -q -p openbeats-audio --features device --example audio_smoke -- --list
+          cargo run -q -p openbeats-audio --features device --example audio_smoke \
+            -- --device null --seconds 1
 
   desktop:
     name: Desktop crate (${{ matrix.label }})
