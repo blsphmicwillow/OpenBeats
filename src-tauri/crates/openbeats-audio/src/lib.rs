@@ -49,6 +49,7 @@ pub mod synth;
 pub mod theme;
 pub mod update;
 pub mod velocity;
+pub mod watchdog;
 pub mod workflow;
 
 #[cfg(feature = "decode")]

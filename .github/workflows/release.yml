@@ -172,6 +172,9 @@ jobs:
           const deb = linux.deb?.depends ?? [];
           const rpm = linux.rpm?.depends ?? [];
           const win = c.bundle?.windows ?? {};
+          const fs = require("fs");
+          const archPackage = fs.readFileSync("packaging/arch/PKGBUILD", "utf8");
+          const archReadme = fs.readFileSync("packaging/arch/README.md", "utf8");
           const checks = [
             ["bundle.targets must cover every desktop installer",
               c.bundle?.targets === "all"],
@@ -187,6 +190,16 @@ jobs:
               rpm.some((d) => d.startsWith("gstreamer1-plugins-") || d === "gstreamer1-plugin-libav")],
             ["RPM must depend on a PulseAudio-compatible server",
               rpm.some((d) => d.includes("pipewire-pulse") || d.includes("pulseaudio"))],
+            // CPAL talks to ALSA, which only reaches PipeWire/PulseAudio through
+            // these plugins. Without them the app opens a null device silently.
+            ["deb must reach a sound server through ALSA",
+              deb.some((d) => d.includes("pipewire-alsa") || d.includes("libasound2-plugins"))],
+            ["RPM must reach a sound server through ALSA",
+              rpm.some((d) => d.includes("pipewire-alsa"))],
+            ["Arch package must declare the ALSA bridge",
+              archPackage.includes("pipewire-alsa")],
+            ["Arch README must state the ALSA bridge requirement",
+              archReadme.includes("pipewire-alsa")],
             ["Windows installer must use the WebView2 download bootstrapper",
               win.webviewInstallMode?.type === "downloadBootstrapper"],
             ["Windows installer must bundle the VC++ runtime",
@@ -282,6 +295,17 @@ jobs:
               exit 1
             fi
           done
+          # Report every audio and graphics library the AppImage ships. The
+          # tester's AppImage bundled libva*, which shadowed the host copy and
+          # made ALSA's lavrate plugin fail with an undefined symbol.
+          echo '--- audio and graphics libraries in the AppImage ---'
+          find squashfs-root \( -name 'libva*' -o -name 'libdrm*' -o -name 'libgallium*' \
+            -o -name 'libasound*' -o -name 'libpulse*' \) -printf '%P\n' | sort || true
+          # The normal artifact may carry libva* (the bundler has no exclusion
+          # option); the failing gate lives on the stripped artifact below.
+          if find squashfs-root -name 'libva*' -print -quit | grep -q .; then
+            echo '::warning title=Bundled libva::This AppImage ships libva*; use the openbeats-linux-nolibva artifact if you hit lavrate errors.'
+          fi
           echo 'AppImage contains the GStreamer audio runtime.'
 
       - name: Upload platform installers
@@ -289,6 +313,130 @@ jobs:
         with:
           name: ${{ matrix.artifact }}
           path: ${{ matrix.path }}
+
+      # Everything above ships regardless of what happens below: a failed strip
+      # must not cost testers their installers.
+      - name: Strip bundled libva from the AppImage (best effort)
+        if: matrix.platform == 'ubuntu-22.04'
+        id: strip
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          appimage="$(find target/release/bundle/appimage -maxdepth 1 -name '*.AppImage' -print -quit)"
+          test -n "$appimage" || { echo '::error::No AppImage was produced'; exit 1; }
+          work="$(mktemp -d)"
+          # appimagetool refuses an AppDir inside a 0700 directory, and mktemp -d
+          # creates exactly that.
+          chmod 755 "$work"
+          trap 'rm -rf "$work"' EXIT
+          cd "$work"
+          "$GITHUB_WORKSPACE/$appimage" --appimage-extract >/dev/null
+          APPDIR="$work/squashfs-root"
+          setid="$(find "$APPDIR" -perm /6000 -type f -printf '%P %m\n' || true)"
+          if [ -n "$setid" ]; then
+            echo 'set-id files present (left untouched):'
+            echo "$setid"
+          else
+            echo 'no set-id files in the AppDir'
+          fi
+          find "$APPDIR" \( -name 'libva*.so*' -o -path '*/share/doc/libva*' \) -exec rm -rf {} +
+          # a+rX adds read and traverse only; it never turns a file executable.
+          chmod -R a+rX "$APPDIR"
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y squashfs-tools zsync
+          curl -fsSL -o appimagetool \
+            https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage
+          chmod +x appimagetool
+          upd="$(readelf -p .upd_info "$GITHUB_WORKSPACE/$appimage" 2>/dev/null | sed -n 's/^ *\[ *[0-9a-f]*\] *//p' | head -1)"
+          args=(--no-appstream)
+          if [ -n "$upd" ]; then
+            args+=(-u "$upd")
+            echo "preserving update information: $upd"
+          else
+            echo 'the original AppImage carries no update information'
+          fi
+          ARCH=x86_64 ./appimagetool --appimage-extract-and-run "${args[@]}" \
+            "$APPDIR" "$GITHUB_WORKSPACE/openbeats-nolibva.AppImage"
+          test -x "$GITHUB_WORKSPACE/openbeats-nolibva.AppImage"
+          echo 'ok=1' >> "$GITHUB_OUTPUT"
+
+      # Experimental artifact: a failure here never fails the release, and the
+      # upload below only runs when this step succeeded.
+      - name: Verify the stripped AppImage
+        if: matrix.platform == 'ubuntu-22.04' && steps.strip.outputs.ok == '1'
+        id: verify-nolibva
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          app="$GITHUB_WORKSPACE/openbeats-nolibva.AppImage"
+          test -x "$app" || { echo '::error::the stripped AppImage is missing'; exit 1; }
+          work="$(mktemp -d)"
+          chmod 755 "$work"
+          cd "$work"
+          "$app" --appimage-extract >/dev/null
+
+          if find squashfs-root -iname 'libva*' -print -quit | grep -q .; then
+            echo '::error::the stripped AppImage still contains libva*'
+            exit 1
+          fi
+          # Shipping libva is the bug; *needing* it is fine when the host copy is
+          # the one that loads. FFmpeg and the GStreamer VA-API plugins link
+          # libva, so list them instead of failing, and let the Xvfb start below
+          # prove the host copy actually resolves.
+          echo '--- binaries that link libva (expected: FFmpeg, gstva, gstmsdk) ---'
+          while IFS= read -r -d '' file; do
+            if readelf -d "$file" 2>/dev/null | grep -q 'NEEDED.*libva'; then
+              echo "  ${file#squashfs-root/}"
+            fi
+          done < <(find squashfs-root -type f -print0)
+          echo 'the AppImage ships no libva; those NEEDED entries resolve to the host copy.'
+
+          test -x squashfs-root/usr/bin/openbeats || { echo '::error::payload missing'; exit 1; }
+          desktop=squashfs-root/usr/share/applications/OpenBeats.desktop
+          grep -q '^Exec=openbeats$' "$desktop" || { echo '::error::desktop entry changed'; exit 1; }
+          for plugin in libgstpulseaudio.so libgstalsa.so libgstaudioparsers.so \
+            libgstmpg123.so libgstflac.so libgstwavparse.so libgstlibav.so; do
+            find squashfs-root -name "$plugin" -print -quit | grep -q . || {
+              echo "::error::missing GStreamer plugin $plugin"
+              exit 1
+            }
+          done
+          if ! grep -q '\[ *0\]' <(readelf -p .upd_info "$app" 2>/dev/null); then
+            echo '::warning title=No update information::the repacked AppImage carries no .upd_info section; it is not the default artifact, the normal AppImage keeps its update information.'
+            updated=0
+          else
+            updated=1
+          fi
+          echo "update information present: $updated"
+
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y xvfb
+          set +e
+          xvfb-run -a timeout 25 ./squashfs-root/AppRun > /tmp/nolibva-smoke.log 2>&1
+          code=$?
+          set -e
+          tail -40 /tmp/nolibva-smoke.log || true
+          if grep -qiE 'undefined symbol|error while loading shared libraries|cannot open shared object file' /tmp/nolibva-smoke.log; then
+            echo '::error::the stripped AppImage fails to start'
+            exit 1
+          fi
+          if [ "$code" -ne 0 ] && [ "$code" -ne 124 ]; then
+            echo "::error::AppRun exited $code"
+            exit 1
+          fi
+          echo "AppRun started under Xvfb (exit $code, 124 means the timeout stopped it)"
+          if [ "$updated" -ne 1 ]; then
+            echo '::warning::stripped AppImage skipped: it would lose update information'
+            exit 0
+          fi
+          echo 'ok=1' >> "$GITHUB_OUTPUT"
+
+      - name: Upload the stripped AppImage
+        if: matrix.platform == 'ubuntu-22.04' && steps.verify-nolibva.outputs.ok == '1'
+        uses: actions/upload-artifact@v4
+        with:
+          name: openbeats-linux-nolibva
+          path: ${{ github.workspace }}/openbeats-nolibva.AppImage
           if-no-files-found: error
           retention-days: 14
 
@@ -324,8 +472,7 @@ jobs:
           body: |
             ## OpenBeats ${{ github.ref_name }}
 
-            This refreshed 1.0.8 build replaces the original installers with the
-            audio-reconnect recovery patch.
+            ${{ contains(github.ref_name, '-') && '**Pre-release candidate.** This is not the stable release, and the in-app update checker ignores pre-release tags.' || 'Audio reliability release: the Linux packages install the ALSA sound-server bridge, Audio settings reports stream health and a test-tone verdict, and native audio failures surface as toasts instead of staying in the console.' }}
 
             Native installers for Linux, Windows and macOS, built and tested by
             GitHub Actions on native runners.
@@ -346,31 +493,24 @@ jobs:
 
             ### Notes
 
+            - Plugin hosting is unchanged in 1.0.9: inserts are still not routed
+              into the native audio callback, and Linux hosting remains
+              unavailable.
+            - Playlist audio clips, per-clip effects and pan automation remain
+              Web Audio only.
             - macOS builds are unsigned and not notarised; use Control-click →
               Open on first launch.
             - Linux AppImage: `chmod +x OpenBeats_*_amd64.AppImage`. If your file
               manager reports `InvalidExe`, install FUSE 3 or run with
               `--appimage-extract-and-run`.
-            - Playlist audio clips, per-clip effects and pan automation remain
-              Web Audio only in 1.0.8; native CPAL audio-clip playback is pending.
-            - Audio output/input choices, low-latency mode, cue level and input
-              monitor level now persist and are reapplied before playback.
-            - A failed stream keeps the selected output. Reconnected BlueZ sinks,
-              changed defaults and stalled callbacks reopen the route, and native
-              playback resumes at the last step instead of stopping.
-            - Windows, macOS and raw ALSA outputs return to the selected physical
-              device when it reconnects.
-            - Linux device names identify Bluetooth/BlueZ, HDMI/DisplayPort and USB
-              endpoints from PipeWire/PulseAudio, and the saved sink is routed
-              through the system audio server.
-            - Linux master volume now reaches the native CPAL engine; no separate
-              plugin or audio-group setup is required.
 
-            Full notes: [CHANGELOG.md](https://github.com/blsphmicwillow/OpenBeats/blob/v1.0.8/CHANGELOG.md).
-            Install help: [docs/INSTALL.md](https://github.com/blsphmicwillow/OpenBeats/blob/v1.0.8/docs/INSTALL.md).
+            Full notes: [CHANGELOG.md](https://github.com/blsphmicwillow/OpenBeats/blob/${{ github.ref_name }}/CHANGELOG.md).
+            Install help: [docs/INSTALL.md](https://github.com/blsphmicwillow/OpenBeats/blob/${{ github.ref_name }}/docs/INSTALL.md).
           files: release-files/*
           fail_on_unmatched_files: true
+          # A tag with a dash (v1.0.9-rc1) must never publish as a stable
+          # release: /releases/latest would start offering it to everyone.
           draft: false
-          prerelease: false
+          prerelease: ${{ contains(github.ref_name, '-') }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

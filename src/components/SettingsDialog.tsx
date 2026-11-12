@@ -17,14 +17,23 @@ import {
   configureNativeAudio,
   nativeStopPreview,
   setCueGain,
+  audioBridgeStatus,
+  renderedLevels,
   type AudioDevices,
   type NativePlaybackState,
 } from '../lib/nativeAudio';
 import { KEY_ACTION_LABELS, comboFromEvent } from '../ui/keymapLabels';
 import { APP_VERSION } from '../lib/version';
 import { friendlyDeviceName, readDevMode, writeDevMode } from '../lib/deviceNames';
-import { audioErrorReport, nativePlatform } from '../lib/native';
+import { audioErrorReport, isNative, nativePlatform } from '../lib/native';
 import { judgeTestTone, type ToneSample } from '../lib/audioVerdict';
+import {
+  diagnosticsText,
+  noOutputDevicesAdvice,
+  toneAdvice,
+  toneReportMessage,
+  type BridgeState,
+} from '../lib/audioAdvice';
 import type { KeyAction, Settings, Theme } from '../model/types';
 
 type Tab = 'appearance' | 'accessibility' | 'workflow' | 'updates' | 'keys' | 'audio' | 'opensource';
@@ -901,6 +910,9 @@ function NativeDevicePanel() {
   // Only Linux needs the ALSA→sound-server bridge hint; Windows and macOS have
   // no equivalent package and the advice would be wrong there.
   const [platform, setPlatform] = useState('');
+  // Only Linux has a bridge to report, but the empty-device-list message needs
+  // it to tell "nothing is running" from "no bridge to what is running".
+  const [bridge, setBridge] = useState<BridgeState>('unknown');
 
   useEffect(() => {
     setDraftOutput(audio.outputId ?? '');
@@ -915,6 +927,9 @@ function NativeDevicePanel() {
   useEffect(() => {
     void refresh();
     void nativePlatform().then(setPlatform);
+    void audioBridgeStatus()
+      .then((status) => setBridge(status as BridgeState))
+      .catch(() => setBridge('unknown'));
     const id = window.setInterval(() => {
       void nativePlaybackState().then(setSnapshot);
     }, 1000);
@@ -995,7 +1010,9 @@ function NativeDevicePanel() {
    * quiet". Without that split a dead device looks exactly like a broken DAW.
    */
   const runTestTone = async () => {
-    const before = (await nativePlaybackState())?.callbacks ?? 0;
+    const first = await nativePlaybackState();
+    const before = first?.callbacks ?? 0;
+    const deadlineBefore = first?.deadline_misses ?? 0;
     try {
       const ok = await playNativeTestTone(TONE_SECONDS);
       if (!ok) {
@@ -1023,29 +1040,68 @@ function NativeDevicePanel() {
     }
     setSnapshot(latest ?? (await nativePlaybackState()));
     const verdict = judgeTestTone(before, samples);
-    const advice =
-      platform === 'linux'
-        ? ' Try another output, or install the ALSA→PipeWire bridge (pipewire-alsa / libasound2-plugins).'
-        : ' Try another output device, and check it is not muted or held in exclusive mode by another app.';
+    // Each platform fails differently; the advice is unit-tested separately.
+    const advice = toneAdvice(platform, verdict.kind);
+    // What the engine actually rendered, read from the same ring the Audio
+    // Logger recovers to WAV. The meters say what the graph produced; this says
+    // what was handed to the device, which is what splits a silent graph from a
+    // silent device.
+    const rendered = await renderedLevels(TONE_SECONDS);
+    const report = toneReportMessage({
+      callbacks: Math.max(0, (latest?.callbacks ?? 0) - before),
+      peakDb: latest?.peak_db ?? -120,
+      renderedPeak: rendered?.peak ?? 0,
+      renderedRms: rendered?.rms ?? 0,
+      deadlineMisses: Math.max(0, (latest?.deadline_misses ?? 0) - deadlineBefore),
+      sink: latest?.sink ?? '',
+    });
     switch (verdict.kind) {
       case 'no-engine':
         setNote('The test tone was sent but the engine did not answer.');
         return;
       case 'stalled':
         setNote(
-          `Test tone sent, but the stream delivered 0 callbacks in ${TONE_WINDOW_MS / 1000} s: the device opened and never ran.${advice}`,
+          `${report} The stream delivered 0 callbacks in ${TONE_WINDOW_MS / 1000} s, so the device opened and never ran.${advice}`,
         );
         return;
       case 'silent':
-        setNote(
-          `The stream ran (${verdict.callbacks} callbacks) but every block was silent: the tone never reached it.${advice}`,
-        );
+        setNote(`${report}${advice}`);
         return;
       case 'ok':
-        setNote(
-          `Test tone sent. ${verdict.callbacks} callbacks, peak ${Math.round(verdict.peak * 100)}% — audio is reaching ${latest?.device || 'the device'}.`,
-        );
+        setNote(report + advice);
         return;
+    }
+  };
+
+  /** One plain-text block a tester can paste, so a readout needs no terminal. */
+  const copyDiagnostics = async () => {
+    const state = snapshot ?? (await nativePlaybackState());
+    const text = diagnosticsText({
+      version: APP_VERSION,
+      platform: platform || 'unknown',
+      bridge,
+      device: state?.device ?? '',
+      host: state?.host ?? '',
+      sink: state?.sink ?? '',
+      sampleRate: state?.sample_rate ?? 0,
+      channels: state?.channels ?? 0,
+      bufferFrames: state?.buffer_frames ?? 0,
+      lowLatency: audio.lowLatency,
+      callbacks: state?.callbacks ?? 0,
+      peakDb: state?.peak_db ?? -120,
+      intervalMaxMs: state?.interval_max_ms ?? 0,
+      deadlineMisses: state?.deadline_misses ?? 0,
+      streamErrors: state?.stream_errors ?? 0,
+      deviceSwaps: state?.device_swaps ?? 0,
+      stallReopens: state?.stall_reopens ?? 0,
+      lastReopen: state?.last_reopen ?? '',
+      lastError,
+    });
+    try {
+      await navigator.clipboard.writeText(text);
+      setNote('Audio diagnostics copied to the clipboard.');
+    } catch {
+      setNote(text);
     }
   };
 
@@ -1079,7 +1135,11 @@ function NativeDevicePanel() {
             disabled={outputs.length === 0}
             aria-label="Output device"
           >
-            {outputs.length === 0 && <option value="">No native devices (browser build)</option>}
+            {outputs.length === 0 && (
+              <option value="">
+                {isNative() ? 'No output devices found' : 'No native devices (browser build)'}
+              </option>
+            )}
             <option value="">System default</option>
             {savedMissing && (
               <option value={savedOutput}>{audio.outputLabel ?? 'Saved device'} · unavailable</option>
@@ -1099,6 +1159,11 @@ function NativeDevicePanel() {
             Save
           </button>
         </div>
+        {isNative() && outputs.length === 0 && (
+          <p className="tiny-note audio-empty-note" role="status">
+            {noOutputDevicesAdvice(platform, bridge)}
+          </p>
+        )}
       </div>
       <div className="field">
         <div className="field-label">
@@ -1162,15 +1227,27 @@ function NativeDevicePanel() {
           Stream health
           <small>
             {snapshot
-              ? `${snapshot.callbacks.toLocaleString()} callbacks · peak ${Math.round(
-                  snapshot.peak * 100,
-                )}% · ${snapshot.stream_errors} stream errors · ${snapshot.device_swaps} rebuilds`
+              ? `${snapshot.callbacks.toLocaleString()} callbacks · peak ${snapshot.peak_db.toFixed(
+                  1,
+                )} dBFS · ${snapshot.buffer_frames} frames/callback · worst ${snapshot.interval_max_ms.toFixed(
+                  1,
+                )} ms${snapshot.deadline_misses > 0 ? ` · ${snapshot.deadline_misses} deadline misses` : ''} · ${snapshot.stream_errors} errors · ${snapshot.device_swaps} rebuilds${snapshot.stall_reopens > 0 ? ` · ${snapshot.stall_reopens} stall reopens` : ''}`
               : 'No native stream yet — press Test tone to open one.'}
           </small>
+          {snapshot && snapshot.sample_rate > 0 && (
+            <small>
+              {snapshot.host || 'host'} · {devMode ? snapshot.device : openName}
+              {snapshot.sink ? ` → ${snapshot.sink}` : ''}
+            </small>
+          )}
+          {snapshot?.last_reopen && <small>{snapshot.last_reopen}</small>}
         </div>
         <div className="field-control">
           <button className="btn" onClick={() => void runTestTone()}>
             Test tone
+          </button>
+          <button className="btn ghost" onClick={() => void copyDiagnostics()}>
+            Copy diagnostics
           </button>
           <span className="tiny-note" title={lastError || 'no stream errors'}>
             {lastError ? `Last error: ${lastError}${lastErrorSuffix}` : 'No stream errors'}

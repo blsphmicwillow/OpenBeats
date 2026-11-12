@@ -87,6 +87,27 @@ struct Shared {
     /// Total callbacks, so a stream that silently stops calling back can be
     /// distinguished from a healthy but idle stream.
     callbacks: AtomicU32,
+    /// Frames per callback the device actually asks for. The requested buffer
+    /// and the granted one differ on PipeWire, so reporting only the request
+    /// hides the case that matters.
+    buffer_frames: AtomicU32,
+    /// Nominal callback period for the current buffer, in microseconds.
+    nominal_us: AtomicU32,
+    /// Worst callback interval seen, in microseconds. A stream that runs but
+    /// cannot keep up shows up here before it shows up as an audible glitch.
+    interval_max_us: AtomicU32,
+    /// Callbacks whose interval exceeded 1.5x nominal.
+    deadline_misses: AtomicU32,
+    /// Sound-server node the stream is connected to, filled at open time.
+    sink: Mutex<String>,
+    /// CPAL host the stream was opened on.
+    host: Mutex<String>,
+    /// Raised by the callback when a diagnostic line is due; printed off-callback.
+    log_tick: AtomicU32,
+    /// Stall-triggered reopens since launch.
+    stall_reopens: AtomicU32,
+    /// The last stall reopen, with reason, buffers and silence.
+    reopen_log: Mutex<String>,
     /// Last cue gain survives a stream rebuild during playback.
     cue_gain: AtomicU32,
     /// The last stream or reopen failure, so the UI can explain silence that
@@ -110,6 +131,15 @@ impl Default for Shared {
             channels: AtomicU32::new(0),
             device_swaps: AtomicU32::new(0),
             callbacks: AtomicU32::new(0),
+            buffer_frames: AtomicU32::new(0),
+            nominal_us: AtomicU32::new(0),
+            interval_max_us: AtomicU32::new(0),
+            deadline_misses: AtomicU32::new(0),
+            sink: Mutex::new(String::new()),
+            host: Mutex::new(String::new()),
+            log_tick: AtomicU32::new(0),
+            stall_reopens: AtomicU32::new(0),
+            reopen_log: Mutex::new(String::new()),
             cue_gain: AtomicU32::new(1.0f32.to_bits()),
             last_error: Mutex::new(String::new()),
             device: Mutex::new(String::new()),
@@ -124,11 +154,22 @@ fn remember_error(shared: &Shared, message: impl Into<String>) {
     }
 }
 
+/// Records a stall reopen: counted for the UI, and kept verbatim for Copy
+/// diagnostics. Called from the command thread, never from the callback.
+fn remember_reopen(shared: &Shared, line: &str) {
+    shared.stall_reopens.fetch_add(1, Ordering::Relaxed);
+    if let Ok(mut slot) = shared.reopen_log.lock() {
+        *slot = line.to_string();
+    }
+}
+
 fn clear_error(shared: &Shared) {
     if let Ok(mut slot) = shared.last_error.lock() {
         slot.clear();
     }
 }
+
+use crate::watchdog::{give_up_message, is_stalled, reopen_line, StallAction, StallPolicy};
 
 fn store_f32(slot: &AtomicU32, value: f32) {
     slot.store(value.to_bits(), Ordering::Relaxed);
@@ -163,6 +204,22 @@ pub struct EngineSnapshot {
     pub peak: f32,
     /// The last stream or reopen failure, empty while the engine is healthy.
     pub last_error: String,
+    /// Frames per callback the device actually grants.
+    pub buffer_frames: u32,
+    /// Worst callback interval in milliseconds since the stream opened.
+    pub interval_max_ms: f32,
+    /// Callbacks that arrived later than 1.5x their nominal period.
+    pub deadline_misses: u32,
+    /// Output peak in dBFS; -120 when the graph is silent.
+    pub peak_db: f32,
+    /// Linux sound-server node the stream is routed to, empty elsewhere.
+    pub sink: String,
+    /// CPAL host the stream was opened on.
+    pub host: String,
+    /// Stall-triggered reopens since launch.
+    pub stall_reopens: u32,
+    /// The last stall reopen, with its reason, buffers and silence.
+    pub last_reopen: String,
 }
 
 struct CallbackState {
@@ -191,6 +248,10 @@ struct CallbackState {
     chime_pos: f32,
     chime_step: f32,
     callbacks: u64,
+    /// Timestamp of the previous callback and its nominal period, used to count
+    /// deadline misses without allocating or locking.
+    last_callback: Option<std::time::Instant>,
+    nominal_us: f32,
 }
 
 impl CallbackState {
@@ -231,6 +292,8 @@ impl CallbackState {
             chime_pos: 0.0,
             chime_step: 1.0,
             callbacks: 0,
+            last_callback: None,
+            nominal_us: 0.0,
         }
     }
 
@@ -517,6 +580,23 @@ impl NativeEngine {
         let _ = self.commands.send(EngineCommand::TestTone(seconds));
     }
 
+    /// Peak and RMS of what the engine actually rendered over the last
+    /// `seconds`, read from the recovery ring on the caller's thread. This is
+    /// the measurement that separates "the engine produced sound" from "the
+    /// device asked for buffers and got silence"; the meters alone cannot,
+    /// because they are what the engine thinks it sent.
+    pub fn rendered_levels(&self, seconds: f32) -> Option<(f32, f32)> {
+        let logger = self.logger.lock().ok()?.clone()?;
+        let samples = logger.lock().ok()?.recent(seconds.clamp(0.1, 60.0));
+        if samples.is_empty() {
+            return None;
+        }
+        let peak = samples.iter().fold(0.0f32, |acc, sample| acc.max(sample.abs()));
+        let sum: f64 = samples.iter().map(|sample| (*sample as f64) * (*sample as f64)).sum();
+        let rms = (sum / samples.len() as f64).sqrt() as f32;
+        Some((peak, rms))
+    }
+
     /// Plays one note outside the transport, for instrument audition.
     pub fn preview_note(&self, channel: PlaybackChannel, pitch: u8, velocity: f32, seconds: f32) {
         let _ = self.commands.send(EngineCommand::PreviewNote {
@@ -548,6 +628,7 @@ impl NativeEngine {
     }
 
     pub fn snapshot(&self) -> EngineSnapshot {
+        let peak = load_f32(&self.shared.meter_left).max(load_f32(&self.shared.meter_right));
         EngineSnapshot {
             playing: self.shared.playing.load(Ordering::Relaxed) == 1,
             step: self.shared.step.load(Ordering::Relaxed),
@@ -562,7 +643,30 @@ impl NativeEngine {
             channels: self.shared.channels.load(Ordering::Relaxed),
             device_swaps: self.shared.device_swaps.load(Ordering::Relaxed),
             callbacks: self.shared.callbacks.load(Ordering::Relaxed),
-            peak: load_f32(&self.shared.meter_left).max(load_f32(&self.shared.meter_right)),
+            peak,
+            peak_db: if peak > 0.0 { 20.0 * peak.log10() } else { -120.0 },
+            buffer_frames: self.shared.buffer_frames.load(Ordering::Relaxed),
+            interval_max_ms: self.shared.interval_max_us.load(Ordering::Relaxed) as f32 / 1_000.0,
+            deadline_misses: self.shared.deadline_misses.load(Ordering::Relaxed),
+            sink: self
+                .shared
+                .sink
+                .lock()
+                .map(|sink| sink.clone())
+                .unwrap_or_default(),
+            host: self
+                .shared
+                .host
+                .lock()
+                .map(|host| host.clone())
+                .unwrap_or_default(),
+            stall_reopens: self.shared.stall_reopens.load(Ordering::Relaxed),
+            last_reopen: self
+                .shared
+                .reopen_log
+                .lock()
+                .map(|line| line.clone())
+                .unwrap_or_default(),
             last_error: self
                 .shared
                 .last_error
@@ -876,6 +980,7 @@ fn open_output_stream(
 fn open_session(
     requested: Option<&str>,
     low_latency: bool,
+    forced_buffer: Option<u32>,
     shared: &Arc<Shared>,
     logger_slot: &LoggerSlot,
 ) -> Result<Session, String> {
@@ -917,6 +1022,15 @@ fn open_session(
         .ok_or_else(|| "no audio output device was found".to_string())?;
     let device = &devices[index];
     let name = candidates[index].name.clone();
+    // Recorded once when the stream opens, not in the callback: the UI needs to
+    // say which node it is connected to, and asking the server from the audio
+    // thread would block it.
+    if let Ok(mut slot) = shared.sink.lock() {
+        *slot = sink.clone().unwrap_or_default();
+    }
+    if let Ok(mut slot) = shared.host.lock() {
+        *slot = host.id().name().to_string();
+    }
 
     #[cfg(target_os = "linux")]
     let _route = crate::linux_audio::route_sink(sink.as_deref());
@@ -934,13 +1048,31 @@ fn open_session(
     })?;
     let sample_format = supported.sample_format();
     let mut config: cpal::StreamConfig = supported.clone().into();
-    let minimum = match supported.buffer_size() {
+    let mut minimum = match supported.buffer_size() {
         SupportedBufferSize::Range { min, .. } => *min,
         SupportedBufferSize::Unknown => 256,
     };
+    // PipeWire grants one quantum for the whole graph, so a 32-frame request
+    // makes every other app on the machine run at 32 frames. A Bluetooth A2DP
+    // link cannot sustain that, and the result is chopping or silence. Keep a
+    // floor; Bluetooth gets a larger one because encoding and retransmission
+    // add their own latency regardless.
+    #[cfg(target_os = "linux")]
+    {
+        let bluetooth = sink
+            .as_deref()
+            .map(|name| name.to_ascii_lowercase().contains("bluez"))
+            .unwrap_or(false);
+        minimum = minimum.max(if bluetooth { 1024 } else { 256 });
+    }
     let mut low_latency = low_latency;
     if low_latency {
         config.buffer_size = cpal::BufferSize::Fixed(minimum.max(32));
+    }
+    // A stall reopen overrides the request: the whole point is to stop asking
+    // for the buffer that just failed.
+    if let Some(frames) = forced_buffer {
+        config.buffer_size = cpal::BufferSize::Fixed(frames.max(32));
     }
     let sample_rate = config.sample_rate.0 as f32;
     let channels = config.channels as usize;
@@ -1095,13 +1227,35 @@ fn audio_thread(
     let mut requested = initial_device;
     let mut low_latency = initial_low_latency;
     let mut last_project: Option<PlaybackProject> = None;
+    // A stall-triggered reopen can ask for a specific buffer size. It is cleared
+    // on any explicit user change, so the next stall starts the ladder again.
+    let mut forced_buffer: Option<u32> = None;
+    let mut stall_policy = StallPolicy::new();
+    let stall_clock = Instant::now();
+    let mut stall_gave_up = false;
+    // Diagnostic line: off by default; RUST_LOG=debug (or trace/info) turns it
+    // on. Rate-limited to one line every five seconds regardless of callbacks.
+    let debug_log = std::env::var("RUST_LOG")
+        .map(|value| {
+            let value = value.to_ascii_lowercase();
+            value.contains("debug") || value.contains("trace") || value.contains("info")
+        })
+        .unwrap_or(false);
+    let mut last_log = Instant::now();
+    let mut seen_log_tick = shared.log_tick.load(Ordering::Relaxed);
 
     loop {
         // Keep the user's preference even when it is temporarily unavailable.
         // A Bluetooth headset that vanished for a second must be picked up when
         // it reappears, rather than being replaced permanently by the fallback.
         let session = loop {
-            match open_session(requested.as_deref(), low_latency, &shared, &logger_slot) {
+            match open_session(
+                requested.as_deref(),
+                low_latency,
+                forced_buffer,
+                &shared,
+                &logger_slot,
+            ) {
                 Ok(session) => break session,
                 Err(err) => {
                     remember_error(&shared, &err);
@@ -1115,7 +1269,7 @@ fn audio_thread(
                         eprintln!(
                             "openbeats: saved output failed ({err}); trying the system default"
                         );
-                        match open_session(None, low_latency, &shared, &logger_slot) {
+                        match open_session(None, low_latency, forced_buffer, &shared, &logger_slot) {
                             Ok(session) => break session,
                             Err(fallback_err) => {
                                 if let Some(tx) = ready.take() {
@@ -1176,10 +1330,16 @@ fn audio_thread(
                 Ok(EngineCommand::Shutdown) => return,
                 Ok(EngineCommand::SwitchDevice(name)) => {
                     requested = name;
+                    forced_buffer = None;
+                    stall_policy = StallPolicy::new();
+                    stall_gave_up = false;
                     break;
                 }
                 Ok(EngineCommand::SetLowLatency(on)) => {
                     low_latency = on;
+                    forced_buffer = None;
+                    stall_policy = StallPolicy::new();
+                    stall_gave_up = false;
                     break;
                 }
                 Ok(EngineCommand::Reconfigure {
@@ -1188,6 +1348,9 @@ fn audio_thread(
                 }) => {
                     requested = device;
                     low_latency = next_low_latency;
+                    forced_buffer = None;
+                    stall_policy = StallPolicy::new();
+                    stall_gave_up = false;
                     break;
                 }
                 Ok(command) => {
@@ -1206,6 +1369,10 @@ fn audio_thread(
                         // Give a newly opened stream time to deliver its first
                         // callback before the no-callback watchdog can fire.
                         last_progress = Instant::now();
+                        // Pressing play is a fresh attempt: clear a give-up so a
+                        // user who changed something can retry without restarting.
+                        stall_policy = StallPolicy::new();
+                        stall_gave_up = false;
                     }
                 }
                 Err(RecvTimeoutError::Timeout) => {
@@ -1215,19 +1382,53 @@ fn audio_thread(
                         break;
                     }
 
+                    let now_ms = stall_clock.elapsed().as_millis() as u64;
                     let callbacks = shared.callbacks.load(Ordering::Relaxed);
                     if callbacks != callback_count {
                         callback_count = callbacks;
                         last_progress = Instant::now();
-                    } else if shared.playing.load(Ordering::Relaxed) == 1
-                        && last_progress.elapsed() >= Duration::from_secs(2)
+                        stall_policy.on_healthy(now_ms);
+                    } else if !stall_gave_up
+                        && is_stalled(
+                            false,
+                            shared.playing.load(Ordering::Relaxed) == 1,
+                            last_progress.elapsed().as_millis() as u64,
+                        )
                     {
-                        remember_error(
-                            &shared,
-                            "the audio stream stopped calling back; reopening the saved route",
-                        );
-                        eprintln!("openbeats: audio callbacks stalled; reopening the saved route");
-                        break;
+                        let silent_ms = last_progress.elapsed().as_millis() as u64;
+                        match stall_policy.on_stall(now_ms) {
+                            StallAction::Reopen {
+                                attempt,
+                                buffer_frames,
+                            } => {
+                                let granted = shared.buffer_frames.load(Ordering::Relaxed);
+                                let line = reopen_line(
+                                    attempt,
+                                    "no callback while playing",
+                                    silent_ms,
+                                    buffer_frames,
+                                    granted,
+                                );
+                                remember_reopen(&shared, &line);
+                                eprintln!("openbeats: {line}");
+                                forced_buffer = Some(buffer_frames);
+                                break;
+                            }
+                            StallAction::GiveUp { attempts } => {
+                                let granted = shared.buffer_frames.load(Ordering::Relaxed);
+                                let message = give_up_message(
+                                    attempts,
+                                    forced_buffer.unwrap_or(granted),
+                                    granted,
+                                    low_latency,
+                                );
+                                remember_error(&shared, &message);
+                                eprintln!("openbeats: {message}");
+                                // Stop reopening. The stream is left as it is and
+                                // the UI keeps showing the error with its stats.
+                                stall_gave_up = true;
+                            }
+                        }
                     }
 
                     #[cfg(target_os = "linux")]
@@ -1330,6 +1531,26 @@ fn render<T>(
     };
 
     let frames = data.len() / channels.max(1);
+
+    // Deadline accounting. `Instant::now()` is a vDSO read on Linux: no
+    // allocation, no lock, no syscall. It is the only way to separate "the
+    // device is asking for audio and we are too slow" from "the device never
+    // asked", which look identical from the outside.
+    shared.buffer_frames.store(frames as u32, Ordering::Relaxed);
+    let now = std::time::Instant::now();
+    let nominal = frames as f32 / guard.sample_rate.max(1.0) * 1_000_000.0;
+    if (guard.nominal_us - nominal).abs() > 1.0 {
+        guard.nominal_us = nominal;
+    }
+    shared.nominal_us.store(nominal as u32, Ordering::Relaxed);
+    if let Some(previous) = guard.last_callback.replace(now) {
+        let delta_us = now.duration_since(previous).as_micros().min(u32::MAX as u128) as u32;
+        shared.interval_max_us.fetch_max(delta_us, Ordering::Relaxed);
+        if delta_us as f32 > nominal * 1.5 {
+            shared.deadline_misses.fetch_add(1, Ordering::Relaxed);
+        }
+    }
+
     let mut peak_left = 0.0f32;
     let mut peak_right = 0.0f32;
     let mut peak_transient = 0.0f32;
@@ -1377,13 +1598,12 @@ fn render<T>(
         .unwrap_or(false);
     shared.playing.store(u32::from(playing), Ordering::Relaxed);
 
-    // Data-flow proof for users debugging a silent device: one line per second.
+    // Data-flow proof for users debugging a silent device. The callback only
+    // raises a flag: formatting, env lookups and I/O happen on the command
+    // thread, so a slow terminal can never hold the audio callback.
     guard.callbacks = guard.callbacks.wrapping_add(1);
     if guard.callbacks % 100 == 0 {
-        println!(
-            "openbeats audio: {} frames at {:.0} Hz, peak {:.3}/{:.3}",
-            frames, guard.sample_rate, peak_left, peak_right
-        );
+        shared.log_tick.fetch_add(1, Ordering::Relaxed);
     }
 }
 
