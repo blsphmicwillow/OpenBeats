@@ -474,6 +474,29 @@ export const useApp = create<AppState>((set, get) => ({
   },
 
   async initAudio() {
+    // A Web Audio context is a real output stream: WebKitGTK backs it with a
+    // GStreamer sink, which is how a second "openbeats" sink-input (1764 frames
+    // at 44100 Hz) appeared next to the native CPAL stream. Never create one at
+    // startup when the native engine owns — or is about to own — the output.
+    const shell = nativeShell();
+    const startup = get().settings;
+    let nativeSampleRate = 0;
+    if (shell) {
+      const { nativePlaybackState } = await import('./lib/nativeAudio');
+      const native = await nativePlaybackState();
+      nativeSampleRate = native?.sample_rate ?? 0;
+    }
+    const mode = resolveAudioInit({
+      shell,
+      nativeSampleRate,
+      chimePending: shell && startup.startupChime,
+    });
+    if (!createsWebAudio(mode)) {
+      // 'native': the stream is open. 'deferred': the chime is opening it.
+      // Web Audio is created on demand by the features that only exist there.
+      set({ audioReady: true, audioError: null });
+      return true;
+    }
     const ok = await engine.ensure(get().project);
     set({ audioReady: ok, audioError: ok ? null : engine.error });
     if (ok) engine.sync(get().project);
@@ -1873,6 +1896,8 @@ let nativePoll: number | null = null;
 export function transportNow(): number {
   return nativeActive ? performance.now() / 1000 : engine.now;
 }
+
+import { createsWebAudio, resolveAudioInit } from './lib/audioInit';
 
 /** True inside the Tauri shell, where the Rust engine can take the transport. */
 function nativeShell(): boolean {

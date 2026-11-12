@@ -1,5 +1,5 @@
 /** Single source of truth for the app version shown in Settings, Changelog and update checks. */
-export const APP_VERSION = '1.0.8';
+export const APP_VERSION = '1.0.9';
 export const APP_NAME = 'OpenBeats';
 export const APP_TAGLINE = 'Open-source beatmaking studio';
 /** GitHub repo used for release notes and update checks. Change in Settings → Updates if you fork. */

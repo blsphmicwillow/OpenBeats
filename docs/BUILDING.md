@@ -107,7 +107,7 @@ Bump them together and add a `CHANGELOG.md` entry (the app's Changelog tab reads
 2. Each job installs Node and Rust, installs the Linux system packages only on Ubuntu, runs `npm ci`, `npm run desktop:build -- --bundles …`, and uploads that platform's installers as workflow artifacts.
 3. A single **release** job waits for all three builds. On a `v*` tag it downloads every artifact and attaches the `.deb`, `.rpm`, `.AppImage`, `.msi`, NSIS `.exe`, `.dmg` and zipped `.app` to the GitHub Release with `softprops/action-gh-release`.
 
-Manual run: **Actions → Release → Run workflow**. Every build also keeps its installers as downloadable workflow artifacts, so you can test a package without creating a tag. Tagging `v1.0.8` is enough to create or update the matching release.
+Manual run: **Actions → Release → Run workflow**. Every build also keeps its installers as downloadable workflow artifacts, so you can test a package without creating a tag. Tagging `v1.0.9` is enough to create or update the matching release.
 
 #### Platform notes
 
