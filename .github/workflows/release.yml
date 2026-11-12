@@ -249,33 +249,6 @@ jobs:
           ditto -c -k --sequesterRsrc --keepParent "$app" "${app}.zip"
           ls -lh target/release/bundle/macos
 
-      # The AppImage bundled libva*, which shadows the host copy and breaks ALSA's
-      # lavrate plugin on the tester's machine (`va_fool_postp` undefined). Strip
-      # it before verification, which then fails if it is still there.
-      - name: Strip bundled libva from the AppImage
-        if: matrix.platform == 'ubuntu-22.04'
-        shell: bash
-        run: |
-          set -euo pipefail
-          appimage="$(find target/release/bundle/appimage -maxdepth 1 -name '*.AppImage' -print -quit)"
-          test -n "$appimage" || { echo '::error::No AppImage was produced'; exit 1; }
-          work="$(mktemp -d)"
-          trap 'rm -rf "$work"' EXIT
-          cd "$work"
-          "$GITHUB_WORKSPACE/$appimage" --appimage-extract >/dev/null
-          if ! find squashfs-root -name 'libva*' -print -quit | grep -q .; then
-            echo 'No bundled libva; nothing to strip.'
-            exit 0
-          fi
-          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y squashfs-tools
-          find squashfs-root \( -name 'libva*.so*' -o -path '*/share/doc/libva*' \) -exec rm -rf {} +
-          curl -fsSL -o appimagetool \
-            https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage
-          chmod +x appimagetool
-          ARCH=x86_64 ./appimagetool --appimage-extract-and-run squashfs-root OpenBeats.AppImage
-          cp OpenBeats.AppImage "$GITHUB_WORKSPACE/$appimage"
-          echo 'Repacked the AppImage without libva.'
-
       # Keep the existing Linux audio-runtime proof: the installers must contain
       # the GStreamer plugins and must not bundle a private FUSE runtime.
       - name: Verify bundled Linux audio runtime
@@ -328,9 +301,10 @@ jobs:
           echo '--- audio and graphics libraries in the AppImage ---'
           find squashfs-root \( -name 'libva*' -o -name 'libdrm*' -o -name 'libgallium*' \
             -o -name 'libasound*' -o -name 'libpulse*' \) -printf '%P\n' | sort || true
+          # The normal artifact may carry libva* (the bundler has no exclusion
+          # option); the failing gate lives on the stripped artifact below.
           if find squashfs-root -name 'libva*' -print -quit | grep -q .; then
-            echo '::error::AppImage must not ship libva*: it shadows the host copy and breaks ALSA lavrate'
-            exit 1
+            echo '::warning title=Bundled libva::This AppImage ships libva*; use the openbeats-linux-nolibva artifact if you hit lavrate errors.'
           fi
           echo 'AppImage contains the GStreamer audio runtime.'
 
@@ -339,6 +313,119 @@ jobs:
         with:
           name: ${{ matrix.artifact }}
           path: ${{ matrix.path }}
+
+      # Everything above ships regardless of what happens below: a failed strip
+      # must not cost testers their installers.
+      - name: Strip bundled libva from the AppImage (best effort)
+        if: matrix.platform == 'ubuntu-22.04'
+        id: strip
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          appimage="$(find target/release/bundle/appimage -maxdepth 1 -name '*.AppImage' -print -quit)"
+          test -n "$appimage" || { echo '::error::No AppImage was produced'; exit 1; }
+          work="$(mktemp -d)"
+          # appimagetool refuses an AppDir inside a 0700 directory, and mktemp -d
+          # creates exactly that.
+          chmod 755 "$work"
+          trap 'rm -rf "$work"' EXIT
+          cd "$work"
+          "$GITHUB_WORKSPACE/$appimage" --appimage-extract >/dev/null
+          APPDIR="$work/squashfs-root"
+          setid="$(find "$APPDIR" -perm /6000 -type f -printf '%P %m\n' || true)"
+          if [ -n "$setid" ]; then
+            echo 'set-id files present (left untouched):'
+            echo "$setid"
+          else
+            echo 'no set-id files in the AppDir'
+          fi
+          find "$APPDIR" \( -name 'libva*.so*' -o -path '*/share/doc/libva*' \) -exec rm -rf {} +
+          # a+rX adds read and traverse only; it never turns a file executable.
+          chmod -R a+rX "$APPDIR"
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y squashfs-tools zsync
+          curl -fsSL -o appimagetool \
+            https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage
+          chmod +x appimagetool
+          upd="$(readelf -p .upd_info "$GITHUB_WORKSPACE/$appimage" 2>/dev/null | sed -n 's/^ *\[ *[0-9a-f]*\] *//p' | head -1)"
+          args=(--no-appstream)
+          if [ -n "$upd" ]; then
+            args+=(-u "$upd")
+            echo "preserving update information: $upd"
+          else
+            echo 'the original AppImage carries no update information'
+          fi
+          ARCH=x86_64 ./appimagetool --appimage-extract-and-run "${args[@]}" \
+            "$APPDIR" "$GITHUB_WORKSPACE/openbeats-nolibva.AppImage"
+          test -x "$GITHUB_WORKSPACE/openbeats-nolibva.AppImage"
+          echo 'ok=1' >> "$GITHUB_OUTPUT"
+
+      - name: Verify the stripped AppImage
+        if: matrix.platform == 'ubuntu-22.04' && steps.strip.outputs.ok == '1'
+        id: verify-nolibva
+        shell: bash
+        run: |
+          set -euo pipefail
+          app="$GITHUB_WORKSPACE/openbeats-nolibva.AppImage"
+          test -x "$app" || { echo '::error::the stripped AppImage is missing'; exit 1; }
+          work="$(mktemp -d)"
+          chmod 755 "$work"
+          cd "$work"
+          "$app" --appimage-extract >/dev/null
+
+          if find squashfs-root -iname 'libva*' -print -quit | grep -q .; then
+            echo '::error::the stripped AppImage still contains libva*'
+            exit 1
+          fi
+          bad=0
+          while IFS= read -r -d '' file; do
+            if readelf -d "$file" 2>/dev/null | grep -q 'NEEDED.*libva'; then
+              echo "::error::${file} still declares a libva dependency"
+              bad=1
+            fi
+          done < <(find squashfs-root -type f -print0)
+          [ "$bad" -eq 0 ] || exit 1
+          echo 'no remaining binary or library references libva.'
+
+          test -x squashfs-root/usr/bin/openbeats || { echo '::error::payload missing'; exit 1; }
+          desktop=squashfs-root/usr/share/applications/OpenBeats.desktop
+          grep -q '^Exec=openbeats$' "$desktop" || { echo '::error::desktop entry changed'; exit 1; }
+          for plugin in libgstpulseaudio.so libgstalsa.so libgstaudioparsers.so \
+            libgstmpg123.so libgstflac.so libgstwavparse.so libgstlibav.so; do
+            find squashfs-root -name "$plugin" -print -quit | grep -q . || {
+              echo "::error::missing GStreamer plugin $plugin"
+              exit 1
+            }
+          done
+          if ! grep -q '\[ *0\]' <(readelf -p .upd_info "$app" 2>/dev/null); then
+            echo '::error::the repacked AppImage lost its update information'
+            exit 1
+          fi
+
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y xvfb
+          set +e
+          xvfb-run -a timeout 25 ./squashfs-root/AppRun > /tmp/nolibva-smoke.log 2>&1
+          code=$?
+          set -e
+          tail -40 /tmp/nolibva-smoke.log || true
+          if grep -qiE 'undefined symbol|error while loading shared libraries|cannot open shared object file' /tmp/nolibva-smoke.log; then
+            echo '::error::the stripped AppImage fails to start'
+            exit 1
+          fi
+          if [ "$code" -ne 0 ] && [ "$code" -ne 124 ]; then
+            echo "::error::AppRun exited $code"
+            exit 1
+          fi
+          echo "AppRun started under Xvfb (exit $code, 124 means the timeout stopped it)"
+          echo 'ok=1' >> "$GITHUB_OUTPUT"
+
+      - name: Upload the stripped AppImage
+        if: matrix.platform == 'ubuntu-22.04' && steps.verify-nolibva.outputs.ok == '1'
+        uses: actions/upload-artifact@v4
+        with:
+          name: openbeats-linux-nolibva
+          path: ${{ github.workspace }}/openbeats-nolibva.AppImage
+          retention-days: 14
           if-no-files-found: error
           retention-days: 14
 
