@@ -4,8 +4,9 @@ name: PR checks
 # Tauri-only break (a Tauri command, config or sidecar wiring) previously reached
 # main without the desktop crate ever being compiled on a PR.
 on:
+  # Every pull request, not only ones targeting main: release work lands on
+  # stacked branches and still needs the checks before it reaches main.
   pull_request:
-    branches: [main]
   workflow_dispatch:
 
 permissions:
