@@ -1,5 +1,88 @@
 import type { ToneVerdict } from './audioVerdict';
 
+/** What the engine reports about one test-tone window. */
+export interface ToneReport {
+  /** Callbacks observed during the window. */
+  callbacks: number;
+  /** Peak of the last rendered block, dBFS. */
+  peakDb: number;
+  /** Peak of the audio the engine actually rendered, 0..1. */
+  renderedPeak: number;
+  /** RMS of that same audio, 0..1. */
+  renderedRms: number;
+  /** Callbacks later than 1.5x nominal during the window. */
+  deadlineMisses: number;
+  /** Sound-server node the stream is connected to, when the backend knows. */
+  sink: string;
+}
+
+/** Formats a linear level as dBFS without pretending -inf exists. */
+export function dbfs(level: number): string {
+  if (!(level > 0)) return '−∞ dBFS';
+  return `${(20 * Math.log10(level)).toFixed(1)} dBFS`;
+}
+
+/**
+ * The sentence under the test tone. It reports what the engine delivered and
+ * what the device was doing, so "I hear nothing" can be split into a silent
+ * graph, a stream that cannot keep up, or audio going somewhere else.
+ */
+export function toneReportMessage(report: ToneReport): string {
+  const delivered = `engine rendered ${dbfs(report.renderedPeak)} peak, ${dbfs(report.renderedRms)} RMS`;
+  const where = report.sink ? `connected to “${report.sink}”` : 'connected to the system default';
+  if (report.callbacks === 0) {
+    return `The stream opened but produced no callbacks, so nothing reached the device (${where}).`;
+  }
+  if (report.renderedPeak <= 0) {
+    return `The stream ran (${report.callbacks.toLocaleString()} callbacks) but the engine delivered silence (${where}). This is an engine problem, not a device problem.`;
+  }
+  if (report.deadlineMisses > 0) {
+    return `The ${delivered} (${where}), but ${report.deadlineMisses.toLocaleString()} callbacks missed their deadline — the buffer is too small for this device. If you hear chopping or nothing, turn Low-latency mode off.`;
+  }
+  return `The ${delivered} (${where}). If you hear nothing, the audio is going to another output: check the device is the one you are listening to, and that it is not muted.`;
+}
+
+/** The block behind "Copy diagnostics": plain text a tester can paste as-is. */
+export interface DiagnosticsInput {
+  version: string;
+  platform: string;
+  bridge: string;
+  device: string;
+  host: string;
+  sink: string;
+  sampleRate: number;
+  channels: number;
+  bufferFrames: number;
+  lowLatency: boolean;
+  callbacks: number;
+  peakDb: number;
+  intervalMaxMs: number;
+  deadlineMisses: number;
+  streamErrors: number;
+  deviceSwaps: number;
+  lastError: string;
+}
+
+export function diagnosticsText(input: DiagnosticsInput): string {
+  const lines = [
+    `OpenBeats ${input.version}`, 
+    `platform: ${input.platform}`,
+    `host: ${input.host || 'unknown'}`,
+    `device: ${input.device || 'system default'}`,
+    `sink: ${input.sink || '(none reported)'}`,
+    `format: ${input.channels} ch @ ${Math.round(input.sampleRate)} Hz, ${input.bufferFrames} frames/callback`,
+    `low latency: ${input.lowLatency ? 'on' : 'off'}`,
+    `callbacks: ${input.callbacks}`,
+    `peak: ${input.peakDb.toFixed(1)} dBFS`,
+    `worst callback interval: ${input.intervalMaxMs.toFixed(1)} ms`,
+    `deadline misses: ${input.deadlineMisses}`,
+    `stream errors: ${input.streamErrors}, rebuilds: ${input.deviceSwaps}`,
+    `audio bridge: ${input.bridge}`,
+    `last error: ${input.lastError || '(none)'}`,
+  ];
+  return lines.join('\n');
+}
+
 /** Value of the backend `audio_bridge_status` command. */
 export type BridgeState = 'ok' | 'missing-bridge' | 'no-server' | 'unknown';
 

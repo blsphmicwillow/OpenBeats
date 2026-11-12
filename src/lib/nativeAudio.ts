@@ -167,6 +167,18 @@ export interface NativePlaybackState {
   peak: number;
   /** Last stream or reopen error, empty when the engine is healthy. */
   last_error: string;
+  /** Frames per callback the device actually grants. */
+  buffer_frames: number;
+  /** Worst callback interval in milliseconds since the stream opened. */
+  interval_max_ms: number;
+  /** Callbacks later than 1.5x their nominal period: the stream cannot keep up. */
+  deadline_misses: number;
+  /** Output peak in dBFS, -120 when the graph is silent. */
+  peak_db: number;
+  /** Sound-server node the stream is connected to (Linux), empty elsewhere. */
+  sink: string;
+  /** CPAL host the stream was opened on. */
+  host: string;
 }
 
 export interface DeviceInfo {
@@ -509,6 +521,21 @@ export async function nativePlaybackState(): Promise<NativePlaybackState | null>
 export async function nativeAudioDevices(): Promise<string[]> {
   if (!isNative()) return [];
   return (await nativeInvoke<string[]>('native_audio_devices')) ?? [];
+}
+
+/**
+ * Peak and RMS of what the engine actually handed to the device, read from the
+ * recovery ring on the UI thread. The meters say what the graph produced; this
+ * says what was delivered, which is what tells a silent graph from a silent
+ * device.
+ */
+export async function renderedLevels(
+  seconds = 3,
+): Promise<{ peak: number; rms: number } | null> {
+  if (!isNative()) return null;
+  const value = await nativeInvoke<[number, number] | null>('audio_rendered_levels', { seconds });
+  if (!value) return null;
+  return { peak: value[0], rms: value[1] };
 }
 
 /** Every input and output device, for the Audio settings tab. */
