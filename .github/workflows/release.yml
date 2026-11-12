@@ -377,15 +377,17 @@ jobs:
             echo '::error::the stripped AppImage still contains libva*'
             exit 1
           fi
-          bad=0
+          # Shipping libva is the bug; *needing* it is fine when the host copy is
+          # the one that loads. FFmpeg and the GStreamer VA-API plugins link
+          # libva, so list them instead of failing, and let the Xvfb start below
+          # prove the host copy actually resolves.
+          echo '--- binaries that link libva (expected: FFmpeg, gstva, gstmsdk) ---'
           while IFS= read -r -d '' file; do
             if readelf -d "$file" 2>/dev/null | grep -q 'NEEDED.*libva'; then
-              echo "::error::${file} still declares a libva dependency"
-              bad=1
+              echo "  ${file#squashfs-root/}"
             fi
           done < <(find squashfs-root -type f -print0)
-          [ "$bad" -eq 0 ] || exit 1
-          echo 'no remaining binary or library references libva.'
+          echo 'the AppImage ships no libva; those NEEDED entries resolve to the host copy.'
 
           test -x squashfs-root/usr/bin/openbeats || { echo '::error::payload missing'; exit 1; }
           desktop=squashfs-root/usr/share/applications/OpenBeats.desktop
