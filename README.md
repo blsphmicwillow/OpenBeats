@@ -405,3 +405,7 @@ Issues and pull requests are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) fi
 ## License
 
 GPL-3.0-or-later. See [LICENSE](LICENSE). The demo song and all instrument presets are original and generated procedurally.
+
+## Troubleshooting
+
+If OpenBeats runs but you hear nothing on Linux, Settings → Audio → **Copy diagnostics** produces a paste-ready readout, and `scripts/linux-audio-probe.sh` collects the server side (`pactl`, `aplay -L`, `pw-top`, and the libraries the AppImage ships) into one text file. Both are read-only.
