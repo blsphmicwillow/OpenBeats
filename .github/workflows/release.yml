@@ -249,6 +249,33 @@ jobs:
           ditto -c -k --sequesterRsrc --keepParent "$app" "${app}.zip"
           ls -lh target/release/bundle/macos
 
+      # The AppImage bundled libva*, which shadows the host copy and breaks ALSA's
+      # lavrate plugin on the tester's machine (`va_fool_postp` undefined). Strip
+      # it before verification, which then fails if it is still there.
+      - name: Strip bundled libva from the AppImage
+        if: matrix.platform == 'ubuntu-22.04'
+        shell: bash
+        run: |
+          set -euo pipefail
+          appimage="$(find target/release/bundle/appimage -maxdepth 1 -name '*.AppImage' -print -quit)"
+          test -n "$appimage" || { echo '::error::No AppImage was produced'; exit 1; }
+          work="$(mktemp -d)"
+          trap 'rm -rf "$work"' EXIT
+          cd "$work"
+          "$GITHUB_WORKSPACE/$appimage" --appimage-extract >/dev/null
+          if ! find squashfs-root -name 'libva*' -print -quit | grep -q .; then
+            echo 'No bundled libva; nothing to strip.'
+            exit 0
+          fi
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y squashfs-tools
+          find squashfs-root \( -name 'libva*.so*' -o -path '*/share/doc/libva*' \) -exec rm -rf {} +
+          curl -fsSL -o appimagetool \
+            https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage
+          chmod +x appimagetool
+          ARCH=x86_64 ./appimagetool --appimage-extract-and-run squashfs-root OpenBeats.AppImage
+          cp OpenBeats.AppImage "$GITHUB_WORKSPACE/$appimage"
+          echo 'Repacked the AppImage without libva.'
+
       # Keep the existing Linux audio-runtime proof: the installers must contain
       # the GStreamer plugins and must not bundle a private FUSE runtime.
       - name: Verify bundled Linux audio runtime
@@ -302,7 +329,8 @@ jobs:
           find squashfs-root \( -name 'libva*' -o -name 'libdrm*' -o -name 'libgallium*' \
             -o -name 'libasound*' -o -name 'libpulse*' \) -printf '%P\n' | sort || true
           if find squashfs-root -name 'libva*' -print -quit | grep -q .; then
-            echo '::warning title=Bundled libva::The AppImage ships libva*, which shadows the host copy and breaks ALSA lavrate. Exclusion is not implemented yet.'
+            echo '::error::AppImage must not ship libva*: it shadows the host copy and breaks ALSA lavrate'
+            exit 1
           fi
           echo 'AppImage contains the GStreamer audio runtime.'
 
