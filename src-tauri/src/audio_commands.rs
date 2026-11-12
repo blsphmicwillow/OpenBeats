@@ -68,7 +68,20 @@ fn stopped_snapshot() -> EngineSnapshot {
         latency_ms: 0.0,
         channels: 0,
         device_swaps: 0,
+        callbacks: 0,
+        peak: 0.0,
+        last_error: String::new(),
     }
+}
+
+/// Why the native engine cannot reach PipeWire/PulseAudio, if it cannot.
+///
+/// `"ok"`, `"missing-bridge"` (server running, no ALSA bridge PCM) or
+/// `"no-server"`. The UI shows a one-time notice for `missing-bridge`, because
+/// that case is silent: every device opens, nothing is audible.
+#[tauri::command]
+pub fn audio_bridge_status() -> String {
+    openbeats_audio::engine::bridge_status().to_string()
 }
 
 /// Starts (or reuses) the CPAL stream and plays the supplied sequencer data.
@@ -177,7 +190,7 @@ pub fn native_audio_devices() -> Vec<String> {
 
 /// Plays a short 440 Hz tone so "is my device working?" has an answer.
 #[tauri::command]
-pub fn play_test_tone(state: State<'_, AudioState>) -> Result<(), String> {
+pub fn play_test_tone(state: State<'_, AudioState>, seconds: Option<f32>) -> Result<(), String> {
     let mut guard = state
         .engine
         .lock()
@@ -186,7 +199,10 @@ pub fn play_test_tone(state: State<'_, AudioState>) -> Result<(), String> {
         *guard = Some(NativeEngine::start()?);
     }
     if let Some(engine) = guard.as_ref() {
-        engine.test_tone(1.5);
+        // The diagnostics panel polls the callback counter for a few seconds, so
+        // the tone has to outlast that window or a slow device open would be
+        // blamed for silence that is really an expired tone.
+        engine.test_tone(seconds.unwrap_or(1.5).clamp(0.5, 15.0));
     }
     Ok(())
 }

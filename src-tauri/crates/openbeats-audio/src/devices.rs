@@ -189,6 +189,21 @@ mod tests {
     }
 
     #[test]
+    fn a_pruned_linux_list_still_resolves_to_the_alsa_default() {
+        // Hiding the bridge entries leaves `default`/`sysdefault` in the picker,
+        // and the UI's "System default" option is not a list entry at all: it
+        // sends `None`, which the engine resolves through the bridge preference
+        // when one is enumerated. When the host only offers these names, the
+        // ALSA default is still the right thing to open rather than nothing.
+        let devices = [
+            candidate("default", true),
+            candidate("sysdefault:CARD=PCH", false),
+            candidate("hw:CARD=PCH,DEV=0", false),
+        ];
+        assert_eq!(pick(&devices, None, true), Some(0));
+    }
+
+    #[test]
     fn without_the_linux_preference_the_system_default_is_used() {
         let devices = [candidate("default", true), candidate("pulse", false)];
         assert_eq!(pick(&devices, None, false), Some(0));

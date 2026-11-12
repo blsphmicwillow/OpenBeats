@@ -252,6 +252,7 @@ pub fn run() {
             export_commands::export_audio,
             export_commands::export_audio_with_dialog,
             audio_commands::play_chime,
+            audio_commands::audio_bridge_status,
             // Sample preview and packs
             system_commands::preview_sample,
             system_commands::preview_pcm,

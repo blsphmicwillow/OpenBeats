@@ -24,6 +24,8 @@ depends=(
   'hicolor-icon-theme'
 )
 optdepends=(
+  'pipewire-alsa: required for the native engine when the audio server is PipeWire'
+  'pulseaudio-alsa: required for the native engine when the audio server is PulseAudio'
   'noto-fonts: recommended UI fonts'
 )
 provides=('openbeats')

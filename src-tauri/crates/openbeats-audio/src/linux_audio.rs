@@ -251,6 +251,17 @@ fn default_endpoint(command: &str, key: &str) -> Option<String> {
     })
 }
 
+/// True only for the sound-server bridge PCMs themselves.
+///
+/// `is_bridge_name` also accepts `default`/`sysdefault`, which ALSA enumerates
+/// on every machine whether or not a bridge is installed. This predicate is the
+/// one that can prove a bridge exists, so it guards both the device filter and
+/// the startup banner.
+pub fn is_server_bridge(name: &str) -> bool {
+    let lower = name.trim().to_lowercase();
+    lower.contains("pulse") || lower.contains("pipewire")
+}
+
 /// True for the generic ALSA bridge names whose only useful label is the
 /// current PipeWire/PulseAudio default endpoint.
 pub fn is_bridge_name(name: &str) -> bool {
@@ -277,6 +288,17 @@ impl FriendlyNames {
     /// A readable name for a raw CPAL device. `default_label` is the friendly
     /// PipeWire/PulseAudio default endpoint, if one was discovered.
     pub fn label(&self, raw: &str, default_label: Option<&str>) -> String {
+        let lower = raw.trim().to_lowercase();
+        if lower == "default" || lower == "sysdefault" {
+            // ALSA enumerates these whether or not a sound-server bridge is
+            // installed, so naming them after the current endpoint produced a
+            // second row that read like the picker's own "System default".
+            return if lower == "default" {
+                "ALSA default".to_string()
+            } else {
+                "ALSA system default".to_string()
+            };
+        }
         if is_bridge_name(raw) {
             return default_label
                 .filter(|label| !label.trim().is_empty())
@@ -455,10 +477,33 @@ mod tests {
     }
 
     #[test]
-    fn generic_bridges_follow_the_default_endpoint_label() {
+    fn only_real_bridge_pcms_count_as_a_bridge() {
+        assert!(is_server_bridge("pulse"));
+        assert!(is_server_bridge("pipewire"));
+        assert!(is_server_bridge("  PipeWire  "));
+        // ALSA always lists these, so they prove nothing.
+        assert!(!is_server_bridge("default"));
+        assert!(!is_server_bridge("sysdefault"));
+        assert!(!is_server_bridge("hw:CARD=PCH,DEV=0"));
+    }
+
+    #[test]
+    fn the_raw_alsa_default_is_not_labelled_system_default() {
         let names = FriendlyNames::default();
+        // The picker has its own "System default" option that routes through the
+        // bridge preference; these rows must not read the same.
         assert_eq!(
             names.label("default", Some("Living Room · Bluetooth · BlueZ")),
+            "ALSA default"
+        );
+        assert_eq!(names.label("sysdefault", None), "ALSA system default");
+    }
+
+    #[test]
+    fn the_server_bridge_takes_the_default_endpoint_label() {
+        let names = FriendlyNames::default();
+        assert_eq!(
+            names.label("pipewire", Some("Living Room · Bluetooth · BlueZ")),
             "Living Room · Bluetooth · BlueZ"
         );
         assert_eq!(names.label("pulse", None), "System default");

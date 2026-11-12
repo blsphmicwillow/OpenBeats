@@ -73,6 +73,7 @@
           "gstreamer1.0-libav",
           "gstreamer1.0-pulseaudio",
           "gstreamer1.0-alsa",
+          "pipewire-alsa | libasound2-plugins",
           "pipewire-pulse | pulseaudio"
         ]
       },
@@ -84,6 +85,7 @@
           "gstreamer1-plugins-bad-free",
           "gstreamer1-plugins-ugly-free",
           "gstreamer1-plugin-libav",
+          "pipewire-alsa",
           "(pipewire-pulseaudio or pulseaudio)"
         ]
       }
