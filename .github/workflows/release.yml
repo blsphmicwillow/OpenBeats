@@ -425,7 +425,6 @@ jobs:
         with:
           name: openbeats-linux-nolibva
           path: ${{ github.workspace }}/openbeats-nolibva.AppImage
-          retention-days: 14
           if-no-files-found: error
           retention-days: 14
 
