@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { toneAdvice } from './audioAdvice';
+import { noOutputDevicesAdvice, toneAdvice, type BridgeState } from './audioAdvice';
 
 describe('platform test-tone advice', () => {
   it('says nothing when the tone was healthy or the engine never answered', () => {
@@ -37,6 +37,35 @@ describe('platform test-tone advice', () => {
     expect(toneAdvice('web', 'stalled')).not.toContain('pipewire');
     expect(toneAdvice('web', 'stalled')).not.toContain('Windows');
     expect(toneAdvice('', 'silent').length).toBeGreaterThan(0);
+  });
+
+  it('names the missing bridge when no output device is enumerated on Linux', () => {
+    const advice = noOutputDevicesAdvice('linux', 'missing-bridge');
+    expect(advice).toContain('pipewire-alsa');
+    expect(advice).toContain('libasound2-plugins');
+  });
+
+  it('separates "no server" from "no bridge" on Linux', () => {
+    const noServer = noOutputDevicesAdvice('linux', 'no-server');
+    const missing = noOutputDevicesAdvice('linux', 'missing-bridge');
+    expect(noServer).not.toBe(missing);
+    expect(noServer).toContain('No sound server');
+    expect(missing).toContain('is running');
+  });
+
+  it('still says something actionable when the bridge status is unknown', () => {
+    for (const bridge of ['ok', 'unknown'] as BridgeState[]) {
+      const advice = noOutputDevicesAdvice('linux', bridge);
+      expect(advice).toContain('aplay -L');
+      expect(advice).toContain('pipewire-alsa');
+    }
+  });
+
+  it('points at the platform sound settings for an empty device list', () => {
+    expect(noOutputDevicesAdvice('windows', 'unknown')).toContain('Sound settings');
+    expect(noOutputDevicesAdvice('windows', 'unknown')).not.toContain('pipewire');
+    expect(noOutputDevicesAdvice('macos', 'unknown')).toContain('System Settings');
+    expect(noOutputDevicesAdvice('web', 'unknown')).toBe('No output device was found.');
   });
 
   it('every non-empty advice starts with a space so it appends to a sentence', () => {

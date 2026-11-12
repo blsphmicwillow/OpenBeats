@@ -1,5 +1,8 @@
 import type { ToneVerdict } from './audioVerdict';
 
+/** Value of the backend `audio_bridge_status` command. */
+export type BridgeState = 'ok' | 'missing-bridge' | 'no-server' | 'unknown';
+
 /**
  * The sentence shown after a failed test tone.
  *
@@ -30,5 +33,32 @@ export function toneAdvice(platform: string, verdict: ToneVerdict['kind']): stri
       return verdict === 'stalled'
         ? ' Try another output device.'
         : ' Check the output level and the selected device.';
+  }
+}
+
+/**
+ * Shown in Audio settings when the backend enumerates no output device at all.
+ *
+ * This is the silent-app case: there is no stream, so no callbacks, no peak and
+ * no error — the picker would just be an empty dropdown. The message has to name
+ * the cause, and on Linux that means separating "nothing is running" from "the
+ * sound server is running but ALSA has no bridge to it".
+ */
+export function noOutputDevicesAdvice(platform: string, bridge: BridgeState): string {
+  switch (platform) {
+    case 'linux':
+      if (bridge === 'missing-bridge') {
+        return 'PipeWire or PulseAudio is running, but ALSA has no bridge device to open. Install pipewire-alsa (or libasound2-plugins on Debian/Ubuntu), then reopen this panel.';
+      }
+      if (bridge === 'no-server') {
+        return 'No sound server answered and ALSA reported no output devices. Start PipeWire or PulseAudio, install the ALSA bridge (pipewire-alsa, or libasound2-plugins), then reopen this panel.';
+      }
+      return 'ALSA reported no output devices. Run `aplay -L` in a terminal; if no pulse or pipewire entry is listed, install pipewire-alsa (or libasound2-plugins), then reopen this panel.';
+    case 'windows':
+      return 'Windows reported no output endpoint. Check Sound settings that an output device exists, is enabled and is not disabled, then reopen this panel.';
+    case 'macos':
+      return 'CoreAudio reported no output device. Connect or re-enable one in System Settings → Sound, then reopen this panel.';
+    default:
+      return 'No output device was found.';
   }
 }

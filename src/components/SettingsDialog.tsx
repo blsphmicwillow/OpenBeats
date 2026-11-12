@@ -17,15 +17,16 @@ import {
   configureNativeAudio,
   nativeStopPreview,
   setCueGain,
+  audioBridgeStatus,
   type AudioDevices,
   type NativePlaybackState,
 } from '../lib/nativeAudio';
 import { KEY_ACTION_LABELS, comboFromEvent } from '../ui/keymapLabels';
 import { APP_VERSION } from '../lib/version';
 import { friendlyDeviceName, readDevMode, writeDevMode } from '../lib/deviceNames';
-import { audioErrorReport, nativePlatform } from '../lib/native';
+import { audioErrorReport, isNative, nativePlatform } from '../lib/native';
 import { judgeTestTone, type ToneSample } from '../lib/audioVerdict';
-import { toneAdvice } from '../lib/audioAdvice';
+import { noOutputDevicesAdvice, toneAdvice, type BridgeState } from '../lib/audioAdvice';
 import type { KeyAction, Settings, Theme } from '../model/types';
 
 type Tab = 'appearance' | 'accessibility' | 'workflow' | 'updates' | 'keys' | 'audio' | 'opensource';
@@ -902,6 +903,9 @@ function NativeDevicePanel() {
   // Only Linux needs the ALSA→sound-server bridge hint; Windows and macOS have
   // no equivalent package and the advice would be wrong there.
   const [platform, setPlatform] = useState('');
+  // Only Linux has a bridge to report, but the empty-device-list message needs
+  // it to tell "nothing is running" from "no bridge to what is running".
+  const [bridge, setBridge] = useState<BridgeState>('unknown');
 
   useEffect(() => {
     setDraftOutput(audio.outputId ?? '');
@@ -916,6 +920,9 @@ function NativeDevicePanel() {
   useEffect(() => {
     void refresh();
     void nativePlatform().then(setPlatform);
+    void audioBridgeStatus()
+      .then((status) => setBridge(status as BridgeState))
+      .catch(() => setBridge('unknown'));
     const id = window.setInterval(() => {
       void nativePlaybackState().then(setSnapshot);
     }, 1000);
@@ -1078,7 +1085,11 @@ function NativeDevicePanel() {
             disabled={outputs.length === 0}
             aria-label="Output device"
           >
-            {outputs.length === 0 && <option value="">No native devices (browser build)</option>}
+            {outputs.length === 0 && (
+              <option value="">
+                {isNative() ? 'No output devices found' : 'No native devices (browser build)'}
+              </option>
+            )}
             <option value="">System default</option>
             {savedMissing && (
               <option value={savedOutput}>{audio.outputLabel ?? 'Saved device'} · unavailable</option>
@@ -1098,6 +1109,11 @@ function NativeDevicePanel() {
             Save
           </button>
         </div>
+        {isNative() && outputs.length === 0 && (
+          <p className="tiny-note audio-empty-note" role="status">
+            {noOutputDevicesAdvice(platform, bridge)}
+          </p>
+        )}
       </div>
       <div className="field">
         <div className="field-label">

@@ -337,8 +337,7 @@ jobs:
           body: |
             ## OpenBeats ${{ github.ref_name }}
 
-            This refreshed 1.0.8 build replaces the original installers with the
-            audio-reconnect recovery patch.
+            ${{ contains(github.ref_name, '-') && '**Pre-release candidate.** This is not the stable release, and the in-app update checker ignores pre-release tags.' || 'Audio reliability release: the Linux packages install the ALSA sound-server bridge, Audio settings reports stream health and a test-tone verdict, and native audio failures surface as toasts instead of staying in the console.' }}
 
             Native installers for Linux, Windows and macOS, built and tested by
             GitHub Actions on native runners.
@@ -359,31 +358,24 @@ jobs:
 
             ### Notes
 
+            - Plugin hosting is unchanged in 1.0.9: inserts are still not routed
+              into the native audio callback, and Linux hosting remains
+              unavailable.
+            - Playlist audio clips, per-clip effects and pan automation remain
+              Web Audio only.
             - macOS builds are unsigned and not notarised; use Control-click →
               Open on first launch.
             - Linux AppImage: `chmod +x OpenBeats_*_amd64.AppImage`. If your file
               manager reports `InvalidExe`, install FUSE 3 or run with
               `--appimage-extract-and-run`.
-            - Playlist audio clips, per-clip effects and pan automation remain
-              Web Audio only in 1.0.8; native CPAL audio-clip playback is pending.
-            - Audio output/input choices, low-latency mode, cue level and input
-              monitor level now persist and are reapplied before playback.
-            - A failed stream keeps the selected output. Reconnected BlueZ sinks,
-              changed defaults and stalled callbacks reopen the route, and native
-              playback resumes at the last step instead of stopping.
-            - Windows, macOS and raw ALSA outputs return to the selected physical
-              device when it reconnects.
-            - Linux device names identify Bluetooth/BlueZ, HDMI/DisplayPort and USB
-              endpoints from PipeWire/PulseAudio, and the saved sink is routed
-              through the system audio server.
-            - Linux master volume now reaches the native CPAL engine; no separate
-              plugin or audio-group setup is required.
 
-            Full notes: [CHANGELOG.md](https://github.com/blsphmicwillow/OpenBeats/blob/v1.0.8/CHANGELOG.md).
-            Install help: [docs/INSTALL.md](https://github.com/blsphmicwillow/OpenBeats/blob/v1.0.8/docs/INSTALL.md).
+            Full notes: [CHANGELOG.md](https://github.com/blsphmicwillow/OpenBeats/blob/${{ github.ref_name }}/CHANGELOG.md).
+            Install help: [docs/INSTALL.md](https://github.com/blsphmicwillow/OpenBeats/blob/${{ github.ref_name }}/docs/INSTALL.md).
           files: release-files/*
           fail_on_unmatched_files: true
+          # A tag with a dash (v1.0.9-rc1) must never publish as a stable
+          # release: /releases/latest would start offering it to everyone.
           draft: false
-          prerelease: false
+          prerelease: ${{ contains(github.ref_name, '-') }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

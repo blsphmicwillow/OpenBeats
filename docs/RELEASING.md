@@ -50,6 +50,22 @@ dialog read back to us. Any failure is diagnosed from the Stream health row, Las
 error, the opened-output log line and `pactl`/`aplay` output, fixed on the branch,
 and rebuilt as a new candidate.
 
+### Checking a capture on a test machine
+
+When a tester reports "the meters move but I hear nothing", record the sink and
+measure it rather than guessing. On PulseAudio or PipeWire with the Pulse bridge:
+
+```bash
+pactl load-module module-null-sink sink_name=smoke     # or use the real sink
+parec --device=smoke.monitor --file-format=wav /tmp/capture.wav &
+# play the test tone, then stop the recording
+node scripts/wav-rms.mjs /tmp/capture.wav 0.001
+```
+
+The script prints peak and RMS and exits non-zero below the threshold. It is also
+the checker for the CI capture test tracked in
+[issue #4](https://github.com/blsphmicwillow/OpenBeats/issues/4).
+
 ## 5. Shipping
 
 Only after the gate passes, and only with explicit approval:
