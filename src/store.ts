@@ -474,6 +474,19 @@ export const useApp = create<AppState>((set, get) => ({
   },
 
   async initAudio() {
+    // A Web Audio context is a real output stream. In the desktop build the
+    // native CPAL stream already owns the sink, and creating a context anyway
+    // produced a second "openbeats" sink-input at 1764 frames / 44100 Hz next
+    // to the native one. When the native stream is already open, say the audio
+    // is ready and leave Web Audio untouched.
+    if (nativeShell()) {
+      const { nativePlaybackState } = await import('./lib/nativeAudio');
+      const native = await nativePlaybackState();
+      if (native && native.sample_rate > 0) {
+        set({ audioReady: true, audioError: null });
+        return true;
+      }
+    }
     const ok = await engine.ensure(get().project);
     set({ audioReady: ok, audioError: ok ? null : engine.error });
     if (ok) engine.sync(get().project);
