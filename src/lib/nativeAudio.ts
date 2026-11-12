@@ -679,9 +679,13 @@ export async function audioBridgeStatus(): Promise<string> {
   return (await nativeInvoke<string>('audio_bridge_status')) ?? 'ok';
 }
 
-export async function playNativeTestTone(): Promise<boolean> {
+/**
+ * Plays the 440 Hz tone for `seconds` (Rust default 1.5, clamped 0.5..15).
+ * The diagnostics panel passes a longer tone so it outlasts its own polling.
+ */
+export async function playNativeTestTone(seconds?: number): Promise<boolean> {
   if (!isNative()) return false;
-  await invokeAudio<null>('play_test_tone');
+  await invokeAudio<null>('play_test_tone', { seconds: seconds ?? null });
   return true;
 }
 

@@ -37,9 +37,26 @@ export function audioErrorReport(): AudioErrorReport | null {
  * engine cannot report by itself, so every failed audio command ends up here: a
  * console line for the log and a window event the UI turns into a toast.
  */
+/**
+ * Dedupe key for a failure message.
+ *
+ * Device and format errors carry values that change between attempts
+ * ("48000 Hz", "device 3", "0x7ff…"), so a literal key let a flapping device
+ * toast once per attempt. Numbers are folded and whitespace collapsed; the
+ * stored report still keeps the exact text.
+ */
+export function normalizeAudioError(message: string): string {
+  return message
+    .toLowerCase()
+    .replace(/0x[0-9a-f]+/g, '#')
+    .replace(/\d+/g, '#')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 export function reportAudioError(command: string, message: string) {
   const now = Date.now();
-  const key = `${command}\u0000${message}`;
+  const key = `${command}\u0000${normalizeAudioError(message)}`;
   const previous = audioErrorSeen.get(key);
   const repeated = previous !== undefined && now - previous < AUDIO_ERROR_COOLDOWN_MS;
   const count =

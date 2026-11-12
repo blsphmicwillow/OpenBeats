@@ -24,9 +24,15 @@ import { KEY_ACTION_LABELS, comboFromEvent } from '../ui/keymapLabels';
 import { APP_VERSION } from '../lib/version';
 import { friendlyDeviceName, readDevMode, writeDevMode } from '../lib/deviceNames';
 import { audioErrorReport, nativePlatform } from '../lib/native';
+import { judgeTestTone, type ToneSample } from '../lib/audioVerdict';
 import type { KeyAction, Settings, Theme } from '../model/types';
 
 type Tab = 'appearance' | 'accessibility' | 'workflow' | 'updates' | 'keys' | 'audio' | 'opensource';
+
+/** The tone must outlast the diagnostic window, or a slow open looks silent. */
+const TONE_SECONDS = 5;
+const TONE_WINDOW_MS = 4000;
+const TONE_POLL_MS = 150;
 
 const TABS: { id: Tab; label: string }[] = [
   { id: 'appearance', label: 'Appearance' },
@@ -991,7 +997,7 @@ function NativeDevicePanel() {
   const runTestTone = async () => {
     const before = (await nativePlaybackState())?.callbacks ?? 0;
     try {
-      const ok = await playNativeTestTone();
+      const ok = await playNativeTestTone(TONE_SECONDS);
       if (!ok) {
         setNote('The test tone needs the desktop build.');
         return;
@@ -1000,34 +1006,47 @@ function NativeDevicePanel() {
       setNote(errorText(err));
       return;
     }
-    // Opening a device can take a beat, and a fixed wait produced false
-    // "0 callbacks" verdicts on slow first opens. Watch the counter instead.
-    let next: NativePlaybackState | null = null;
-    const deadline = Date.now() + 4000;
+    // Opening a device can take a beat, so watch the stream across the whole
+    // window rather than sampling once. Both signals must appear before the
+    // poll stops early: the counter proves the device ran, the peak proves the
+    // tone reached it.
+    const samples: ToneSample[] = [];
+    let latest: NativePlaybackState | null = null;
+    const deadline = Date.now() + TONE_WINDOW_MS;
     while (Date.now() < deadline) {
-      await new Promise((resolve) => window.setTimeout(resolve, 150));
-      next = await nativePlaybackState();
-      if (next && next.callbacks > before) break;
+      await new Promise((resolve) => window.setTimeout(resolve, TONE_POLL_MS));
+      const reading = await nativePlaybackState();
+      if (!reading) continue;
+      latest = reading;
+      samples.push({ callbacks: reading.callbacks, peak: reading.peak });
+      if (reading.callbacks > before && reading.peak > 0) break;
     }
-    setSnapshot(next);
-    if (!next) {
-      setNote('The test tone was sent but the engine did not answer.');
-      return;
+    setSnapshot(latest ?? (await nativePlaybackState()));
+    const verdict = judgeTestTone(before, samples);
+    const advice =
+      platform === 'linux'
+        ? ' Try another output, or install the ALSA→PipeWire bridge (pipewire-alsa / libasound2-plugins).'
+        : ' Try another output device, and check it is not muted or held in exclusive mode by another app.';
+    switch (verdict.kind) {
+      case 'no-engine':
+        setNote('The test tone was sent but the engine did not answer.');
+        return;
+      case 'stalled':
+        setNote(
+          `Test tone sent, but the stream delivered 0 callbacks in ${TONE_WINDOW_MS / 1000} s: the device opened and never ran.${advice}`,
+        );
+        return;
+      case 'silent':
+        setNote(
+          `The stream ran (${verdict.callbacks} callbacks) but every block was silent: the tone never reached it.${advice}`,
+        );
+        return;
+      case 'ok':
+        setNote(
+          `Test tone sent. ${verdict.callbacks} callbacks, peak ${Math.round(verdict.peak * 100)}% — audio is reaching ${latest?.device || 'the device'}.`,
+        );
+        return;
     }
-    const callbacks = next.callbacks - before;
-    if (callbacks <= 0) {
-      const advice =
-        platform === 'linux'
-          ? ' Try another output, or install the ALSA→PipeWire bridge (pipewire-alsa / libasound2-plugins).'
-          : ' Try another output device, and check it is not muted or held in exclusive mode by another app.';
-      setNote(
-        `Test tone sent, but the stream delivered 0 callbacks in 4 s: the device opened and never ran.${advice}`,
-      );
-      return;
-    }
-    setNote(
-      `Test tone sent. ${callbacks} callbacks, peak ${Math.round(next.peak * 100)}% — audio is reaching ${next.device || 'the device'}.`,
-    );
   };
 
   return (
