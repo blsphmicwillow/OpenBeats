@@ -82,6 +82,17 @@ jobs:
       # opening a stream there is diagnostic only (`--list` prints what the host
       # offers). Compiling the ALSA backend for real — headers, linker, CPAL
       # device feature — is the part that is gated here.
+      # Answers "which bridge package does this image actually have?" from the
+      # image itself instead of from memory: jammy has no pipewire-alsa.
+      - name: Report the ALSA bridge packages this image offers
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          . /etc/os-release
+          echo "image: $PRETTY_NAME ($VERSION_CODENAME)"
+          apt-cache policy pipewire-alsa libasound2-plugins pipewire-pulse | sed 's/^/  /'
+          echo '--- exact-name search for pipewire-alsa ---'
+          apt-cache search --names-only '^pipewire-alsa$' || true
+
       - name: Device layer compiles against ALSA
         if: matrix.platform == 'ubuntu-22.04'
         working-directory: src-tauri
