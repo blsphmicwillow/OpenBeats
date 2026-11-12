@@ -207,6 +207,26 @@ pub fn play_test_tone(state: State<'_, AudioState>, seconds: Option<f32>) -> Res
     Ok(())
 }
 
+/// Peak and RMS of what the engine actually rendered over the last `seconds`.
+///
+/// The meters report what the engine produced; this reports the same signal the
+/// Audio Logger can recover to WAV, read off the audio thread. When a tester
+/// hears nothing, this is what separates a silent graph from a silent device.
+#[tauri::command]
+pub fn audio_rendered_levels(
+    state: State<'_, AudioState>,
+    seconds: Option<f32>,
+) -> Result<Option<(f32, f32)>, String> {
+    let guard = state
+        .engine
+        .lock()
+        .map_err(|_| "the audio state is unavailable".to_string())?;
+    let Some(engine) = guard.as_ref() else {
+        return Ok(None);
+    };
+    Ok(engine.rendered_levels(seconds.unwrap_or(3.0)))
+}
+
 /// Plays one instrument note outside the transport: clicking a channel in the
 /// rack, or a key in the piano roll, must not depend on the sequencer.
 #[tauri::command]

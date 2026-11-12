@@ -194,6 +194,7 @@ pub fn run() {
             audio_commands::playback_state,
             audio_commands::native_audio_devices,
             audio_commands::play_test_tone,
+            audio_commands::audio_rendered_levels,
             audio_commands::play_test_note,
             audio_commands::play_metronome,
             audio_commands::set_playhead_position,

@@ -87,6 +87,21 @@ struct Shared {
     /// Total callbacks, so a stream that silently stops calling back can be
     /// distinguished from a healthy but idle stream.
     callbacks: AtomicU32,
+    /// Frames per callback the device actually asks for. The requested buffer
+    /// and the granted one differ on PipeWire, so reporting only the request
+    /// hides the case that matters.
+    buffer_frames: AtomicU32,
+    /// Nominal callback period for the current buffer, in microseconds.
+    nominal_us: AtomicU32,
+    /// Worst callback interval seen, in microseconds. A stream that runs but
+    /// cannot keep up shows up here before it shows up as an audible glitch.
+    interval_max_us: AtomicU32,
+    /// Callbacks whose interval exceeded 1.5x nominal.
+    deadline_misses: AtomicU32,
+    /// Sound-server node the stream is connected to, filled at open time.
+    sink: Mutex<String>,
+    /// CPAL host the stream was opened on.
+    host: Mutex<String>,
     /// Last cue gain survives a stream rebuild during playback.
     cue_gain: AtomicU32,
     /// The last stream or reopen failure, so the UI can explain silence that
@@ -110,6 +125,12 @@ impl Default for Shared {
             channels: AtomicU32::new(0),
             device_swaps: AtomicU32::new(0),
             callbacks: AtomicU32::new(0),
+            buffer_frames: AtomicU32::new(0),
+            nominal_us: AtomicU32::new(0),
+            interval_max_us: AtomicU32::new(0),
+            deadline_misses: AtomicU32::new(0),
+            sink: Mutex::new(String::new()),
+            host: Mutex::new(String::new()),
             cue_gain: AtomicU32::new(1.0f32.to_bits()),
             last_error: Mutex::new(String::new()),
             device: Mutex::new(String::new()),
@@ -163,6 +184,18 @@ pub struct EngineSnapshot {
     pub peak: f32,
     /// The last stream or reopen failure, empty while the engine is healthy.
     pub last_error: String,
+    /// Frames per callback the device actually grants.
+    pub buffer_frames: u32,
+    /// Worst callback interval in milliseconds since the stream opened.
+    pub interval_max_ms: f32,
+    /// Callbacks that arrived later than 1.5x their nominal period.
+    pub deadline_misses: u32,
+    /// Output peak in dBFS; -120 when the graph is silent.
+    pub peak_db: f32,
+    /// Linux sound-server node the stream is routed to, empty elsewhere.
+    pub sink: String,
+    /// CPAL host the stream was opened on.
+    pub host: String,
 }
 
 struct CallbackState {
@@ -191,6 +224,10 @@ struct CallbackState {
     chime_pos: f32,
     chime_step: f32,
     callbacks: u64,
+    /// Timestamp of the previous callback and its nominal period, used to count
+    /// deadline misses without allocating or locking.
+    last_callback: Option<std::time::Instant>,
+    nominal_us: f32,
 }
 
 impl CallbackState {
@@ -231,6 +268,8 @@ impl CallbackState {
             chime_pos: 0.0,
             chime_step: 1.0,
             callbacks: 0,
+            last_callback: None,
+            nominal_us: 0.0,
         }
     }
 
@@ -517,6 +556,23 @@ impl NativeEngine {
         let _ = self.commands.send(EngineCommand::TestTone(seconds));
     }
 
+    /// Peak and RMS of what the engine actually rendered over the last
+    /// `seconds`, read from the recovery ring on the caller's thread. This is
+    /// the measurement that separates "the engine produced sound" from "the
+    /// device asked for buffers and got silence"; the meters alone cannot,
+    /// because they are what the engine thinks it sent.
+    pub fn rendered_levels(&self, seconds: f32) -> Option<(f32, f32)> {
+        let logger = self.logger.lock().ok()?.clone()?;
+        let samples = logger.lock().ok()?.recent(seconds.clamp(0.1, 60.0));
+        if samples.is_empty() {
+            return None;
+        }
+        let peak = samples.iter().fold(0.0f32, |acc, sample| acc.max(sample.abs()));
+        let sum: f64 = samples.iter().map(|sample| (*sample as f64) * (*sample as f64)).sum();
+        let rms = (sum / samples.len() as f64).sqrt() as f32;
+        Some((peak, rms))
+    }
+
     /// Plays one note outside the transport, for instrument audition.
     pub fn preview_note(&self, channel: PlaybackChannel, pitch: u8, velocity: f32, seconds: f32) {
         let _ = self.commands.send(EngineCommand::PreviewNote {
@@ -548,6 +604,7 @@ impl NativeEngine {
     }
 
     pub fn snapshot(&self) -> EngineSnapshot {
+        let peak = load_f32(&self.shared.meter_left).max(load_f32(&self.shared.meter_right));
         EngineSnapshot {
             playing: self.shared.playing.load(Ordering::Relaxed) == 1,
             step: self.shared.step.load(Ordering::Relaxed),
@@ -562,7 +619,23 @@ impl NativeEngine {
             channels: self.shared.channels.load(Ordering::Relaxed),
             device_swaps: self.shared.device_swaps.load(Ordering::Relaxed),
             callbacks: self.shared.callbacks.load(Ordering::Relaxed),
-            peak: load_f32(&self.shared.meter_left).max(load_f32(&self.shared.meter_right)),
+            peak,
+            peak_db: if peak > 0.0 { 20.0 * peak.log10() } else { -120.0 },
+            buffer_frames: self.shared.buffer_frames.load(Ordering::Relaxed),
+            interval_max_ms: self.shared.interval_max_us.load(Ordering::Relaxed) as f32 / 1_000.0,
+            deadline_misses: self.shared.deadline_misses.load(Ordering::Relaxed),
+            sink: self
+                .shared
+                .sink
+                .lock()
+                .map(|sink| sink.clone())
+                .unwrap_or_default(),
+            host: self
+                .shared
+                .host
+                .lock()
+                .map(|host| host.clone())
+                .unwrap_or_default(),
             last_error: self
                 .shared
                 .last_error
@@ -917,6 +990,15 @@ fn open_session(
         .ok_or_else(|| "no audio output device was found".to_string())?;
     let device = &devices[index];
     let name = candidates[index].name.clone();
+    // Recorded once when the stream opens, not in the callback: the UI needs to
+    // say which node it is connected to, and asking the server from the audio
+    // thread would block it.
+    if let Ok(mut slot) = shared.sink.lock() {
+        *slot = sink.clone().unwrap_or_default();
+    }
+    if let Ok(mut slot) = shared.host.lock() {
+        *slot = host.id().name().to_string();
+    }
 
     #[cfg(target_os = "linux")]
     let _route = crate::linux_audio::route_sink(sink.as_deref());
@@ -934,10 +1016,23 @@ fn open_session(
     })?;
     let sample_format = supported.sample_format();
     let mut config: cpal::StreamConfig = supported.clone().into();
-    let minimum = match supported.buffer_size() {
+    let mut minimum = match supported.buffer_size() {
         SupportedBufferSize::Range { min, .. } => *min,
         SupportedBufferSize::Unknown => 256,
     };
+    // PipeWire grants one quantum for the whole graph, so a 32-frame request
+    // makes every other app on the machine run at 32 frames. A Bluetooth A2DP
+    // link cannot sustain that, and the result is chopping or silence. Keep a
+    // floor; Bluetooth gets a larger one because encoding and retransmission
+    // add their own latency regardless.
+    #[cfg(target_os = "linux")]
+    {
+        let bluetooth = sink
+            .as_deref()
+            .map(|name| name.to_ascii_lowercase().contains("bluez"))
+            .unwrap_or(false);
+        minimum = minimum.max(if bluetooth { 1024 } else { 256 });
+    }
     let mut low_latency = low_latency;
     if low_latency {
         config.buffer_size = cpal::BufferSize::Fixed(minimum.max(32));
@@ -1330,6 +1425,26 @@ fn render<T>(
     };
 
     let frames = data.len() / channels.max(1);
+
+    // Deadline accounting. `Instant::now()` is a vDSO read on Linux: no
+    // allocation, no lock, no syscall. It is the only way to separate "the
+    // device is asking for audio and we are too slow" from "the device never
+    // asked", which look identical from the outside.
+    shared.buffer_frames.store(frames as u32, Ordering::Relaxed);
+    let now = std::time::Instant::now();
+    let nominal = frames as f32 / guard.sample_rate.max(1.0) * 1_000_000.0;
+    if (guard.nominal_us - nominal).abs() > 1.0 {
+        guard.nominal_us = nominal;
+    }
+    shared.nominal_us.store(nominal as u32, Ordering::Relaxed);
+    if let Some(previous) = guard.last_callback.replace(now) {
+        let delta_us = now.duration_since(previous).as_micros().min(u32::MAX as u128) as u32;
+        shared.interval_max_us.fetch_max(delta_us, Ordering::Relaxed);
+        if delta_us as f32 > nominal * 1.5 {
+            shared.deadline_misses.fetch_add(1, Ordering::Relaxed);
+        }
+    }
+
     let mut peak_left = 0.0f32;
     let mut peak_right = 0.0f32;
     let mut peak_transient = 0.0f32;
