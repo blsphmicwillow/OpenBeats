@@ -288,6 +288,17 @@ impl FriendlyNames {
     /// A readable name for a raw CPAL device. `default_label` is the friendly
     /// PipeWire/PulseAudio default endpoint, if one was discovered.
     pub fn label(&self, raw: &str, default_label: Option<&str>) -> String {
+        let lower = raw.trim().to_lowercase();
+        if lower == "default" || lower == "sysdefault" {
+            // ALSA enumerates these whether or not a sound-server bridge is
+            // installed, so naming them after the current endpoint produced a
+            // second row that read like the picker's own "System default".
+            return if lower == "default" {
+                "ALSA default".to_string()
+            } else {
+                "ALSA system default".to_string()
+            };
+        }
         if is_bridge_name(raw) {
             return default_label
                 .filter(|label| !label.trim().is_empty())
@@ -477,10 +488,22 @@ mod tests {
     }
 
     #[test]
-    fn generic_bridges_follow_the_default_endpoint_label() {
+    fn the_raw_alsa_default_is_not_labelled_system_default() {
         let names = FriendlyNames::default();
+        // The picker has its own "System default" option that routes through the
+        // bridge preference; these rows must not read the same.
         assert_eq!(
             names.label("default", Some("Living Room · Bluetooth · BlueZ")),
+            "ALSA default"
+        );
+        assert_eq!(names.label("sysdefault", None), "ALSA system default");
+    }
+
+    #[test]
+    fn the_server_bridge_takes_the_default_endpoint_label() {
+        let names = FriendlyNames::default();
+        assert_eq!(
+            names.label("pipewire", Some("Living Room · Bluetooth · BlueZ")),
             "Living Room · Bluetooth · BlueZ"
         );
         assert_eq!(names.label("pulse", None), "System default");
