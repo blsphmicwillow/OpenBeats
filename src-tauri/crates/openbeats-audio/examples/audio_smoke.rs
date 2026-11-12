@@ -119,8 +119,41 @@ fn render_device(device: &str, seconds: f32) -> Result<(Reading, String, u32, St
     ))
 }
 
+/// Prints what the host actually enumerates. CI uses this to explain a device
+/// probe failure, and it is the first thing to ask a tester for.
+#[cfg(feature = "device")]
+fn list_outputs() {
+    use cpal::traits::{DeviceTrait, HostTrait};
+
+    let host = cpal::default_host();
+    let default = host.default_output_device().and_then(|d| d.name().ok());
+    let quote = |value: &str| format!("\"{}\"", value.replace('"', "'"));
+    let mut outputs = Vec::new();
+    match host.output_devices() {
+        Ok(devices) => {
+            for device in devices {
+                match device.name() {
+                    Ok(name) => outputs.push(quote(&name)),
+                    Err(error) => eprintln!("a device did not report a name: {error}"),
+                }
+            }
+        }
+        Err(error) => eprintln!("could not enumerate output devices: {error}"),
+    }
+    println!(
+        "{{\"mode\":\"list\",\"default\":{},\"outputs\":[{}]}}",
+        default
+            .as_deref()
+            .map(quote)
+            .unwrap_or_else(|| "null".into()),
+        outputs.join(",")
+    );
+}
+
 fn usage() -> ExitCode {
-    eprintln!("usage: audio_smoke --offline [--seconds N] | --device <id|auto> [--seconds N]");
+    eprintln!(
+        "usage: audio_smoke --offline [--seconds N] | --device <id|auto> [--seconds N] | --list"
+    );
     ExitCode::from(2)
 }
 
@@ -133,6 +166,7 @@ fn main() -> ExitCode {
     while index < args.len() {
         match args[index].as_str() {
             "--offline" => mode = Some("offline".into()),
+            "--list" => mode = Some("list".into()),
             "--device" => {
                 index += 1;
                 match args.get(index) {
@@ -159,6 +193,19 @@ fn main() -> ExitCode {
     let Some(mode) = mode else {
         return usage();
     };
+
+    if mode == "list" {
+        #[cfg(feature = "device")]
+        {
+            list_outputs();
+            return ExitCode::SUCCESS;
+        }
+        #[cfg(not(feature = "device"))]
+        {
+            eprintln!("this build has no device layer: rebuild with --features device");
+            return ExitCode::from(2);
+        }
+    }
 
     if mode == "offline" {
         match render_offline(seconds) {
