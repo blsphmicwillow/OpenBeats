@@ -42,6 +42,106 @@ jobs:
       - name: Docs version and relative links
         run: npm run docs:check
 
+  audio:
+    name: Audio smoke (${{ matrix.label }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - label: Linux
+            platform: ubuntu-22.04
+          - label: Windows
+            platform: windows-latest
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust build
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: Linux audio dependencies
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y \
+            libasound2-dev pulseaudio-utils
+
+      # No device is opened here. This is the check that runs on every platform,
+      # including Windows runners, which have no audio endpoint at all.
+      - name: Offline render produces audio
+        working-directory: src-tauri
+        run: cargo run -q -p openbeats-audio --example audio_smoke -- --offline --seconds 2
+
+      # ALSA's `null` PCM exists without any sound server, so this proves the
+      # CPAL layer opens a stream and keeps calling back. It cannot prove the
+      # audio is audible: the null plugin consumes samples unthrottled.
+      - name: Device layer opens and calls back
+        if: matrix.platform == 'ubuntu-22.04'
+        working-directory: src-tauri
+        run: |
+          cargo run -q -p openbeats-audio --features device --example audio_smoke \
+            -- --device null --seconds 1
+
+      # End-to-end proof that audio reaches PipeWire: headless PipeWire with a
+      # null sink, the engine opened through the ALSA bridge, captured from the
+      # sink monitor. Best effort for now — GitHub's runner image changes often
+      # and this step is diagnostic until it has been green on several runs.
+      - name: PipeWire null-sink capture (best effort)
+        if: matrix.platform == 'ubuntu-22.04'
+        continue-on-error: true
+        working-directory: src-tauri
+        run: |
+          set -uo pipefail
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y \
+            pipewire wireplumber pipewire-pulse pipewire-alsa
+          export XDG_RUNTIME_DIR=/tmp/xdg
+          mkdir -p "$XDG_RUNTIME_DIR" && chmod 700 "$XDG_RUNTIME_DIR"
+          pipewire > /tmp/pipewire.log 2>&1 &
+          sleep 2
+          wireplumber > /tmp/wireplumber.log 2>&1 &
+          pipewire-pulse > /tmp/pipewire-pulse.log 2>&1 &
+          sleep 3
+          pactl --version
+          pactl info
+          pactl load-module module-null-sink sink_name=smoke
+          sleep 1
+          echo '--- sinks ---'
+          pactl list short sinks
+          pactl list short sinks | grep -q smoke
+          pw-record --target smoke.monitor /tmp/capture.wav > /tmp/pw-record.log 2>&1 &
+          recorder=$!
+          sleep 1
+          # The synth routes through the pulse ALSA PCM into the null sink; this is
+          # the same path a desktop PulseAudio/PipeWire machine uses.
+          cargo run -q -p openbeats-audio --features device --example audio_smoke \
+            -- --device 'PulseAudio|sink:smoke' --seconds 3
+          status=$?
+          sleep 1
+          kill "$recorder" 2>/dev/null || true
+          wait "$recorder" 2>/dev/null || true
+          ls -l /tmp/capture.wav
+          node ../scripts/wav-rms.mjs /tmp/capture.wav 0.001
+          exit "$status"
+
+      - name: Upload audio logs
+        if: always() && matrix.platform == 'ubuntu-22.04'
+        uses: actions/upload-artifact@v4
+        with:
+          name: audio-smoke-logs
+          path: |
+            /tmp/pipewire.log
+            /tmp/wireplumber.log
+            /tmp/pipewire-pulse.log
+            /tmp/pw-record.log
+            /tmp/capture.wav
+          if-no-files-found: ignore
+          retention-days: 7
+
   desktop:
     name: Desktop crate (${{ matrix.label }})
     strategy:
