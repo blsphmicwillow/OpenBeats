@@ -60,6 +60,8 @@ export interface DiagnosticsInput {
   deadlineMisses: number;
   streamErrors: number;
   deviceSwaps: number;
+  stallReopens: number;
+  lastReopen: string;
   lastError: string;
 }
 
@@ -77,6 +79,8 @@ export function diagnosticsText(input: DiagnosticsInput): string {
     `worst callback interval: ${input.intervalMaxMs.toFixed(1)} ms`,
     `deadline misses: ${input.deadlineMisses}`,
     `stream errors: ${input.streamErrors}, rebuilds: ${input.deviceSwaps}`,
+    `stall reopens: ${input.stallReopens}`,
+    `last stall reopen: ${input.lastReopen || '(none)'}`,
     `audio bridge: ${input.bridge}`,
     `last error: ${input.lastError || '(none)'}`,
   ];

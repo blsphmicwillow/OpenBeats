@@ -77,6 +77,8 @@ fn stopped_snapshot() -> EngineSnapshot {
         peak_db: -120.0,
         sink: String::new(),
         host: String::new(),
+        stall_reopens: 0,
+        last_reopen: String::new(),
     }
 }
 

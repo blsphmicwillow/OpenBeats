@@ -151,6 +151,8 @@ describe('platform test-tone advice', () => {
       deadlineMisses: 7,
       streamErrors: 0,
       deviceSwaps: 1,
+      stallReopens: 2,
+      lastReopen: 'stall reopen 2/3: no callback while playing',
       lastError: '',
     });
     for (const expected of [
@@ -159,6 +161,8 @@ describe('platform test-tone advice', () => {
       'sink: bluez_output.00_00.1',
       '2 ch @ 44100 Hz, 32 frames/callback',
       'deadline misses: 7',
+      'stall reopens: 2',
+      'last stall reopen: stall reopen 2/3',
       'audio bridge: ok',
       'last error: (none)',
     ]) {

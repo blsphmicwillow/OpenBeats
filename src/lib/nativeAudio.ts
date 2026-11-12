@@ -179,6 +179,10 @@ export interface NativePlaybackState {
   sink: string;
   /** CPAL host the stream was opened on. */
   host: string;
+  /** Stall-triggered reopens since launch. */
+  stall_reopens: number;
+  /** The last stall reopen, with reason, buffers and silence. */
+  last_reopen: string;
 }
 
 export interface DeviceInfo {

@@ -1093,6 +1093,8 @@ function NativeDevicePanel() {
       deadlineMisses: state?.deadline_misses ?? 0,
       streamErrors: state?.stream_errors ?? 0,
       deviceSwaps: state?.device_swaps ?? 0,
+      stallReopens: state?.stall_reopens ?? 0,
+      lastReopen: state?.last_reopen ?? '',
       lastError,
     });
     try {
@@ -1229,7 +1231,7 @@ function NativeDevicePanel() {
                   1,
                 )} dBFS · ${snapshot.buffer_frames} frames/callback · worst ${snapshot.interval_max_ms.toFixed(
                   1,
-                )} ms${snapshot.deadline_misses > 0 ? ` · ${snapshot.deadline_misses} deadline misses` : ''} · ${snapshot.stream_errors} errors · ${snapshot.device_swaps} rebuilds`
+                )} ms${snapshot.deadline_misses > 0 ? ` · ${snapshot.deadline_misses} deadline misses` : ''} · ${snapshot.stream_errors} errors · ${snapshot.device_swaps} rebuilds${snapshot.stall_reopens > 0 ? ` · ${snapshot.stall_reopens} stall reopens` : ''}`
               : 'No native stream yet — press Test tone to open one.'}
           </small>
           {snapshot && snapshot.sample_rate > 0 && (
@@ -1238,6 +1240,7 @@ function NativeDevicePanel() {
               {snapshot.sink ? ` → ${snapshot.sink}` : ''}
             </small>
           )}
+          {snapshot?.last_reopen && <small>{snapshot.last_reopen}</small>}
         </div>
         <div className="field-control">
           <button className="btn" onClick={() => void runTestTone()}>
