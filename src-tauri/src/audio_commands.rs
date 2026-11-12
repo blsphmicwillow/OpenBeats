@@ -71,6 +71,12 @@ fn stopped_snapshot() -> EngineSnapshot {
         callbacks: 0,
         peak: 0.0,
         last_error: String::new(),
+        buffer_frames: 0,
+        interval_max_ms: 0.0,
+        deadline_misses: 0,
+        peak_db: -120.0,
+        sink: String::new(),
+        host: String::new(),
     }
 }
 
