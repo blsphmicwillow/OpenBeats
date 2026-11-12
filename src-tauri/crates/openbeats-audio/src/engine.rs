@@ -102,6 +102,10 @@ struct Shared {
     sink: Mutex<String>,
     /// CPAL host the stream was opened on.
     host: Mutex<String>,
+    /// Stall-triggered reopens since launch.
+    stall_reopens: AtomicU32,
+    /// The last stall reopen, with reason, buffers and silence.
+    reopen_log: Mutex<String>,
     /// Last cue gain survives a stream rebuild during playback.
     cue_gain: AtomicU32,
     /// The last stream or reopen failure, so the UI can explain silence that
@@ -131,6 +135,8 @@ impl Default for Shared {
             deadline_misses: AtomicU32::new(0),
             sink: Mutex::new(String::new()),
             host: Mutex::new(String::new()),
+            stall_reopens: AtomicU32::new(0),
+            reopen_log: Mutex::new(String::new()),
             cue_gain: AtomicU32::new(1.0f32.to_bits()),
             last_error: Mutex::new(String::new()),
             device: Mutex::new(String::new()),
@@ -145,11 +151,22 @@ fn remember_error(shared: &Shared, message: impl Into<String>) {
     }
 }
 
+/// Records a stall reopen: counted for the UI, and kept verbatim for Copy
+/// diagnostics. Called from the command thread, never from the callback.
+fn remember_reopen(shared: &Shared, line: &str) {
+    shared.stall_reopens.fetch_add(1, Ordering::Relaxed);
+    if let Ok(mut slot) = shared.reopen_log.lock() {
+        *slot = line.to_string();
+    }
+}
+
 fn clear_error(shared: &Shared) {
     if let Ok(mut slot) = shared.last_error.lock() {
         slot.clear();
     }
 }
+
+use crate::watchdog::{give_up_message, is_stalled, reopen_line, StallAction, StallPolicy};
 
 fn store_f32(slot: &AtomicU32, value: f32) {
     slot.store(value.to_bits(), Ordering::Relaxed);
@@ -196,6 +213,10 @@ pub struct EngineSnapshot {
     pub sink: String,
     /// CPAL host the stream was opened on.
     pub host: String,
+    /// Stall-triggered reopens since launch.
+    pub stall_reopens: u32,
+    /// The last stall reopen, with its reason, buffers and silence.
+    pub last_reopen: String,
 }
 
 struct CallbackState {
@@ -636,6 +657,13 @@ impl NativeEngine {
                 .lock()
                 .map(|host| host.clone())
                 .unwrap_or_default(),
+            stall_reopens: self.shared.stall_reopens.load(Ordering::Relaxed),
+            last_reopen: self
+                .shared
+                .reopen_log
+                .lock()
+                .map(|line| line.clone())
+                .unwrap_or_default(),
             last_error: self
                 .shared
                 .last_error
@@ -949,6 +977,7 @@ fn open_output_stream(
 fn open_session(
     requested: Option<&str>,
     low_latency: bool,
+    forced_buffer: Option<u32>,
     shared: &Arc<Shared>,
     logger_slot: &LoggerSlot,
 ) -> Result<Session, String> {
@@ -1036,6 +1065,11 @@ fn open_session(
     let mut low_latency = low_latency;
     if low_latency {
         config.buffer_size = cpal::BufferSize::Fixed(minimum.max(32));
+    }
+    // A stall reopen overrides the request: the whole point is to stop asking
+    // for the buffer that just failed.
+    if let Some(frames) = forced_buffer {
+        config.buffer_size = cpal::BufferSize::Fixed(frames.max(32));
     }
     let sample_rate = config.sample_rate.0 as f32;
     let channels = config.channels as usize;
@@ -1190,13 +1224,25 @@ fn audio_thread(
     let mut requested = initial_device;
     let mut low_latency = initial_low_latency;
     let mut last_project: Option<PlaybackProject> = None;
+    // A stall-triggered reopen can ask for a specific buffer size. It is cleared
+    // on any explicit user change, so the next stall starts the ladder again.
+    let mut forced_buffer: Option<u32> = None;
+    let mut stall_policy = StallPolicy::new();
+    let stall_clock = Instant::now();
+    let mut stall_gave_up = false;
 
     loop {
         // Keep the user's preference even when it is temporarily unavailable.
         // A Bluetooth headset that vanished for a second must be picked up when
         // it reappears, rather than being replaced permanently by the fallback.
         let session = loop {
-            match open_session(requested.as_deref(), low_latency, &shared, &logger_slot) {
+            match open_session(
+                requested.as_deref(),
+                low_latency,
+                forced_buffer,
+                &shared,
+                &logger_slot,
+            ) {
                 Ok(session) => break session,
                 Err(err) => {
                     remember_error(&shared, &err);
@@ -1210,7 +1256,7 @@ fn audio_thread(
                         eprintln!(
                             "openbeats: saved output failed ({err}); trying the system default"
                         );
-                        match open_session(None, low_latency, &shared, &logger_slot) {
+                        match open_session(None, low_latency, forced_buffer, &shared, &logger_slot) {
                             Ok(session) => break session,
                             Err(fallback_err) => {
                                 if let Some(tx) = ready.take() {
@@ -1271,10 +1317,16 @@ fn audio_thread(
                 Ok(EngineCommand::Shutdown) => return,
                 Ok(EngineCommand::SwitchDevice(name)) => {
                     requested = name;
+                    forced_buffer = None;
+                    stall_policy = StallPolicy::new();
+                    stall_gave_up = false;
                     break;
                 }
                 Ok(EngineCommand::SetLowLatency(on)) => {
                     low_latency = on;
+                    forced_buffer = None;
+                    stall_policy = StallPolicy::new();
+                    stall_gave_up = false;
                     break;
                 }
                 Ok(EngineCommand::Reconfigure {
@@ -1283,6 +1335,9 @@ fn audio_thread(
                 }) => {
                     requested = device;
                     low_latency = next_low_latency;
+                    forced_buffer = None;
+                    stall_policy = StallPolicy::new();
+                    stall_gave_up = false;
                     break;
                 }
                 Ok(command) => {
@@ -1301,6 +1356,10 @@ fn audio_thread(
                         // Give a newly opened stream time to deliver its first
                         // callback before the no-callback watchdog can fire.
                         last_progress = Instant::now();
+                        // Pressing play is a fresh attempt: clear a give-up so a
+                        // user who changed something can retry without restarting.
+                        stall_policy = StallPolicy::new();
+                        stall_gave_up = false;
                     }
                 }
                 Err(RecvTimeoutError::Timeout) => {
@@ -1310,19 +1369,53 @@ fn audio_thread(
                         break;
                     }
 
+                    let now_ms = stall_clock.elapsed().as_millis() as u64;
                     let callbacks = shared.callbacks.load(Ordering::Relaxed);
                     if callbacks != callback_count {
                         callback_count = callbacks;
                         last_progress = Instant::now();
-                    } else if shared.playing.load(Ordering::Relaxed) == 1
-                        && last_progress.elapsed() >= Duration::from_secs(2)
+                        stall_policy.on_healthy(now_ms);
+                    } else if !stall_gave_up
+                        && is_stalled(
+                            false,
+                            shared.playing.load(Ordering::Relaxed) == 1,
+                            last_progress.elapsed().as_millis() as u64,
+                        )
                     {
-                        remember_error(
-                            &shared,
-                            "the audio stream stopped calling back; reopening the saved route",
-                        );
-                        eprintln!("openbeats: audio callbacks stalled; reopening the saved route");
-                        break;
+                        let silent_ms = last_progress.elapsed().as_millis() as u64;
+                        match stall_policy.on_stall(now_ms) {
+                            StallAction::Reopen {
+                                attempt,
+                                buffer_frames,
+                            } => {
+                                let granted = shared.buffer_frames.load(Ordering::Relaxed);
+                                let line = reopen_line(
+                                    attempt,
+                                    "no callback while playing",
+                                    silent_ms,
+                                    buffer_frames,
+                                    granted,
+                                );
+                                remember_reopen(&shared, &line);
+                                eprintln!("openbeats: {line}");
+                                forced_buffer = Some(buffer_frames);
+                                break;
+                            }
+                            StallAction::GiveUp { attempts } => {
+                                let granted = shared.buffer_frames.load(Ordering::Relaxed);
+                                let message = give_up_message(
+                                    attempts,
+                                    forced_buffer.unwrap_or(granted),
+                                    granted,
+                                    low_latency,
+                                );
+                                remember_error(&shared, &message);
+                                eprintln!("openbeats: {message}");
+                                // Stop reopening. The stream is left as it is and
+                                // the UI keeps showing the error with its stats.
+                                stall_gave_up = true;
+                            }
+                        }
                     }
 
                     #[cfg(target_os = "linux")]
