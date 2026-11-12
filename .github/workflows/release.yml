@@ -172,6 +172,9 @@ jobs:
           const deb = linux.deb?.depends ?? [];
           const rpm = linux.rpm?.depends ?? [];
           const win = c.bundle?.windows ?? {};
+          const fs = require("fs");
+          const archPackage = fs.readFileSync("packaging/arch/PKGBUILD", "utf8");
+          const archReadme = fs.readFileSync("packaging/arch/README.md", "utf8");
           const checks = [
             ["bundle.targets must cover every desktop installer",
               c.bundle?.targets === "all"],
@@ -187,6 +190,16 @@ jobs:
               rpm.some((d) => d.startsWith("gstreamer1-plugins-") || d === "gstreamer1-plugin-libav")],
             ["RPM must depend on a PulseAudio-compatible server",
               rpm.some((d) => d.includes("pipewire-pulse") || d.includes("pulseaudio"))],
+            // CPAL talks to ALSA, which only reaches PipeWire/PulseAudio through
+            // these plugins. Without them the app opens a null device silently.
+            ["deb must reach a sound server through ALSA",
+              deb.some((d) => d.includes("pipewire-alsa") || d.includes("libasound2-plugins"))],
+            ["RPM must reach a sound server through ALSA",
+              rpm.some((d) => d.includes("pipewire-alsa"))],
+            ["Arch package must declare the ALSA bridge",
+              archPackage.includes("pipewire-alsa")],
+            ["Arch README must state the ALSA bridge requirement",
+              archReadme.includes("pipewire-alsa")],
             ["Windows installer must use the WebView2 download bootstrapper",
               win.webviewInstallMode?.type === "downloadBootstrapper"],
             ["Windows installer must bundle the VC++ runtime",

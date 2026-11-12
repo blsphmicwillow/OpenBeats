@@ -25,6 +25,7 @@ import { APP_VERSION } from '../lib/version';
 import { friendlyDeviceName, readDevMode, writeDevMode } from '../lib/deviceNames';
 import { audioErrorReport, nativePlatform } from '../lib/native';
 import { judgeTestTone, type ToneSample } from '../lib/audioVerdict';
+import { toneAdvice } from '../lib/audioAdvice';
 import type { KeyAction, Settings, Theme } from '../model/types';
 
 type Tab = 'appearance' | 'accessibility' | 'workflow' | 'updates' | 'keys' | 'audio' | 'opensource';
@@ -1023,10 +1024,8 @@ function NativeDevicePanel() {
     }
     setSnapshot(latest ?? (await nativePlaybackState()));
     const verdict = judgeTestTone(before, samples);
-    const advice =
-      platform === 'linux'
-        ? ' Try another output, or install the ALSA→PipeWire bridge (pipewire-alsa / libasound2-plugins).'
-        : ' Try another output device, and check it is not muted or held in exclusive mode by another app.';
+    // Each platform fails differently; the advice is unit-tested separately.
+    const advice = toneAdvice(platform, verdict.kind);
     switch (verdict.kind) {
       case 'no-engine':
         setNote('The test tone was sent but the engine did not answer.');

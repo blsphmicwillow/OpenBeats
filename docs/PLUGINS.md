@@ -1,6 +1,6 @@
 # Plugins — library, example, and hosting roadmap
 
-> **1.0.8 status:** the source-verified Linux investigation is in
+> **1.0.9 status:** the source-verified Linux investigation is in
 > [PLUGIN_HOST_REVERSE_ENGINEERING_1.0.7.md](PLUGIN_HOST_REVERSE_ENGINEERING_1.0.7.md).
 > It records the exact compile-time gate and a CLAP-first implementation path.
 
@@ -103,7 +103,7 @@ bundle in `~/.vst3/`, then rescan in a native host.
 
 Linux does **not** use `plughost`: `plughost-core` 0.2.1 has no Linux platform
 module, so the Rust `openbeats-plugins` crate still compiles to its historical
-stub there. The 1.0.8 branch adds a separate, Linux-only
+stub there. The 1.0.9 branch adds a separate, Linux-only
 `openbeats-clap-helper` built on `clack-host 0.2`. It scans `~/.clap`,
 `/usr/lib/clap`, `/usr/local/lib/clap` and `$CLAP_PATH`, loads an entry, and
 processes stereo f32 blocks on a dedicated thread. Tauri commands

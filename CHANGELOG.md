@@ -3,6 +3,41 @@
 The same entries are bundled into the app and shown in the **Changelog** tab, so the notes ship with the build.
 Keep this file and `src/lib/changelog.ts` in sync, and bump `APP_VERSION` in `src/lib/version.ts`.
 
+## 1.0.9 — 2026-11-12
+
+**OpenBeats v1.0.9 — audio reliability. The app now tells you why it is silent, and the Linux packages install the bridge that makes it audible.**
+
+Native installers for Linux, Windows and macOS are built by CI from the `v1.0.9` tag and attached to that GitHub release.
+
+### Linux audio
+
+- Debian and RPM packages now depend on the ALSA sound-server bridge (`pipewire-alsa`, or `libasound2-plugins` on Debian). Without it CPAL opens a null or busy ALSA device and the app stays silent with no error. The Arch package notes the same requirement instead of forcing it.
+- The ALSA device picker hides the generic `default`/`pulse` entries only when a `pulse` or `pipewire` PCM is actually present, so a missing bridge no longer hides the only outputs that work.
+- Raw ALSA names are labelled “ALSA default” and “ALSA system default” instead of the CPAL backend string.
+- A rejected fixed buffer (low-latency mode) retries at the device default instead of failing the stream.
+- Sample previews resolve the saved sink the same way project playback does, so a reconnected Bluetooth headset no longer strands them.
+
+### Diagnostics
+
+- Settings → Audio has a Stream health row: callbacks, peak, rebuild count, stream errors and the last error.
+- The Test tone ends in a verdict — healthy, stalled (opened but never ran) or silent (ran but produced no signal) — with advice that differs per platform: the ALSA bridge on Linux, exclusive mode and the Volume Mixer (including `msedgewebview2.exe`) on Windows, System Settings and aggregate devices on macOS.
+- Native audio failures raise a toast with the engine's own message instead of a console warning, and repeated identical failures collapse into one.
+- A one-time Linux notice appears when a sound server is running but ALSA has no bridge device, so the fix is visible before anyone files a bug.
+
+### Browser preview
+
+- The browser build auditions loaded samples through Web Audio; previously clicking one did nothing.
+
+### Build and CI
+
+- Pull requests now typecheck and build the web app and compile the native and desktop crates on Ubuntu 22.04 and Windows.
+- A new headless audio smoke test renders a fixed project offline and fails below an RMS threshold; a Linux step opens the ALSA `null` device and fails if the stream never calls back.
+
+### Not in this release
+
+- Plugin hosting is unchanged. The plugin browser, downloads and the OpenBeats Gain plugin ship, but hosting on Linux is still unavailable and inserts are not routed into the native callback, so plugins are not described as working in the mixer.
+- Playlist audio clips, automation and the modular effect graph remain Web Audio only.
+
 ## 1.0.8 — 2026-11-11
 
 **OpenBeats v1.0.8 — audio settings that survive restarts, and Linux devices you can identify.**

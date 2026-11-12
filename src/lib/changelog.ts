@@ -11,6 +11,51 @@ export interface ChangelogEntry {
  */
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '1.0.9',
+    date: '2026-11-12',
+    headline: 'Audio reliability: the app tells you why it is silent, and Linux packages install the bridge.',
+    groups: [
+      {
+        title: 'Linux audio',
+        items: [
+          'Deb and RPM packages now depend on the ALSA sound-server bridge (pipewire-alsa or libasound2-plugins); without it the app opened a null device and stayed silent with no error.',
+          'The device picker only hides the generic ALSA entries when a pulse or pipewire PCM really exists, so a missing bridge can no longer hide the outputs that work.',
+          'Raw ALSA names read "ALSA default" and "ALSA system default" instead of the backend string.',
+          'A rejected low-latency buffer retries at the device default instead of failing the stream, and sample previews follow the saved sink like project playback does.',
+        ],
+      },
+      {
+        title: 'Diagnostics',
+        items: [
+          'Settings → Audio shows stream health: callbacks, peak, rebuild count, stream errors and the last error.',
+          'The Test tone reports healthy, stalled or silent, with advice that differs for Linux, Windows and macOS.',
+          'Audio failures now appear as a toast with the engine message, with repeated identical failures collapsed into one.',
+          'A one-time Linux notice appears when a sound server runs but ALSA has no bridge device.',
+        ],
+      },
+      {
+        title: 'Browser preview',
+        items: [
+          'The browser build auditions loaded samples through Web Audio.',
+        ],
+      },
+      {
+        title: 'Build and CI',
+        items: [
+          'Pull requests typecheck and build the web app and compile the native and desktop crates on Ubuntu 22.04 and Windows.',
+          'A headless audio smoke test renders a fixed project offline and fails if it is silent.',
+        ],
+      },
+      {
+        title: 'Not in this release',
+        items: [
+          'Plugin hosting is unchanged: hosting on Linux is still unavailable and inserts are not routed into the native callback, so plugins are not described as working in the mixer.',
+          'Playlist audio clips, automation and the modular effect graph remain Web Audio only.',
+        ],
+      },
+    ],
+  },
+  {
     version: '1.0.8',
     date: '2026-11-11',
     headline: 'Persistent audio settings and human-readable Linux audio devices.',
