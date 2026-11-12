@@ -91,3 +91,22 @@ The checks in the Release workflow assert that the package metadata declares the
 ALSA bridge (`pipewire-alsa` / `libasound2-plugins`), the GStreamer plugins and a
 PulseAudio-compatible server, so a packaging edit that drops them fails the build
 instead of shipping a silent app.
+
+## Experimental: the no-libva AppImage
+
+The release job uploads `openbeats-linux-nolibva` only when its repack **and**
+its verification both pass. It is not the default artifact: `openbeats-linux`
+holds the normal AppImage, deb and RPM, and it is what users are pointed at.
+
+The stripped image exists because the bundler has no exclusion option and some
+machines ship an AppImage whose `usr/lib/libva*` shadows the host copy, which
+makes ALSA lavrate fail with `undefined symbol: va_fool_postp`. The step unpacks
+the AppImage, removes `libva*`, repacks with `appimagetool` and checks that the
+payload, desktop entry, GStreamer plugins and update information survive. FFmpeg
+and the GStreamer VA-API plugins still *link* libva; that is expected and they
+resolve the host copy.
+
+The step is `continue-on-error`, so a failed repack or verification never fails
+the release; the artifact is simply not uploaded. Run 43201415073 failed its
+verification at `the repacked AppImage lost its update information`, which is now
+a warning plus a skipped upload.

@@ -360,9 +360,12 @@ jobs:
           test -x "$GITHUB_WORKSPACE/openbeats-nolibva.AppImage"
           echo 'ok=1' >> "$GITHUB_OUTPUT"
 
+      # Experimental artifact: a failure here never fails the release, and the
+      # upload below only runs when this step succeeded.
       - name: Verify the stripped AppImage
         if: matrix.platform == 'ubuntu-22.04' && steps.strip.outputs.ok == '1'
         id: verify-nolibva
+        continue-on-error: true
         shell: bash
         run: |
           set -euo pipefail
@@ -400,9 +403,12 @@ jobs:
             }
           done
           if ! grep -q '\[ *0\]' <(readelf -p .upd_info "$app" 2>/dev/null); then
-            echo '::error::the repacked AppImage lost its update information'
-            exit 1
+            echo '::warning title=No update information::the repacked AppImage carries no .upd_info section; it is not the default artifact, the normal AppImage keeps its update information.'
+            updated=0
+          else
+            updated=1
           fi
+          echo "update information present: $updated"
 
           sudo DEBIAN_FRONTEND=noninteractive apt-get install -y xvfb
           set +e
@@ -419,6 +425,10 @@ jobs:
             exit 1
           fi
           echo "AppRun started under Xvfb (exit $code, 124 means the timeout stopped it)"
+          if [ "$updated" -ne 1 ]; then
+            echo '::warning::stripped AppImage skipped: it would lose update information'
+            exit 0
+          fi
           echo 'ok=1' >> "$GITHUB_OUTPUT"
 
       - name: Upload the stripped AppImage

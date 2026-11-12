@@ -195,6 +195,25 @@ plus icon and desktop integration. The AppImage bundles WebKitGTK 4.1, GTK 3
 and the GStreamer runtime itself; the one thing an AppImage cannot provide is
 the system audio server, so PipeWire-Pulse or PulseAudio must be running.
 
+**It runs but I hear nothing. What do I check first?**
+Settings → Audio → **Test tone** plays a short tone through the selected device and
+ends in a verdict: *healthy* (callbacks and signal), *stalled* (the stream opened
+but never called back) or *silent* (it ran but produced no signal). The **Stream
+health** row under it shows the buffer, worst callback interval, deadline misses,
+stall reopens and the host · device → sink triple. **Copy diagnostics** puts all of
+that plus the version on the clipboard, and `scripts/linux-audio-probe.sh` prints
+the same facts, including the PipeWire sink inputs, from a terminal. On Linux the
+ALSA bridge is still required: `pipewire-alsa`, or `libasound2-plugins` on Debian
+and Ubuntu — without it CPAL opens a null device.
+
+**Should I turn Low latency on?**
+On Bluetooth and on PipeWire it can hurt. Low latency asks for a very small
+buffer (often 256 frames or less), which forces a tiny shared quantum; a Bluetooth
+A2DP link that cannot sustain it stops calling back, and the app then either
+raises the buffer once on its own or, after three attempts in 30 seconds, stops
+and tells you. Leave it off for Bluetooth, turn it on for a wired interface or a
+USB DAC.
+
 **Can I use VST3, AU or CLAP plugins?**
 Hosting is available on Windows/macOS (out-of-process). On Linux, 1.0.9 adds a
 CLAP-only sidecar: **View → Plugin library…** scans `~/.clap`, `/usr/lib/clap`,

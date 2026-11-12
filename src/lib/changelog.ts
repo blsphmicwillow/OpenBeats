@@ -22,6 +22,8 @@ export const CHANGELOG: ChangelogEntry[] = [
           'The device picker only hides the generic ALSA entries when a pulse or pipewire PCM really exists, so a missing bridge can no longer hide the outputs that work.',
           'Raw ALSA names read "ALSA default" and "ALSA system default" instead of the backend string.',
           'A rejected low-latency buffer retries at the device default instead of failing the stream, and sample previews follow the saved sink like project playback does.',
+          'A stalled stream no longer reopens forever with the same buffer: the watchdog asks for 256, then 512, then 1024 frames, allows three reopens in 30 s, then stops with a persistent error and the stats.',
+          'Each reopen is logged with its reason, the gap since the last callback and both buffer sizes; the count is in Stream health and Copy diagnostics.',
         ],
       },
       {
@@ -31,6 +33,9 @@ export const CHANGELOG: ChangelogEntry[] = [
           'The Test tone reports healthy, stalled or silent, with advice that differs for Linux, Windows and macOS.',
           'Audio failures now appear as a toast with the engine message, with repeated identical failures collapsed into one.',
           'A one-time Linux notice appears when a sound server runs but ALSA has no bridge device.',
+          'Copy diagnostics puts the host, device, sink, buffer, callback, deadline and stall-reopen numbers on the clipboard in one block.',
+          'The desktop build no longer opens a Web Audio output beside the native stream; Web Audio is created on demand by the features that need it.',
+          'Confirmed on one machine (Arch, PipeWire, Bluetooth A2DP): the stall/reopen loop is gone. Windows, macOS, PulseAudio-only Linux and the experimental no-libva AppImage are not yet verified on hardware.',
         ],
       },
       {

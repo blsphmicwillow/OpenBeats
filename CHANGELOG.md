@@ -9,6 +9,14 @@ Keep this file and `src/lib/changelog.ts` in sync, and bump `APP_VERSION` in `sr
 
 Native installers for Linux, Windows and macOS are built by CI from the `v1.0.9` tag and attached to that GitHub release.
 
+**What is confirmed on hardware:** the Linux stall/reopen loop is fixed on one
+machine — Arch, PipeWire, Bluetooth A2DP — where the previous candidate produced
+16 "callbacks stalled" lines, 17 stream opens and eight PipeWire nodes in 30
+seconds; the same route now runs one stream with no reopens. **What is not yet
+verified on hardware:** Windows, macOS, PulseAudio-only Linux, and the
+experimental `openbeats-linux-nolibva` AppImage. Nothing here claims that sound
+works on any platform beyond that single machine.
+
 ### Linux audio
 
 - Debian and RPM packages now depend on the ALSA sound-server bridge (`pipewire-alsa`, or `libasound2-plugins` on Debian). Without it CPAL opens a null or busy ALSA device and the app stays silent with no error. The Arch package notes the same requirement instead of forcing it.
@@ -16,6 +24,8 @@ Native installers for Linux, Windows and macOS are built by CI from the `v1.0.9`
 - Raw ALSA names are labelled “ALSA default” and “ALSA system default” instead of the CPAL backend string.
 - A rejected fixed buffer (low-latency mode) retries at the device default instead of failing the stream.
 - Sample previews resolve the saved sink the same way project playback does, so a reconnected Bluetooth headset no longer strands them.
+- A stream that stops calling back no longer reopens forever with the buffer that just failed. The watchdog escalates 256 → 512 → 1024 frames, allows three reopens in 30 seconds, and then stops with a persistent error that names the attempts and the buffers instead of looping. Bluetooth and PipeWire sinks that cannot sustain a tiny quantum end in that error, not in a stream that rebuilds itself every two seconds.
+- Each reopen writes one line with its reason, the milliseconds since the last callback and both buffer sizes, and the count appears in Stream health and Copy diagnostics.
 
 ### Diagnostics
 
@@ -23,6 +33,8 @@ Native installers for Linux, Windows and macOS are built by CI from the `v1.0.9`
 - The Test tone ends in a verdict — healthy, stalled (opened but never ran) or silent (ran but produced no signal) — with advice that differs per platform: the ALSA bridge on Linux, exclusive mode and the Volume Mixer (including `msedgewebview2.exe`) on Windows, System Settings and aggregate devices on macOS.
 - Native audio failures raise a toast with the engine's own message instead of a console warning, and repeated identical failures collapse into one.
 - A one-time Linux notice appears when a sound server is running but ALSA has no bridge device, so the fix is visible before anyone files a bug.
+- **Copy diagnostics** puts the version, host, device, sink, buffer, callback, deadline and stall-reopen numbers on the clipboard in one block, and `scripts/linux-audio-probe.sh` prints the same facts from a terminal.
+- The desktop build no longer creates a Web Audio output beside the native stream: WebKitGTK backs that context with its own GStreamer sink, which is where the second `openbeats` sink-input came from. Web Audio is now created on demand, by the features that only exist there.
 
 ### Browser preview
 

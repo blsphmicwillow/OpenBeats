@@ -102,6 +102,8 @@ struct Shared {
     sink: Mutex<String>,
     /// CPAL host the stream was opened on.
     host: Mutex<String>,
+    /// Raised by the callback when a diagnostic line is due; printed off-callback.
+    log_tick: AtomicU32,
     /// Stall-triggered reopens since launch.
     stall_reopens: AtomicU32,
     /// The last stall reopen, with reason, buffers and silence.
@@ -135,6 +137,7 @@ impl Default for Shared {
             deadline_misses: AtomicU32::new(0),
             sink: Mutex::new(String::new()),
             host: Mutex::new(String::new()),
+            log_tick: AtomicU32::new(0),
             stall_reopens: AtomicU32::new(0),
             reopen_log: Mutex::new(String::new()),
             cue_gain: AtomicU32::new(1.0f32.to_bits()),
@@ -1230,6 +1233,16 @@ fn audio_thread(
     let mut stall_policy = StallPolicy::new();
     let stall_clock = Instant::now();
     let mut stall_gave_up = false;
+    // Diagnostic line: off by default; RUST_LOG=debug (or trace/info) turns it
+    // on. Rate-limited to one line every five seconds regardless of callbacks.
+    let debug_log = std::env::var("RUST_LOG")
+        .map(|value| {
+            let value = value.to_ascii_lowercase();
+            value.contains("debug") || value.contains("trace") || value.contains("info")
+        })
+        .unwrap_or(false);
+    let mut last_log = Instant::now();
+    let mut seen_log_tick = shared.log_tick.load(Ordering::Relaxed);
 
     loop {
         // Keep the user's preference even when it is temporarily unavailable.
@@ -1585,13 +1598,12 @@ fn render<T>(
         .unwrap_or(false);
     shared.playing.store(u32::from(playing), Ordering::Relaxed);
 
-    // Data-flow proof for users debugging a silent device: one line per second.
+    // Data-flow proof for users debugging a silent device. The callback only
+    // raises a flag: formatting, env lookups and I/O happen on the command
+    // thread, so a slow terminal can never hold the audio callback.
     guard.callbacks = guard.callbacks.wrapping_add(1);
     if guard.callbacks % 100 == 0 {
-        println!(
-            "openbeats audio: {} frames at {:.0} Hz, peak {:.3}/{:.3}",
-            frames, guard.sample_rate, peak_left, peak_right
-        );
+        shared.log_tick.fetch_add(1, Ordering::Relaxed);
     }
 }
 
