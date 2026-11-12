@@ -150,6 +150,14 @@ fn preview_thread(
     requested: Option<String>,
 ) {
     let (host, requested_name, sink) = preview_host(requested.as_deref());
+    // Resolve the saved sink the same way the main engine does. A Bluetooth
+    // headset that reconnected under a new profile name must not leave previews
+    // pinned to a sink that no longer exists.
+    #[cfg(target_os = "linux")]
+    let sink = match crate::linux_audio::route_state() {
+        Some(state) => state.target_sink(sink.as_deref()),
+        None => sink,
+    };
     #[cfg(target_os = "linux")]
     let _route = crate::linux_audio::route_sink(sink.as_deref());
     #[cfg(not(target_os = "linux"))]

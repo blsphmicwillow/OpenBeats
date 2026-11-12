@@ -23,6 +23,7 @@ import {
 import { KEY_ACTION_LABELS, comboFromEvent } from '../ui/keymapLabels';
 import { APP_VERSION } from '../lib/version';
 import { friendlyDeviceName, readDevMode, writeDevMode } from '../lib/deviceNames';
+import { audioErrorReport, nativePlatform } from '../lib/native';
 import type { KeyAction, Settings, Theme } from '../model/types';
 
 type Tab = 'appearance' | 'accessibility' | 'workflow' | 'updates' | 'keys' | 'audio' | 'opensource';
@@ -891,6 +892,9 @@ function NativeDevicePanel() {
   const [note, setNote] = useState<string | null>(null);
   const [devMode, setDevMode] = useState(readDevMode);
   const [draftOutput, setDraftOutput] = useState(audio.outputId ?? '');
+  // Only Linux needs the ALSA→sound-server bridge hint; Windows and macOS have
+  // no equivalent package and the advice would be wrong there.
+  const [platform, setPlatform] = useState('');
 
   useEffect(() => {
     setDraftOutput(audio.outputId ?? '');
@@ -904,11 +908,18 @@ function NativeDevicePanel() {
 
   useEffect(() => {
     void refresh();
+    void nativePlatform().then(setPlatform);
     const id = window.setInterval(() => {
       void nativePlaybackState().then(setSnapshot);
     }, 1000);
     return () => window.clearInterval(id);
   }, [refresh]);
+
+  // Rust reports stream failures; the bridge reports rejected commands. Show
+  // whichever is newer-looking so one row covers both sources.
+  const commandError = audioErrorReport();
+  const lastError = snapshot?.last_error || commandError?.message || '';
+  const lastErrorSuffix = commandError && commandError.count > 1 ? ` (×${commandError.count})` : '';
 
   const outputs = devices.outputs;
   const savedOutput = audio.outputId ?? '';
@@ -970,6 +981,53 @@ function NativeDevicePanel() {
     } catch (err) {
       setNote(errorText(err));
     }
+  };
+
+  /**
+   * Plays the tone and then reads the callback counter, so "silent" can be
+   * separated into "the stream never ran" and "the stream ran but the graph is
+   * quiet". Without that split a dead device looks exactly like a broken DAW.
+   */
+  const runTestTone = async () => {
+    const before = (await nativePlaybackState())?.callbacks ?? 0;
+    try {
+      const ok = await playNativeTestTone();
+      if (!ok) {
+        setNote('The test tone needs the desktop build.');
+        return;
+      }
+    } catch (err) {
+      setNote(errorText(err));
+      return;
+    }
+    // Opening a device can take a beat, and a fixed wait produced false
+    // "0 callbacks" verdicts on slow first opens. Watch the counter instead.
+    let next: NativePlaybackState | null = null;
+    const deadline = Date.now() + 4000;
+    while (Date.now() < deadline) {
+      await new Promise((resolve) => window.setTimeout(resolve, 150));
+      next = await nativePlaybackState();
+      if (next && next.callbacks > before) break;
+    }
+    setSnapshot(next);
+    if (!next) {
+      setNote('The test tone was sent but the engine did not answer.');
+      return;
+    }
+    const callbacks = next.callbacks - before;
+    if (callbacks <= 0) {
+      const advice =
+        platform === 'linux'
+          ? ' Try another output, or install the ALSA→PipeWire bridge (pipewire-alsa / libasound2-plugins).'
+          : ' Try another output device, and check it is not muted or held in exclusive mode by another app.';
+      setNote(
+        `Test tone sent, but the stream delivered 0 callbacks in 4 s: the device opened and never ran.${advice}`,
+      );
+      return;
+    }
+    setNote(
+      `Test tone sent. ${callbacks} callbacks, peak ${Math.round(next.peak * 100)}% — audio is reaching ${next.device || 'the device'}.`,
+    );
   };
 
   return (
@@ -1082,19 +1140,30 @@ function NativeDevicePanel() {
       </div>
       <div className="field">
         <div className="field-label">
-          Check the device
-          <small>A 440 Hz tone proves data is reaching the output; “Recover” saves the last 60 seconds.</small>
+          Stream health
+          <small>
+            {snapshot
+              ? `${snapshot.callbacks.toLocaleString()} callbacks · peak ${Math.round(
+                  snapshot.peak * 100,
+                )}% · ${snapshot.stream_errors} stream errors · ${snapshot.device_swaps} rebuilds`
+              : 'No native stream yet — press Test tone to open one.'}
+          </small>
         </div>
         <div className="field-control">
-          <button
-            className="btn"
-            onClick={async () => {
-              const ok = await playNativeTestTone();
-              setNote(ok ? 'Playing a 440 Hz test tone for 1.5 s.' : 'The test tone needs the desktop build.');
-            }}
-          >
+          <button className="btn" onClick={() => void runTestTone()}>
             Test tone
           </button>
+          <span className="tiny-note" title={lastError || 'no stream errors'}>
+            {lastError ? `Last error: ${lastError}${lastErrorSuffix}` : 'No stream errors'}
+          </span>
+        </div>
+      </div>
+      <div className="field">
+        <div className="field-label">
+          Check the device
+          <small>“Recover” saves the last 60 seconds of master audio to a WAV file.</small>
+        </div>
+        <div className="field-control">
           <button
             className="btn ghost"
             onClick={async () => {

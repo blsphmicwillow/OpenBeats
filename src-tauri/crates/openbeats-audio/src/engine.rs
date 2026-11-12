@@ -89,6 +89,9 @@ struct Shared {
     callbacks: AtomicU32,
     /// Last cue gain survives a stream rebuild during playback.
     cue_gain: AtomicU32,
+    /// The last stream or reopen failure, so the UI can explain silence that
+    /// produced no error dialog. Cleared when a stream opens successfully.
+    last_error: Mutex<String>,
     device: Mutex<String>,
 }
 
@@ -108,8 +111,22 @@ impl Default for Shared {
             device_swaps: AtomicU32::new(0),
             callbacks: AtomicU32::new(0),
             cue_gain: AtomicU32::new(1.0f32.to_bits()),
+            last_error: Mutex::new(String::new()),
             device: Mutex::new(String::new()),
         }
+    }
+}
+
+/// Records a failure the UI can show and the log keeps.
+fn remember_error(shared: &Shared, message: impl Into<String>) {
+    if let Ok(mut slot) = shared.last_error.lock() {
+        *slot = message.into();
+    }
+}
+
+fn clear_error(shared: &Shared) {
+    if let Ok(mut slot) = shared.last_error.lock() {
+        slot.clear();
     }
 }
 
@@ -138,6 +155,14 @@ pub struct EngineSnapshot {
     /// Channels the open stream writes to (4 or more means cue is routed).
     pub channels: u32,
     pub device_swaps: u32,
+    /// Total stream callbacks since launch. A stream that stops calling back
+    /// stops counting, which is how "open but not running" is detected.
+    pub callbacks: u32,
+    /// Peak of the last rendered block, 0..1. Zero while callbacks still climb
+    /// means the graph is silent rather than the device.
+    pub peak: f32,
+    /// The last stream or reopen failure, empty while the engine is healthy.
+    pub last_error: String,
 }
 
 struct CallbackState {
@@ -536,6 +561,14 @@ impl NativeEngine {
             latency_ms: load_f32(&self.shared.latency_ms),
             channels: self.shared.channels.load(Ordering::Relaxed),
             device_swaps: self.shared.device_swaps.load(Ordering::Relaxed),
+            callbacks: self.shared.callbacks.load(Ordering::Relaxed),
+            peak: load_f32(&self.shared.meter_left).max(load_f32(&self.shared.meter_right)),
+            last_error: self
+                .shared
+                .last_error
+                .lock()
+                .map(|error| error.clone())
+                .unwrap_or_default(),
         }
     }
 
@@ -666,8 +699,9 @@ pub fn list_devices() -> AudioDevices {
         .map(|endpoint| endpoint.label.clone());
     #[cfg(target_os = "linux")]
     let names = crate::linux_audio::FriendlyNames::new();
+    // Aligned with `devices.outputs` as it is built below.
     #[cfg(target_os = "linux")]
-    let hide_raw_bridges = !pulse_outputs.is_empty();
+    let mut raw_is_bridge: Vec<bool> = Vec::new();
 
     for host_id in cpal::available_hosts() {
         let Ok(host) = cpal::host_from_id(host_id) else {
@@ -684,13 +718,11 @@ pub fn list_devices() -> AudioDevices {
                     continue;
                 }
                 #[cfg(target_os = "linux")]
-                if hide_raw_bridges && crate::linux_audio::is_bridge_name(&name) {
-                    continue;
-                }
-                #[cfg(target_os = "linux")]
                 let friendly_name = names.label(&name, default_output_label.as_deref());
                 #[cfg(not(target_os = "linux"))]
                 let friendly_name = name.clone();
+                #[cfg(target_os = "linux")]
+                raw_is_bridge.push(crate::linux_audio::is_server_bridge(&name));
                 devices.outputs.push(DeviceInfo {
                     id: devices::device_id(&host_name, &name),
                     is_default: default_output.as_deref() == Some(name.as_str()),
@@ -720,6 +752,15 @@ pub fn list_devices() -> AudioDevices {
 
     #[cfg(target_os = "linux")]
     {
+        // Hide ALSA's generic entries only when a bridge PCM is really
+        // enumerated. `default`/`sysdefault` exist on every machine, so a
+        // successful `pactl` listing proves nothing about the bridge: hiding the
+        // raw devices then removed the only entries that could make sound.
+        if !pulse_outputs.is_empty() && raw_is_bridge.iter().any(|is_bridge| *is_bridge) {
+            let mut flags = raw_is_bridge.into_iter();
+            devices.outputs.retain(|_| !flags.next().unwrap_or(false));
+        }
+
         let mut endpoints: Vec<DeviceInfo> = pulse_outputs
             .iter()
             .map(|endpoint| DeviceInfo {
@@ -733,6 +774,102 @@ pub fn list_devices() -> AudioDevices {
     }
 
     devices
+}
+
+/// Whether the native engine can actually reach the system sound server.
+///
+/// - `"ok"`: a `pulse`/`pipewire` ALSA PCM is enumerated.
+/// - `"missing-bridge"`: PipeWire/PulseAudio answered `pactl` (so it is running
+///   and has sinks) but no ALSA bridge PCM exists. CPAL speaks ALSA, so there is
+///   no audible device to open until the bridge package is installed.
+/// - `"no-server"`: `pactl` listed no sinks either — a different problem.
+///
+/// Only `default`/`sysdefault` are ignored on purpose: ALSA always enumerates
+/// them, so they cannot prove a bridge is present.
+pub fn bridge_status() -> &'static str {
+    #[cfg(target_os = "linux")]
+    {
+        if crate::linux_audio::outputs().is_empty() {
+            return "no-server";
+        }
+        let host = cpal::default_host();
+        let has_bridge = host
+            .output_devices()
+            .map(|devices| {
+                devices.into_iter().any(|device| {
+                    device
+                        .name()
+                        .map(|name| crate::linux_audio::is_server_bridge(&name))
+                        .unwrap_or(false)
+                })
+            })
+            .unwrap_or(false);
+        if has_bridge {
+            "ok"
+        } else {
+            "missing-bridge"
+        }
+    }
+    #[cfg(not(target_os = "linux"))]
+    {
+        "ok"
+    }
+}
+
+/// Builds the output stream for one configuration.
+///
+/// Kept separate from `open_session` so a rejected fixed buffer can be retried
+/// with the device default: the data callback is moved into the stream, so the
+/// first attempt cannot simply be reused.
+fn open_output_stream(
+    name: &str,
+    device: &cpal::Device,
+    config: &cpal::StreamConfig,
+    sample_format: SampleFormat,
+    state: &Arc<Mutex<CallbackState>>,
+    shared: &Arc<Shared>,
+) -> Result<cpal::Stream, String> {
+    let channels = config.channels as usize;
+    let error_callback = {
+        let shared = Arc::clone(shared);
+        move |err: cpal::StreamError| {
+            shared.stream_errors.fetch_add(1, Ordering::Relaxed);
+            remember_error(&shared, err.to_string());
+            eprintln!("openbeats audio stream error: {err}");
+        }
+    };
+
+    macro_rules! open_stream {
+        ($sample:ty) => {{
+            let state = Arc::clone(state);
+            let shared = Arc::clone(shared);
+            device.build_output_stream(
+                config,
+                move |data: &mut [$sample], _: &cpal::OutputCallbackInfo| {
+                    render::<$sample>(&state, &shared, data, channels)
+                },
+                error_callback,
+                None,
+            )
+        }};
+    }
+
+    let built = match sample_format {
+        SampleFormat::F32 => open_stream!(f32),
+        SampleFormat::F64 => open_stream!(f64),
+        SampleFormat::I8 => open_stream!(i8),
+        SampleFormat::I16 => open_stream!(i16),
+        SampleFormat::I32 => open_stream!(i32),
+        SampleFormat::U8 => open_stream!(u8),
+        SampleFormat::U16 => open_stream!(u16),
+        other => {
+            return Err(format!(
+                "the output device \"{name}\" uses an unsupported sample format ({other:?})"
+            ))
+        }
+    };
+
+    built.map_err(|err| format!("could not open the output stream on \"{name}\": {err}"))
 }
 
 /// Opens the chosen device and starts its stream.
@@ -801,15 +938,12 @@ fn open_session(
         SupportedBufferSize::Range { min, .. } => *min,
         SupportedBufferSize::Unknown => 256,
     };
+    let mut low_latency = low_latency;
     if low_latency {
         config.buffer_size = cpal::BufferSize::Fixed(minimum.max(32));
     }
-    // With the default buffer size the device picks the period, so report a
-    // conservative estimate rather than pretending the minimum is in use.
-    let estimate = if low_latency { minimum.max(32) } else { 1024 };
     let sample_rate = config.sample_rate.0 as f32;
     let channels = config.channels as usize;
-    let latency_ms = estimate as f32 * 1000.0 / sample_rate.max(1.0);
 
     let logger = Arc::new(Mutex::new(AudioLogger::new(sample_rate, 60.0)));
     let state = Arc::new(Mutex::new(CallbackState::new(
@@ -820,44 +954,23 @@ fn open_session(
         guard.cue_gain = load_f32(&shared.cue_gain);
     }
 
-    let make_error = || {
-        let shared = Arc::clone(shared);
-        move |err: cpal::StreamError| {
-            shared.stream_errors.fetch_add(1, Ordering::Relaxed);
-            eprintln!("openbeats audio stream error: {err}");
+    // A fixed period size is a request, not a requirement: several backends —
+    // the PipeWire/PulseAudio ALSA plugins among them — reject it and then fail
+    // the whole stream. Falling back keeps sound instead of muting the app.
+    let stream = match open_output_stream(&name, device, &config, sample_format, &state, shared) {
+        Ok(stream) => stream,
+        Err(first) if low_latency => {
+            eprintln!("openbeats: {first}; retrying with the device default buffer");
+            config.buffer_size = cpal::BufferSize::Default;
+            low_latency = false;
+            open_output_stream(&name, device, &config, sample_format, &state, shared)?
         }
+        Err(err) => return Err(err),
     };
-
-    macro_rules! open_stream {
-        ($sample:ty) => {{
-            let state = Arc::clone(&state);
-            let shared = Arc::clone(shared);
-            device.build_output_stream(
-                &config,
-                move |data: &mut [$sample], _: &cpal::OutputCallbackInfo| {
-                    render::<$sample>(&state, &shared, data, channels)
-                },
-                make_error(),
-                None,
-            )
-        }};
-    }
-
-    let stream = match sample_format {
-        SampleFormat::F32 => open_stream!(f32),
-        SampleFormat::F64 => open_stream!(f64),
-        SampleFormat::I8 => open_stream!(i8),
-        SampleFormat::I16 => open_stream!(i16),
-        SampleFormat::I32 => open_stream!(i32),
-        SampleFormat::U8 => open_stream!(u8),
-        SampleFormat::U16 => open_stream!(u16),
-        other => {
-            return Err(format!(
-                "the output device \"{name}\" uses an unsupported sample format ({other:?})"
-            ))
-        }
-    }
-    .map_err(|err| format!("could not open the output stream on \"{name}\": {err}"))?;
+    // With the default buffer size the device picks the period, so report a
+    // conservative estimate rather than pretending the minimum is in use.
+    let estimate = if low_latency { minimum.max(32) } else { 1024 };
+    let latency_ms = estimate as f32 * 1000.0 / sample_rate.max(1.0);
 
     stream
         .play()
@@ -866,6 +979,7 @@ fn open_session(
     if let Ok(mut slot) = logger_slot.lock() {
         *slot = Some(Arc::clone(&logger));
     }
+    clear_error(shared);
     store_f32(&shared.sample_rate, sample_rate);
     store_f32(&shared.latency_ms, latency_ms);
     shared.channels.store(channels as u32, Ordering::Relaxed);
@@ -990,6 +1104,7 @@ fn audio_thread(
             match open_session(requested.as_deref(), low_latency, &shared, &logger_slot) {
                 Ok(session) => break session,
                 Err(err) => {
+                    remember_error(&shared, &err);
                     if ready.is_some() && requested.is_none() {
                         if let Some(tx) = ready.take() {
                             let _ = tx.send(Err(err));
@@ -1107,6 +1222,10 @@ fn audio_thread(
                     } else if shared.playing.load(Ordering::Relaxed) == 1
                         && last_progress.elapsed() >= Duration::from_secs(2)
                     {
+                        remember_error(
+                            &shared,
+                            "the audio stream stopped calling back; reopening the saved route",
+                        );
                         eprintln!("openbeats: audio callbacks stalled; reopening the saved route");
                         break;
                     }

@@ -82,9 +82,17 @@ sudo pacman -S --needed gtk3 gstreamer gst-plugins-base gst-plugins-good \
   libayatana-appindicator librsvg openssl xdg-utils hicolor-icon-theme
 
 # Choose the audio server you actually use:
-sudo pacman -S --needed pipewire-pulse   # PipeWire (recommended)
-# sudo pacman -S --needed pulseaudio     # PulseAudio instead
+sudo pacman -S --needed pipewire-pulse pipewire-alsa   # PipeWire (recommended)
+# sudo pacman -S --needed pulseaudio pulseaudio-alsa   # PulseAudio instead
 ```
+
+`pipewire-alsa` (or `pulseaudio-alsa`) is a **hard requirement**, not a
+nice-to-have. The native engine speaks ALSA through CPAL, and that bridge is what
+provides the `pipewire`/`pulse` ALSA PCM which reaches the sound server. With a
+sound server installed but no bridge, ALSA's `default` PCM resolves to a null
+sink or a raw device PipeWire already owns, and the app opens a stream that
+produces no sound. Verify with `aplay -L | grep -iE 'pipewire|pulse'`: an empty
+result means the bridge is missing.
 
 The package declares `pulse-native-provider`, so `pacman` requires either
 `pipewire-pulse` or `pulseaudio`. The AUR package name is `openbeats-bin`. It is

@@ -68,7 +68,20 @@ fn stopped_snapshot() -> EngineSnapshot {
         latency_ms: 0.0,
         channels: 0,
         device_swaps: 0,
+        callbacks: 0,
+        peak: 0.0,
+        last_error: String::new(),
     }
+}
+
+/// Why the native engine cannot reach PipeWire/PulseAudio, if it cannot.
+///
+/// `"ok"`, `"missing-bridge"` (server running, no ALSA bridge PCM) or
+/// `"no-server"`. The UI shows a one-time notice for `missing-bridge`, because
+/// that case is silent: every device opens, nothing is audible.
+#[tauri::command]
+pub fn audio_bridge_status() -> String {
+    openbeats_audio::engine::bridge_status().to_string()
 }
 
 /// Starts (or reuses) the CPAL stream and plays the supplied sequencer data.

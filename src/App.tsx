@@ -9,6 +9,7 @@ import { PianoRoll } from './components/PianoRoll';
 import { Mixer } from './components/Mixer';
 import { HintBar } from './components/HintBar';
 import { UpdateBanner } from './components/UpdateBanner';
+import { BridgeBanner } from './components/BridgeBanner';
 import { SplashScreen } from './components/SplashScreen';
 import { playStartupChime } from './lib/startupChime';
 import { KEY_TO_SEMITONE, comboFromEvent } from './ui/keymapLabels';
@@ -123,6 +124,17 @@ export default function App() {
     if (!useApp.getState().settings.autoCheckUpdates) return;
     const timer = window.setTimeout(() => void useApp.getState().checkUpdates(true), 1500);
     return () => window.clearTimeout(timer);
+  }, []);
+
+  useEffect(() => {
+    // Audio failures are reported by the bridge, not by React: show them as a
+    // toast so a broken device is never mistaken for a broken play button.
+    const onAudioError = (event: Event) => {
+      const detail = (event as CustomEvent<{ message?: string }>).detail;
+      useApp.getState().toast(`Audio: ${detail?.message ?? 'the native engine reported a failure'}`);
+    };
+    window.addEventListener('openbeats:audio-error', onAudioError);
+    return () => window.removeEventListener('openbeats:audio-error', onAudioError);
   }, []);
 
   useEffect(() => {
@@ -362,6 +374,7 @@ export default function App() {
       </a>
       <MemoTopBar />
       <UpdateBanner />
+      <BridgeBanner />
 
       <div className="workspace">
         <MemoBrowserPanel />

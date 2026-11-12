@@ -2605,6 +2605,8 @@ input[type='color'] {
 }
 .update-banner .ub-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 25%, transparent); }
 .update-banner .ub-note { color: var(--dim); }
+/* Linux bridge warning: same strip, warmer dot so it reads as a problem. */
+.bridge-banner .ub-dot { background: #d98a2b; box-shadow: 0 0 0 3px color-mix(in srgb, #d98a2b 25%, transparent); }
 
 /* Changelog */
 .changelog {

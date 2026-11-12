@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type MouseEvent } from 'react';
 import { previewChannel, useApp } from '../store';
+import { engine } from '../audio/engine';
 import { PRESETS, createChannel } from '../model/defaults';
 import { SAMPLE_BANK } from '../audio/instruments';
 import {
@@ -136,20 +137,30 @@ export function BrowserPanel() {
     }
   };
 
-  const auditionSample = async (id: string, channel: (typeof project.channels)[number] | undefined) => {
+  const auditionSample = async (id: string) => {
     const buffer = SAMPLE_BANK.get(id);
-    if (!buffer) return;
+    if (!buffer) {
+      toast('That sample is no longer loaded — import it again');
+      return;
+    }
     if (isNative()) {
       try {
         const result = await nativePreviewPcm(buffer, outputId);
         if (result) hint(`Preview: ${result}`);
+        else toast('The preview stream did not start — see Audio settings → Stream health');
       } catch (error) {
         console.error('Sample preview failed', error);
         toast(error instanceof Error ? error.message : 'That sample could not be previewed');
       }
       return;
     }
-    if (channel) previewChannel(channel);
+    // Browser build: Web Audio is the only preview path, and it stays suspended
+    // until a gesture, so resume it inside this click before playing. This used
+    // to fall through to nothing when no channel owned the sample.
+    const ready = await useApp.getState().initAudio();
+    if (!ready || !engine.previewBuffer(buffer)) {
+      toast(engine.error ?? 'Audio could not start — click the studio and try again');
+    }
   };
 
   const addPackSample = async (path: string) => {
@@ -377,7 +388,7 @@ export function BrowserPanel() {
                     e.dataTransfer.setData(AUDIO_CLIP_MIME, id);
                     e.dataTransfer.effectAllowed = 'copy';
                   }}
-                  onClick={() => void auditionSample(id, channel)}
+                  onClick={() => void auditionSample(id)}
                   title={`${buffer.duration.toFixed(2)}s · ${buffer.sampleRate} Hz · drag to a playlist lane`}
                 >
                   <span className="dot" style={{ background: 'var(--accent)' }} />

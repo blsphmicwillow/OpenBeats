@@ -251,6 +251,17 @@ fn default_endpoint(command: &str, key: &str) -> Option<String> {
     })
 }
 
+/// True only for the sound-server bridge PCMs themselves.
+///
+/// `is_bridge_name` also accepts `default`/`sysdefault`, which ALSA enumerates
+/// on every machine whether or not a bridge is installed. This predicate is the
+/// one that can prove a bridge exists, so it guards both the device filter and
+/// the startup banner.
+pub fn is_server_bridge(name: &str) -> bool {
+    let lower = name.trim().to_lowercase();
+    lower.contains("pulse") || lower.contains("pipewire")
+}
+
 /// True for the generic ALSA bridge names whose only useful label is the
 /// current PipeWire/PulseAudio default endpoint.
 pub fn is_bridge_name(name: &str) -> bool {
@@ -452,6 +463,17 @@ mod tests {
         assert_eq!(list.len(), 1);
         assert_eq!(list[0].name, "alsa_input.usb-microphone");
         assert!(list[0].is_usb);
+    }
+
+    #[test]
+    fn only_real_bridge_pcms_count_as_a_bridge() {
+        assert!(is_server_bridge("pulse"));
+        assert!(is_server_bridge("pipewire"));
+        assert!(is_server_bridge("  PipeWire  "));
+        // ALSA always lists these, so they prove nothing.
+        assert!(!is_server_bridge("default"));
+        assert!(!is_server_bridge("sysdefault"));
+        assert!(!is_server_bridge("hw:CARD=PCH,DEV=0"));
     }
 
     #[test]

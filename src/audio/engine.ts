@@ -300,6 +300,33 @@ export class AudioEngine {
     this.triggerChannel(channel, pitch ?? channel.root, 0.9, this.ctx.currentTime + 0.02, 0.35);
   }
 
+  /** Resumes the context inside the current gesture. WebKitGTK needs one. */
+  async ensureRunning(): Promise<boolean> {
+    if (!this.ctx) return false;
+    if ((this.ctx.state as string) === 'running') return true;
+    try {
+      await this.ctx.resume();
+    } catch {
+      /* the state check below reports the real answer */
+    }
+    return (this.ctx.state as string) === 'running';
+  }
+
+  /**
+   * Auditions a decoded sample through the master bus. The browser build has no
+   * native preview stream, so this is the only path that can make a one-shot
+   * audible there. Returns false instead of failing quietly, so the caller can
+   * say why nothing happened.
+   */
+  previewBuffer(buffer: AudioBuffer): boolean {
+    if (!this.ctx || (this.ctx.state as string) !== 'running') return false;
+    const source = this.ctx.createBufferSource();
+    source.buffer = buffer;
+    source.connect(this.graph?.master ?? this.ctx.destination);
+    source.start();
+    return true;
+  }
+
   click(when: number, accent: boolean) {
     if (!this.ctx || !this.graph) return;
     playClick(this.ctx, this.graph.master, when, accent);

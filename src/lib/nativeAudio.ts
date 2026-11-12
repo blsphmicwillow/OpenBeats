@@ -15,7 +15,7 @@ import {
   patternSteps,
   songLengthSteps,
 } from '../audio/sequencer';
-import { invokeNative, isNative, nativeInvoke } from './native';
+import { invokeAudio, invokeNative, isNative, nativeInvoke } from './native';
 import { nativeVoiceId } from './nativeVoices';
 
 export type NativeInsertSnapshot =
@@ -161,6 +161,12 @@ export interface NativePlaybackState {
   channels: number;
   /** How many times the stream was rebuilt (device switch or recovery). */
   device_swaps: number;
+  /** Total stream callbacks since launch; a dead stream stops counting. */
+  callbacks: number;
+  /** Peak of the last rendered block, 0..1. Zero while callbacks climb means silence upstream. */
+  peak: number;
+  /** Last stream or reopen error, empty when the engine is healthy. */
+  last_error: string;
 }
 
 export interface DeviceInfo {
@@ -479,9 +485,15 @@ export async function startNativePlayback(
   snapshot: PlaybackSnapshot,
 ): Promise<NativePlaybackStatus | null> {
   if (!isNative()) return null;
-  return nativeInvoke<NativePlaybackStatus>('start_playback', {
-    projectData: JSON.stringify(snapshot),
-  });
+  try {
+    // Loud on purpose: the error is shown before the caller falls back to
+    // Web Audio, so a broken device never looks like "the play button is dead".
+    return await invokeAudio<NativePlaybackStatus>('start_playback', {
+      projectData: JSON.stringify(snapshot),
+    });
+  } catch {
+    return null;
+  }
 }
 
 export async function stopNativePlayback(): Promise<void> {
@@ -510,13 +522,13 @@ export async function selectAudioDevice(
   device: string | null,
 ): Promise<NativePlaybackState | null> {
   if (!isNative()) return null;
-  return nativeInvoke<NativePlaybackState>('select_audio_device', { device });
+  return invokeAudio<NativePlaybackState>('select_audio_device', { device });
 }
 
 /** Reopens the stream with the device minimum buffer, or its default size. */
 export async function setLowLatency(enabled: boolean): Promise<NativePlaybackState | null> {
   if (!isNative()) return null;
-  return nativeInvoke<NativePlaybackState>('set_low_latency', { enabled });
+  return invokeAudio<NativePlaybackState>('set_low_latency', { enabled });
 }
 
 /**
@@ -527,7 +539,7 @@ export async function configureNativeAudio(
   audio: AudioPreferences,
 ): Promise<NativePlaybackState | null> {
   if (!isNative()) return null;
-  return nativeInvoke<NativePlaybackState>('configure_audio', {
+  return invokeAudio<NativePlaybackState>('configure_audio', {
     device: audio.outputId,
     lowLatency: audio.lowLatency,
     cueGain: audio.cueGain,
@@ -658,9 +670,18 @@ export async function clearRecovery(): Promise<void> {
   await nativeInvoke<null>('clear_recovery');
 }
 
+/**
+ * Why the native engine cannot reach PipeWire/PulseAudio, when it cannot:
+ * `ok`, `missing-bridge` (server running, no ALSA bridge PCM) or `no-server`.
+ */
+export async function audioBridgeStatus(): Promise<string> {
+  if (!isNative()) return 'ok';
+  return (await nativeInvoke<string>('audio_bridge_status')) ?? 'ok';
+}
+
 export async function playNativeTestTone(): Promise<boolean> {
   if (!isNative()) return false;
-  await nativeInvoke<null>('play_test_tone');
+  await invokeAudio<null>('play_test_tone');
   return true;
 }
 
@@ -992,7 +1013,7 @@ export async function nativePreviewSample(
   device?: string | null,
 ): Promise<string | null> {
   if (!isNative()) return null;
-  return invokeNative<string>('preview_sample', { path, device: device ?? null });
+  return invokeAudio<string>('preview_sample', { path, device: device ?? null });
 }
 
 /** The first seconds of a decoded one-shot, interleaved for the native path. */
@@ -1041,7 +1062,7 @@ export async function nativePreviewPcm(
   if (!isNative()) return null;
   const preview = interleavePreview(buffer);
   const bytes = new Uint8Array(preview.pcm.buffer, preview.pcm.byteOffset, preview.pcm.byteLength);
-  return invokeNative<string>('preview_pcm', {
+  return invokeAudio<string>('preview_pcm', {
     pcmBase64: base64FromBytes(bytes),
     channels: preview.channels,
     sampleRate: preview.sampleRate,

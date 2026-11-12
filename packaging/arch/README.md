@@ -17,10 +17,16 @@ Install one audio server before launching if you do not already have one:
 
 ```bash
 # PipeWire (usual Arch desktop)
-sudo pacman -S --needed pipewire-pulse
+sudo pacman -S --needed pipewire-pulse pipewire-alsa
 # or PulseAudio
-sudo pacman -S --needed pulseaudio
+sudo pacman -S --needed pulseaudio pulseaudio-alsa
 ```
+
+`pipewire-alsa` / `pulseaudio-alsa` is required. The native engine talks to ALSA
+through CPAL, and only that bridge package provides the `pipewire`/`pulse` ALSA
+PCM which forwards to the sound server. With the server running but the bridge
+missing, `aplay -L | grep -iE 'pipewire|pulse'` prints nothing and OpenBeats
+opens a null or already-owned device instead.
 
 The package declares the GStreamer base/good/bad/ugly/libav plugins because
 WebKitGTK uses GStreamer for Web Audio output. Without them the transport can
