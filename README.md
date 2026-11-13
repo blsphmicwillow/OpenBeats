@@ -1,6 +1,6 @@
 # OpenBeats
 
-**An open-source beatmaking studio for the desktop.** Channel Rack, step sequencer, piano roll, playlist and mixer — built with a Rust/Tauri desktop shell, a native Rust/CPAL audio engine and a React/Web Audio front end. Linux, Windows and macOS.
+**An open-source beatmaking studio for the desktop.** Channel Rack, step sequencer, piano roll, playlist and mixer, built with a Rust/Tauri desktop shell, a native Rust/CPAL audio engine and a React/Web Audio front end. Linux, Windows and macOS.
 
 [![Latest release](https://img.shields.io/github/v/release/blsphmicwillow/OpenBeats?label=release&color=ffa31a)](https://github.com/blsphmicwillow/OpenBeats/releases/latest)
 [![Release build](https://github.com/blsphmicwillow/OpenBeats/actions/workflows/release.yml/badge.svg?branch=v1.0.9)](https://github.com/blsphmicwillow/OpenBeats/actions/workflows/release.yml)
@@ -13,7 +13,7 @@
 
 ## Who builds this
 
-OpenBeats is designed, built and maintained by **[blsphmicwillow](https://github.com/blsphmicwillow)** — a solo project, with no team and no company behind it.
+OpenBeats is designed, built and maintained by **[blsphmicwillow](https://github.com/blsphmicwillow)**, a solo project, with no team and no company behind it.
 
 The code is **AI-assisted**. Large parts are written with AI coding tools working under my direction, then reviewed, tested and debugged by me. Nothing ships because a generated suggestion looked plausible:
 
@@ -22,7 +22,7 @@ The code is **AI-assisted**. Large parts are written with AI coding tools workin
 - **Debugged against reality.** 1.0.9 exists because an Arch + PipeWire + Bluetooth A2DP user sent logs that proved a stall-and-reopen loop; the fix is traced in the changelog, and the hardware report — not the test suite — is treated as the final word.
 - **Released by CI.** Linux, Windows and macOS installers are built from the tag, and a release is published only when all three jobs pass.
 
-“AI-assisted” describes the tools. The direction, the review, the testing and the responsibility for what ships are mine — bugs included.
+“AI-assisted” describes the tools. The direction, the review, the testing and the responsibility for what ships are mine, bugs included.
 
 ## Screenshots
 
