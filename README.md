@@ -11,6 +11,19 @@
 
 > OpenBeats is an independent project. It is *inspired by* the workflow of classic pattern-based DAWs (channel rack → patterns → playlist → mixer); it ships no code, samples, presets or assets from any commercial DAW.
 
+## Who builds this
+
+OpenBeats is designed, built and maintained by **[blsphmicwillow](https://github.com/blsphmicwillow)** — a solo project, with no team and no company behind it.
+
+The code is **AI-assisted**. Large parts are written with AI coding tools working under my direction, then reviewed, tested and debugged by me. Nothing ships because a generated suggestion looked plausible:
+
+- **Reviewed.** Every change gets a line-by-line review of the diff before it lands, plus an independent review pass that hunts for regressions, real-time-safety violations in the audio callback, and claims the tests cannot back up.
+- **Tested.** CI typechecks and builds the web app and compiles the native and desktop crates on Linux and Windows. The Rust audio engine has 291 unit tests and the front end has 80. Audio changes are also checked against real devices by testers.
+- **Debugged against reality.** 1.0.9 exists because an Arch + PipeWire + Bluetooth A2DP user sent logs that proved a stall-and-reopen loop; the fix is traced in the changelog, and the hardware report — not the test suite — is treated as the final word.
+- **Released by CI.** Linux, Windows and macOS installers are built from the tag, and a release is published only when all three jobs pass.
+
+“AI-assisted” describes the tools. The direction, the review, the testing and the responsibility for what ships are mine — bugs included.
+
 ## Screenshots
 
 Eleven built-in themes, Classic and Modern chrome, and an editable **My theme** with a colour wheel, HEX and RGB fields:
