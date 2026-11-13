@@ -19,7 +19,7 @@ The code is **AI-assisted**. Large parts are written with AI coding tools workin
 
 - **Reviewed.** Every change gets a line-by-line review of the diff before it lands, plus an independent review pass that hunts for regressions, real-time-safety violations in the audio callback, and claims the tests cannot back up.
 - **Tested.** CI typechecks and builds the web app and compiles the native and desktop crates on Linux and Windows. The Rust audio engine has 291 unit tests and the front end has 80. Audio changes are also checked against real devices by testers.
-- **Debugged against reality.** 1.0.9 exists because an Arch + PipeWire + Bluetooth A2DP user sent logs that proved a stall-and-reopen loop; the fix is traced in the changelog, and the hardware report — not the test suite — is treated as the final word.
+- **Debugged.** 1.0.9 exists because an Arch + PipeWire + Bluetooth A2DP user sent logs that proved a stall-and-reopen loop; the fix is traced in the changelog, and the hardware report , not the test suite , is treated as the final word.
 - **Released by CI.** Linux, Windows and macOS installers are built from the tag, and a release is published only when all three jobs pass.
 
 “AI-assisted” describes the tools. The direction, the review, the testing and the responsibility for what ships are mine, bugs included.
@@ -57,7 +57,7 @@ No account is required.
 
 | Platform | Release file | Install |
 | --- | --- | --- |
-| Arch Linux | `openbeats-bin` (in this repo) | `cd packaging/arch && yay -Bi .` — see below |
+| Arch Linux | `openbeats-bin` (in this repo) | `cd packaging/arch && yay -Bi .` , see below |
 | Linux (any) | `OpenBeats_1.0.9_amd64.AppImage` | `chmod +x`, then run it |
 | Debian / Ubuntu | `OpenBeats_1.0.9_amd64.deb` | `sudo apt install ./OpenBeats_1.0.9_amd64.deb` |
 | Fedora / RPM | `OpenBeats-1.0.9-1.x86_64.rpm` | `sudo dnf install ./OpenBeats-1.0.9-1.x86_64.rpm` |
@@ -178,7 +178,7 @@ server, so no separate multimedia package list is required.
 ### First run
 
 1. The built-in **Tutorial** project opens automatically. Press **Space** to play.
-2. `Ctrl/Cmd + K` opens the command palette — everything is reachable from there.
+2. `Ctrl/Cmd + K` opens the command palette , everything is reachable from there.
 3. **Help → Tutorial** walks the Rack → Piano roll → Playlist → Mixer flow.
 4. **File → Projects…** creates or opens songs; **File → Export** bounces a WAV,
    optionally loudness-normalised for a streaming target.
@@ -217,7 +217,7 @@ stall reopens and the host · device → sink triple. **Copy diagnostics** puts 
 that plus the version on the clipboard, and `scripts/linux-audio-probe.sh` prints
 the same facts, including the PipeWire sink inputs, from a terminal. On Linux the
 ALSA bridge is still required: `pipewire-alsa`, or `libasound2-plugins` on Debian
-and Ubuntu — without it CPAL opens a null device.
+and Ubuntu , without it CPAL opens a null device.
 
 **Should I turn Low latency on?**
 On Bluetooth and on PipeWire it can hurt. Low latency asks for a very small
@@ -296,16 +296,16 @@ The version is bumped in the app, Tauri bundle and all Rust crates.
 
 ### Engine split (which engine executes what)
 - **Rust native (CPAL):** the transport and sequencer, all 29 procedural voices (including Anvil, Prism, Sundial, Cordwood, Vector Nine, Acid Well, Dice, Dust Devil, Chatter and Hammer Felt), and the master chain **EQ → compressor → limiter**. The transmitter meter and audio logger also run natively.
-- **Web Audio only:** **playlist audio clips**, per-clip audio effects (not yet modeled), and pan automation. All fourteen mixer-strip insert types are implemented in Rust: gain, 3-band and 10-band EQ, compressor, limiter, reverb, delay, drive, filter, chorus, phaser, bitcrusher, tremolo, auto pan and ring modulator. The React bridge sends every supported strip insert and volume lane. Offline bounce and Fix My Mix still render with Web Audio, so **desktop playback and a bounce can diverge** — they are not the same signal path yet.
+- **Web Audio only:** **playlist audio clips**, per-clip audio effects (not yet modeled), and pan automation. All fourteen mixer-strip insert types are implemented in Rust: gain, 3-band and 10-band EQ, compressor, limiter, reverb, delay, drive, filter, chorus, phaser, bitcrusher, tremolo, auto pan and ring modulator. The React bridge sends every supported strip insert and volume lane. Offline bounce and Fix My Mix still render with Web Audio, so **desktop playback and a bounce can diverge** , they are not the same signal path yet.
 - **Native per-strip progress:** the CPAL callback renders one voice pool per channel, applies each channel's gain automation and native insert chain, executes the mixer graph's routes and sends, then runs the unchanged master EQ → compressor → limiter. All fourteen insert kinds process audio on a strip; every native effect is covered by a finite/changed-output test, and a -6 dB gain insert plus routing/send isolation are covered separately. The React snapshot sends every strip insert, volume lanes and the mixer graph. Sidechain ducking, the modular effect graph, per-audio-clip effects and plugin inserts are still offline-only.
 - **Per-clip pan** is applied per note by the Rust engine; the Web Audio fallback keeps using channel pan. The two engines agree on clip gain, pitch, stretch and fades, but their instrument voices are close rather than sample-identical.
 
-### Writing & mixing assistants (local DSP — no cloud, no accounts)
-- **Fix My Mix** — renders the master, measures peak / loudness / crest / stereo width and seven frequency bands, then explains what is fighting for space and applies corrective EQ, compression and a limiter as ordinary effects. A/B compares the corrected chain with the original.
-- **Mastering targets** — Spotify (−14 LUFS), Club (−9), SoundCloud (−13), YouTube (−14), applied on bounce with shelf EQ, glue compression and a true-peak-style ceiling.
-- **Hum to Melody** — records the microphone, tracks pitch, quantises to the grid and writes notes to the piano roll.
-- **Inspire Me** — four-chord progressions by key, scale and mood, with an optional root bass line.
-- **Sample tagging** — estimates BPM, brightness and instrument family on import.
+### Writing & mixing assistants (local DSP , no cloud, no accounts)
+- **Fix My Mix** , renders the master, measures peak / loudness / crest / stereo width and seven frequency bands, then explains what is fighting for space and applies corrective EQ, compression and a limiter as ordinary effects. A/B compares the corrected chain with the original.
+- **Mastering targets** , Spotify (−14 LUFS), Club (−9), SoundCloud (−13), YouTube (−14), applied on bounce with shelf EQ, glue compression and a true-peak-style ceiling.
+- **Hum to Melody** , records the microphone, tracks pitch, quantises to the grid and writes notes to the piano roll.
+- **Inspire Me** , four-chord progressions by key, scale and mood, with an optional root bass line.
+- **Sample tagging** , estimates BPM, brightness and instrument family on import.
 
 ### Discord Rich Presence
 - Toggle in **Settings → Workflow**. When enabled, Discord shows **“Making a beat..”** with the current project name.
@@ -316,9 +316,9 @@ The version is bumped in the app, Tauri bundle and all Rust crates.
 - First launch opens a saved **Tutorial** project, not a blank song; the last project is restored after that.
 
 ### Interchange with other DAWs
-- **Multi-track MIDI import/export** — one track per channel, tempo and program changes, readable by other DAWs including Ableton, Logic, Cubase, Studio One, Bitwig and REAPER.
-- **Ableton Live Set import** (`.als`) — gzipped XML, MIDI tracks and clips parsed locally.
-- **REAPER project import and export** (`.rpp`) — text project with tracks and MIDI items.
+- **Multi-track MIDI import/export** , one track per channel, tempo and program changes, readable by other DAWs including Ableton, Logic, Cubase, Studio One, Bitwig and REAPER.
+- **Ableton Live Set import** (`.als`) , gzipped XML, MIDI tracks and clips parsed locally.
+- **REAPER project import and export** (`.rpp`) , text project with tracks and MIDI items.
 - `.obeats` remains the lossless round-trip; WAV is the audio path. Details and fidelity limits: [docs/EXCHANGE.md](docs/EXCHANGE.md).
 
 ### Sounds and drag-and-drop
@@ -424,7 +424,7 @@ scripts/        icon generation and plugin validation/fetching
 
 - Installers are produced by CI. Building them requires the platform SDKs (Xcode on macOS, MSVC on Windows); cross-building installers is not supported.
 - CI builds the Linux packages on Ubuntu 22.04 (glibc 2.35), so they run on 22.04 and newer. A local build follows the host's glibc and may not start on older distributions.
-- The update checker **notifies** and links to the release. Silent in-app installation is prepared but needs a signed Tauri updater key pair (`TAURI_SIGNING_PRIVATE_KEY`, `plugins.updater.pubkey`) — see the build guide.
+- The update checker **notifies** and links to the release. Silent in-app installation is prepared but needs a signed Tauri updater key pair (`TAURI_SIGNING_PRIVATE_KEY`, `plugins.updater.pubkey`) , see the build guide.
 - The desktop build plays through the **native Rust engine**; the browser build uses Web Audio. The two are not sample-identical yet. Per-strip inserts, volume automation, mixer routing and sends are wired into the native callback; sidechain, the modular graph, pan automation and plugin inserts are still not.
 - **VST3/CLAP hosting** runs out of process on Windows and macOS. Linux has a separate CLAP-only sidecar that scans and loads plugins. On every platform, **plugin inserts** are still not routed into the CPAL callback, so loading a plugin does not yet change playback.
 - The assistants are deterministic local DSP, not a hosted language model. Nothing is uploaded.
