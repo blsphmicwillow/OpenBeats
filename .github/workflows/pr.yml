@@ -59,6 +59,12 @@ jobs:
 
       - uses: dtolnay/rust-toolchain@stable
 
+      - name: Set up Node.js for WAV capture check
+        if: matrix.platform == 'ubuntu-22.04'
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
       - name: Cache Rust build
         uses: swatinem/rust-cache@v2
         with:
@@ -70,7 +76,7 @@ jobs:
           set -euo pipefail
           sudo apt-get update
           sudo DEBIAN_FRONTEND=noninteractive apt-get install -y \
-            libasound2-dev pulseaudio-utils
+            libasound2-dev libasound2-plugins pulseaudio pulseaudio-utils
 
       # No device is opened here. This is the check that runs on every platform,
       # including Windows runners, which have no audio endpoint at all.
@@ -78,10 +84,8 @@ jobs:
         working-directory: src-tauri
         run: cargo run -q -p openbeats-audio --example audio_smoke -- --offline --seconds 2
 
-      # GitHub's runner has no sound card and ALSA enumerates nothing, so
-      # opening a stream there is diagnostic only (`--list` prints what the host
-      # offers). Compiling the ALSA backend for real — headers, linker, CPAL
-      # device feature — is the part that is gated here.
+      # This best-effort null-PCM open is diagnostic. The required capture step
+      # below verifies enumeration, stream output and the recorded signal.
       # Answers "which bridge package does this image actually have?" from the
       # image itself instead of from memory: jammy has no pipewire-alsa.
       - name: Report the ALSA bridge packages this image offers
@@ -106,6 +110,117 @@ jobs:
           cargo run -q -p openbeats-audio --features device --example audio_smoke -- --list
           cargo run -q -p openbeats-audio --features device --example audio_smoke \
             -- --device null --seconds 1
+
+      - name: Capture audio through the ALSA Pulse bridge
+        if: matrix.platform == 'ubuntu-22.04'
+        working-directory: src-tauri
+        shell: bash
+        run: |
+          set -euo pipefail
+          export XDG_RUNTIME_DIR="$RUNNER_TEMP/openbeats-pulse-runtime"
+          mkdir -p "$XDG_RUNTIME_DIR/pulse"
+          chmod 700 "$XDG_RUNTIME_DIR" "$XDG_RUNTIME_DIR/pulse"
+          export PULSE_SERVER="unix:$XDG_RUNTIME_DIR/pulse/native"
+          capture="$RUNNER_TEMP/openbeats-pulse-capture.wav"
+          pulse_log="$RUNNER_TEMP/openbeats-pulseaudio.log"
+          capture_log="$RUNNER_TEMP/openbeats-parec.log"
+          pulse_pid=
+          capture_pid=
+
+          cleanup() {
+            if [[ -n "$capture_pid" ]] && kill -0 "$capture_pid" 2>/dev/null; then
+              kill -TERM "$capture_pid" 2>/dev/null || true
+              wait "$capture_pid" 2>/dev/null || true
+            fi
+            if [[ -n "$pulse_pid" ]] && kill -0 "$pulse_pid" 2>/dev/null; then
+              kill "$pulse_pid" 2>/dev/null || true
+              wait "$pulse_pid" 2>/dev/null || true
+            fi
+          }
+          trap cleanup EXIT
+
+          pulseaudio --daemonize=no --exit-idle-time=-1 --disallow-exit -n \
+            --load="module-null-sink sink_name=smoke" \
+            --load="module-native-protocol-unix socket=$XDG_RUNTIME_DIR/pulse/native" \
+            >"$pulse_log" 2>&1 &
+          pulse_pid=$!
+
+          server_ready=false
+          for _ in {1..40}; do
+            if pactl info >/dev/null 2>&1; then
+              server_ready=true
+              break
+            fi
+            if ! kill -0 "$pulse_pid" 2>/dev/null; then
+              break
+            fi
+            sleep 0.25
+          done
+          if [[ "$server_ready" != true ]]; then
+            cat "$pulse_log"
+            echo "PulseAudio did not become ready" >&2
+            exit 1
+          fi
+
+          pactl list short sinks | awk '$2 == "smoke" { found=1 } END { exit !found }'
+          pactl list short sources | awk '$2 == "smoke.monitor" { found=1 } END { exit !found }'
+
+          timeout --preserve-status --signal=INT --kill-after=5s 8s \
+            parec --device=smoke.monitor --file-format=wav "$capture" \
+            >"$capture_log" 2>&1 &
+          capture_pid=$!
+
+          recorder_ready=false
+          for _ in {1..40}; do
+            source_outputs="$(pactl list short source-outputs)"
+            if [[ -n "$source_outputs" ]]; then
+              recorder_ready=true
+              break
+            fi
+            if ! kill -0 "$capture_pid" 2>/dev/null; then
+              break
+            fi
+            sleep 0.1
+          done
+          if [[ "$recorder_ready" != true ]]; then
+            cat "$capture_log"
+            echo "parec did not connect to the null-sink monitor" >&2
+            exit 1
+          fi
+
+          device_list="$(cargo run -q -p openbeats-audio --features device --example audio_smoke -- --list)"
+          printf '%s\n' "$device_list"
+          node -e '
+            const result = JSON.parse(process.argv[1]);
+            if (!result.outputs.some((name) => /pulse/i.test(name))) {
+              console.error("CPAL did not enumerate the ALSA Pulse bridge");
+              process.exit(1);
+            }
+          ' "$device_list"
+
+          probe_output="$(cargo run -q -p openbeats-audio --features device --example audio_smoke \
+            -- --device 'PulseAudio|sink:smoke' --seconds 3 | tail -n 1)"
+          printf '%s\n' "$probe_output"
+          node -e '
+            const result = JSON.parse(process.argv[1]);
+            if (!/pulse/i.test(result.opened)) {
+              console.error(`the engine opened "${result.opened}", not the ALSA Pulse bridge`);
+              process.exit(1);
+            }
+          ' "$probe_output"
+
+          if wait "$capture_pid"; then
+            capture_pid=
+          else
+            status=$?
+            capture_pid=
+            if [[ "$status" -ne 124 && "$status" -ne 130 ]]; then
+              cat "$capture_log"
+              exit "$status"
+            fi
+          fi
+
+          node ../scripts/wav-rms.mjs "$capture" 0.001
 
   desktop:
     name: Desktop crate (${{ matrix.label }})

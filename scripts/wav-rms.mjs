@@ -21,7 +21,7 @@ if (!file) {
 const bytes = readFileSync(file);
 const ascii = (offset, length) => bytes.subarray(offset, offset + length).toString('latin1');
 
-if (ascii(0, 4) !== 'RIFF' || ascii(8, 12) !== 'WAVE') {
+if (ascii(0, 4) !== 'RIFF' || ascii(8, 4) !== 'WAVE') {
   console.error(`${file} is not a RIFF/WAVE file`);
   process.exit(2);
 }

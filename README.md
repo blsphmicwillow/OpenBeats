@@ -13,7 +13,7 @@
 
 ## Who builds this
 
-OpenBeats is designed, built and maintained by **[blsphmicwillow](https://github.com/blsphmicwillow)**, a solo project, with no team and no company behind it.
+OpenBeats is designed, built and maintained by **[blsphmicwillow](https://github.com/blsphmicwillow)** and **[lizard (@lizardman124)](https://github.com/lizardman124)**, a small independent project with no company behind it.
 
 The code is **AI-assisted**. Large parts are written with AI coding tools working under my direction, then reviewed, tested and debugged by me. Nothing ships because a generated suggestion looked plausible:
 
