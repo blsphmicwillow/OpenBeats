@@ -63,8 +63,10 @@ node scripts/wav-rms.mjs /tmp/capture.wav 0.001
 ```
 
 The script prints peak and RMS and exits non-zero below the threshold. It is also
-the checker for the CI capture test tracked in
-[issue #4](https://github.com/blsphmicwillow/OpenBeats/issues/4).
+used by the Linux live-capture check in `.github/workflows/pr.yml`, which starts
+PulseAudio with a null sink, verifies that CPAL enumerates and opens the ALSA
+Pulse bridge, and requires captured RMS of at least `0.001`. The offline render
+remains a separate cross-platform check.
 
 ## 5. Shipping
 
