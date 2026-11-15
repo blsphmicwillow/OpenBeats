@@ -74,29 +74,38 @@ export function scheduleMixerAutomation(
   for (const strip of project.strips) {
     const node = graph.strips.get(strip.id);
     if (!node) continue;
-    for (const target of ['volume', 'pan'] as const) {
-      const lane = laneFor(strip, target);
-      if (!lane.points.length) continue;
-      const param = target === 'volume' ? node.fader.gain : node.panner.pan;
-      const fallback = fallbackFor(strip, target);
-      const startValue = automationValueAt(lane, schedule.fromStep, fallback);
-      try {
-        param.cancelScheduledValues(schedule.startAtSec);
-        param.setValueAtTime(scale(target, startValue), schedule.startAtSec);
-        for (let index = 0; index < lane.points.length; index += 1) {
-          const point = lane.points[index];
-          if (point.step <= schedule.fromStep) continue;
-          const left = index > 0 ? lane.points[index - 1] : null;
-          if (!left) {
-            const when = schedule.startAtSec + (point.step - schedule.fromStep) * schedule.stepSec;
-            param.setValueAtTime(scale(target, point.value), when);
-            continue;
-          }
-          scheduleSegment(param, target, left, point, schedule);
+    scheduleStripAutomation(node.fader.gain, node.panner.pan, strip, schedule);
+  }
+}
+
+export function scheduleStripAutomation(
+  fader: AudioParam,
+  panner: AudioParam,
+  strip: Project['strips'][number],
+  schedule: MixerAutomationSchedule,
+): void {
+  for (const target of ['volume', 'pan'] as const) {
+    const lane = laneFor(strip, target);
+    if (!lane.points.length) continue;
+    const param = target === 'volume' ? fader : panner;
+    const fallback = fallbackFor(strip, target);
+    const startValue = automationValueAt(lane, schedule.fromStep, fallback);
+    try {
+      param.cancelScheduledValues(schedule.startAtSec);
+      param.setValueAtTime(scale(target, startValue), schedule.startAtSec);
+      for (let index = 0; index < lane.points.length; index += 1) {
+        const point = lane.points[index];
+        if (point.step <= schedule.fromStep) continue;
+        const left = index > 0 ? lane.points[index - 1] : null;
+        if (!left) {
+          const when = schedule.startAtSec + (point.step - schedule.fromStep) * schedule.stepSec;
+          param.setValueAtTime(scale(target, point.value), when);
+          continue;
         }
-      } catch {
-        // A parameter that refuses scheduling must not stop the transport.
+        scheduleSegment(param, target, left, point, schedule);
       }
+    } catch {
+      // A parameter that refuses scheduling must not stop the transport.
     }
   }
 }

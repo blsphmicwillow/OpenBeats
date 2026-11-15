@@ -9,6 +9,7 @@ license = "MIT"
 [dependencies]
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+crossbeam-queue = "0.3"
 cpal = { version = "0.15", optional = true }
 fundsp = { version = "0.20", optional = true }
 symphonia = { version = "0.5", optional = true, default-features = false, features = [
@@ -41,3 +42,8 @@ decode = ["dep:symphonia"]
 mp3 = ["dep:mp3lame-encoder"]
 # fundsp-backed oscillator graph for the test tone and the master glue.
 fundsp-graph = ["dep:fundsp"]
+
+[[example]]
+name = "clap_smoke"
+path = "examples/clap_smoke.rs"
+required-features = ["device"]

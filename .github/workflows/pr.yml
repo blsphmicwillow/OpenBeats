@@ -78,6 +78,13 @@ jobs:
           sudo DEBIAN_FRONTEND=noninteractive apt-get install -y \
             libasound2-dev libasound2-plugins pulseaudio pulseaudio-utils
 
+      - name: Build the Linux CLAP smoke fixture and helper
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          set -euo pipefail
+          (cd plugins/openbeats-gain && bash build.sh)
+          cargo build -p openbeats-clap-helper --manifest-path src-tauri/Cargo.toml
+
       # No device is opened here. This is the check that runs on every platform,
       # including Windows runners, which have no audio endpoint at all.
       - name: Offline render produces audio
@@ -100,7 +107,7 @@ jobs:
       - name: Device layer compiles against ALSA
         if: matrix.platform == 'ubuntu-22.04'
         working-directory: src-tauri
-        run: cargo build -q -p openbeats-audio --features device --example audio_smoke
+        run: cargo build -q -p openbeats-audio --features device --example audio_smoke --example clap_smoke
 
       - name: Open the ALSA null PCM (diagnostic)
         if: matrix.platform == 'ubuntu-22.04'
@@ -165,7 +172,7 @@ jobs:
           pactl list short sinks | awk '$2 == "smoke" { found=1 } END { exit !found }'
           pactl list short sources | awk '$2 == "smoke.monitor" { found=1 } END { exit !found }'
 
-          timeout --preserve-status --signal=INT --kill-after=5s 8s \
+          timeout --preserve-status --signal=INT --kill-after=5s 12s \
             parec --device=smoke.monitor --file-format=wav "$capture" \
             >"$capture_log" 2>&1 &
           capture_pid=$!
@@ -208,6 +215,12 @@ jobs:
               process.exit(1);
             }
           ' "$probe_output"
+
+          clap_output="$(CLAP_PATH="$GITHUB_WORKSPACE/plugins/openbeats-gain/dist" \
+            OPENBEATS_CLAP_HELPER="$GITHUB_WORKSPACE/target/debug/openbeats-clap-helper" \
+            cargo run -q -p openbeats-audio --features device --example clap_smoke \
+              -- --device 'PulseAudio|sink:smoke' --seconds 0.5)"
+          printf '%s\n' "$clap_output"
 
           if wait "$capture_pid"; then
             capture_pid=
@@ -260,7 +273,8 @@ jobs:
             libunwind-dev \
             libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev \
             librsvg2-dev libsoup-3.0-dev libssl-dev libasound2-dev \
-            libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev
+            libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev \
+            libx11-dev xvfb
 
       - name: Install frontend dependencies
         run: npm ci
@@ -289,7 +303,37 @@ jobs:
           fi
           ls -l binaries
 
+      - name: Build OpenBeats Gain CLAP fixture
+        if: matrix.platform == 'ubuntu-22.04'
+        working-directory: plugins/openbeats-gain
+        run: bash build.sh
+
+      - name: Build native X11 GUI CLAP fixture
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          set -euo pipefail
+          cargo build --release --manifest-path plugins/openbeats-gui-fixture/Cargo.toml
+          cp plugins/openbeats-gui-fixture/target/release/libopenbeats_gui_fixture.so \
+            plugins/openbeats-gui-fixture/target/release/OpenBeatsGuiFixture.clap
+
+      - name: CLAP helper protocol tests
+        if: matrix.platform == 'ubuntu-22.04'
+        working-directory: src-tauri
+        env:
+          CLAP_PATH: ${{ github.workspace }}/plugins/openbeats-gain/dist
+          OPENBEATS_GUI_CLAP_FIXTURE: ${{ github.workspace }}/plugins/openbeats-gui-fixture/target/release/OpenBeatsGuiFixture.clap
+        run: xvfb-run -a cargo test -p openbeats-clap-helper
+
+      - name: Linux engine tests with real CLAP fixture
+        if: matrix.platform == 'ubuntu-22.04'
+        working-directory: src-tauri
+        env:
+          CLAP_PATH: ${{ github.workspace }}/plugins/openbeats-gain/dist
+          OPENBEATS_CLAP_HELPER: ${{ github.workspace }}/src-tauri/binaries/openbeats-clap-helper-x86_64-unknown-linux-gnu
+        run: cargo test -p openbeats-audio --lib
+
       - name: Native engine tests
+        if: matrix.platform == 'windows-latest'
         working-directory: src-tauri
         run: cargo test -p openbeats-audio --lib
 

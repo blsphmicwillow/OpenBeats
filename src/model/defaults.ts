@@ -309,6 +309,7 @@ export function createStrip(id: number, name: string, color: string): Strip {
     route: 0,
     sends: [],
     effects: [],
+    clapPlugin: null,
     group: '',
     collapsed: false,
     automation: [

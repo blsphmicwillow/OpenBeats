@@ -3,6 +3,7 @@
 //! The React frontend sends a compact JSON playback snapshot; Rust owns the
 //! transport, the synth voices, the master chain and the recovery buffer.
 
+use std::collections::HashMap;
 use std::sync::Mutex;
 use std::time::Duration;
 
@@ -47,6 +48,14 @@ pub struct PlaybackStatus {
 }
 
 #[derive(Serialize)]
+pub struct CapturedPluginState {
+    pub strip_id: usize,
+    pub plugin_id: String,
+    pub state: Option<Vec<u8>>,
+    pub parameters: HashMap<u32, f64>,
+}
+
+#[derive(Serialize)]
 pub struct RecoveredLog {
     pub path: String,
     pub frames: usize,
@@ -79,6 +88,7 @@ fn stopped_snapshot() -> EngineSnapshot {
         host: String::new(),
         stall_reopens: 0,
         last_reopen: String::new(),
+        failed_plugin_strips: Vec::new(),
     }
 }
 
@@ -95,10 +105,15 @@ pub fn audio_bridge_status() -> String {
 /// Starts (or reuses) the CPAL stream and plays the supplied sequencer data.
 #[tauri::command]
 pub fn start_playback(
+    app: AppHandle,
     state: State<'_, AudioState>,
     project_data: String,
 ) -> Result<PlaybackStatus, String> {
-    let project = PlaybackProject::from_json(&project_data)?;
+    let mut project = PlaybackProject::from_json(&project_data)?;
+    #[cfg(target_os = "linux")]
+    {
+        project.plugin_helper = crate::plugin_commands::clap_helper_path(&app);
+    }
     let mut guard = state
         .engine
         .lock()
@@ -131,6 +146,80 @@ pub fn stop_playback(state: State<'_, AudioState>) -> Result<(), String> {
         engine.stop();
     }
     Ok(())
+}
+
+#[tauri::command]
+pub fn capture_clap_plugin_states(
+    state: State<'_, AudioState>,
+) -> Result<Vec<CapturedPluginState>, String> {
+    let guard = state
+        .engine
+        .lock()
+        .map_err(|_| "the audio state is unavailable".to_string())?;
+    let Some(engine) = guard.as_ref() else {
+        return Ok(Vec::new());
+    };
+    Ok(engine
+        .capture_plugin_states()?
+        .into_iter()
+        .map(
+            |(strip_id, plugin_id, state, parameters)| CapturedPluginState {
+                strip_id,
+                plugin_id,
+                state,
+                parameters,
+            },
+        )
+        .collect())
+}
+
+#[tauri::command]
+pub fn set_clap_plugin_parameter(
+    state: State<'_, AudioState>,
+    strip_id: usize,
+    plugin_id: String,
+    parameter_id: u32,
+    value: f64,
+) -> Result<bool, String> {
+    if !value.is_finite() {
+        return Err("plugin parameter value must be finite".to_string());
+    }
+    let guard = state
+        .engine
+        .lock()
+        .map_err(|_| "the audio state is unavailable".to_string())?;
+    let Some(engine) = guard.as_ref() else {
+        return Ok(false);
+    };
+    engine.set_plugin_parameter(strip_id, &plugin_id, parameter_id, value)
+}
+
+#[tauri::command]
+pub fn set_clap_plugin_gui(
+    window: tauri::WebviewWindow,
+    state: State<'_, AudioState>,
+    strip_id: usize,
+    plugin_id: String,
+    open: bool,
+) -> Result<bool, String> {
+    use raw_window_handle::{HasWindowHandle, RawWindowHandle};
+
+    let parent_x11 = window
+        .window_handle()
+        .ok()
+        .and_then(|handle| match handle.as_raw() {
+            RawWindowHandle::Xlib(handle) => Some(u64::from(handle.window)),
+            RawWindowHandle::Xcb(handle) => Some(u64::from(handle.window.get())),
+            _ => None,
+        });
+    let guard = state
+        .engine
+        .lock()
+        .map_err(|_| "the audio state is unavailable".to_string())?;
+    let engine = guard
+        .as_ref()
+        .ok_or_else(|| "start playback before opening a native CLAP editor".to_string())?;
+    engine.set_plugin_gui_open(strip_id, &plugin_id, open, parent_x11)
 }
 
 #[tauri::command]
