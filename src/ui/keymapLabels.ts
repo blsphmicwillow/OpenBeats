@@ -1,5 +1,14 @@
 import type { KeyAction } from '../model/types';
 
+/** The four fields the combo builder needs, so React and DOM events both fit. */
+export interface KeyEventLike {
+  ctrlKey: boolean;
+  metaKey: boolean;
+  altKey: boolean;
+  shiftKey: boolean;
+  key: string;
+}
+
 export const KEY_ACTION_LABELS: Record<KeyAction, string> = {
   playToggle: 'Play / pause',
   record: 'Arm recording',
@@ -22,7 +31,7 @@ export const KEY_ACTION_LABELS: Record<KeyAction, string> = {
   help: 'Manual & shortcuts',
 };
 
-export function comboFromEvent(e: KeyboardEvent | React.KeyboardEvent): string {
+export function comboFromEvent(e: KeyEventLike): string {
   const parts: string[] = [];
   if (e.ctrlKey || e.metaKey) parts.push('Ctrl');
   if (e.altKey) parts.push('Alt');

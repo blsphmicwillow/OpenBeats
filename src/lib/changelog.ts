@@ -11,6 +11,43 @@ export interface ChangelogEntry {
  */
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '1.1.0',
+    date: '2026-11-15',
+    headline: 'Linux CLAP plugins now reach the mixer, hosted in a supervised helper.',
+    groups: [
+      {
+        title: 'Plugin hosting',
+        items: [
+          'Linux CLAP effects are routed per strip into the native mixer, so loading one changes what you hear.',
+          'Hosting is supervised: the helper runs out of process and the audio callback only exchanges fixed-size blocks through a real-time safe bridge.',
+          'A plugin that fails to load, stalls or exits is reported and isolated, and the rest of the project keeps playing.',
+          'Plugin latency is measured and compensated; parameter changes and state are saved with the project and restored on load.',
+          'A native editor-window path opens plugin UIs without blocking audio.',
+        ],
+      },
+      {
+        title: 'Fixes',
+        items: [
+          'Windows: the X11 window handle conversion used the wrong integer width, which broke the desktop build.',
+          'CI: the Linux audio capture check is more reliable, and all five checks pass.',
+        ],
+      },
+      {
+        title: 'Status',
+        items: [
+          'The release gate for 1.1.0 is automated: five CI checks on the merged commit. No hardware report is attached to this version yet.',
+        ],
+      },
+      {
+        title: 'Not in this release',
+        items: [
+          'Windows and macOS plugin inserts are still not routed into the audio callback.',
+          'Playlist audio clips, per-clip effects and pan automation remain Web Audio only.',
+        ],
+      },
+    ],
+  },
+  {
     version: '1.0.9',
     date: '2026-11-12',
     headline: 'Audio reliability: the app tells you why it is silent, and Linux packages install the bridge.',

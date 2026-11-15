@@ -677,6 +677,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "crossbeam-queue"
+version = "0.3.14"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "03e8bd762f7479489c70ed6c768ddca99d7296857de437a68dcb2a94365b3fae"
+dependencies = [
+ "crossbeam-utils",
+]
+
+[[package]]
 name = "crossbeam-utils"
 version = "0.8.23"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2916,13 +2925,14 @@ checksum = "9f7c3e4beb33f85d45ae3e3a1792185706c8e16d043238c593331cc7cd313b50"
 
 [[package]]
 name = "openbeats"
-version = "1.0.9"
+version = "1.1.0"
 dependencies = [
  "base64 0.22.1",
  "discord-rich-presence",
  "hound",
  "openbeats-audio",
  "openbeats-plugins",
+ "raw-window-handle",
  "reqwest 0.12.28",
  "serde",
  "serde_json",
@@ -2934,9 +2944,10 @@ dependencies = [
 
 [[package]]
 name = "openbeats-audio"
-version = "1.0.9"
+version = "1.1.0"
 dependencies = [
  "cpal",
+ "crossbeam-queue",
  "flacenc",
  "fundsp",
  "mp3lame-encoder",
@@ -2949,9 +2960,13 @@ dependencies = [
 
 [[package]]
 name = "openbeats-clap-helper"
-version = "1.0.9"
+version = "1.1.0"
 dependencies = [
+ "clack-extensions",
  "clack-host",
+ "clap-sys",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]

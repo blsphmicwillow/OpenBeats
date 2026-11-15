@@ -3,7 +3,7 @@
 **An open-source beatmaking studio for the desktop.** Channel Rack, step sequencer, piano roll, playlist and mixer, built with a Rust/Tauri desktop shell, a native Rust/CPAL audio engine and a React/Web Audio front end. Linux, Windows and macOS.
 
 [![Latest release](https://img.shields.io/github/v/release/blsphmicwillow/OpenBeats?label=release&color=ffa31a)](https://github.com/blsphmicwillow/OpenBeats/releases/latest)
-[![Release build](https://github.com/blsphmicwillow/OpenBeats/actions/workflows/release.yml/badge.svg?branch=v1.0.9)](https://github.com/blsphmicwillow/OpenBeats/actions/workflows/release.yml)
+[![Release build](https://github.com/blsphmicwillow/OpenBeats/actions/workflows/release.yml/badge.svg?branch=v1.1.0)](https://github.com/blsphmicwillow/OpenBeats/actions/workflows/release.yml)
 [![License: GPL-3.0-or-later](https://img.shields.io/badge/license-GPL--3.0--or--later-blue)](LICENSE)
 [![Platforms](https://img.shields.io/badge/platform-linux%20%7C%20windows%20%7C%20macOS-lightgrey)](#install-openbeats-108)
 
@@ -49,30 +49,30 @@ Eleven built-in themes, Classic and Modern chrome, and an editable **My theme** 
 
 ---
 
-## Install OpenBeats 1.0.9
+## Install OpenBeats 1.1.0
 
 Every package is built by GitHub Actions and attached to the
-[1.0.9 release](https://github.com/blsphmicwillow/OpenBeats/releases/tag/v1.0.9).
+[1.1.0 release](https://github.com/blsphmicwillow/OpenBeats/releases/tag/v1.1.0).
 No account is required.
 
 | Platform | Release file | Install |
 | --- | --- | --- |
 | Arch Linux | `openbeats-bin` (in this repo) | `cd packaging/arch && yay -Bi .` , see below |
-| Linux (any) | `OpenBeats_1.0.9_amd64.AppImage` | `chmod +x`, then run it |
-| Debian / Ubuntu | `OpenBeats_1.0.9_amd64.deb` | `sudo apt install ./OpenBeats_1.0.9_amd64.deb` |
-| Fedora / RPM | `OpenBeats-1.0.9-1.x86_64.rpm` | `sudo dnf install ./OpenBeats-1.0.9-1.x86_64.rpm` |
-| Windows 10/11 | `OpenBeats_1.0.9_x64-setup.exe` | Run the installer (or use the `.msi`) |
-| macOS (Apple silicon) | `OpenBeats_1.0.9_aarch64.dmg` | Open the DMG and drag OpenBeats to Applications |
+| Linux (any) | `OpenBeats_1.1.0_amd64.AppImage` | `chmod +x`, then run it |
+| Debian / Ubuntu | `OpenBeats_1.1.0_amd64.deb` | `sudo apt install ./OpenBeats_1.1.0_amd64.deb` |
+| Fedora / RPM | `OpenBeats-1.1.0-1.x86_64.rpm` | `sudo dnf install ./OpenBeats-1.1.0-1.x86_64.rpm` |
+| Windows 10/11 | `OpenBeats_1.1.0_x64-setup.exe` | Run the installer (or use the `.msi`) |
+| macOS (Apple silicon) | `OpenBeats_1.1.0_aarch64.dmg` | Open the DMG and drag OpenBeats to Applications |
 | Source | `git clone` | [docs/BUILDING.md](docs/BUILDING.md) |
 
-There is no separate Intel-Mac DMG in 1.0.9; Intel Macs can build from source.
+There is no separate Intel-Mac DMG in 1.1.0; Intel Macs can build from source.
 Full per-platform commands, dependencies and troubleshooting are in
 [docs/INSTALL.md](docs/INSTALL.md). Release history: [CHANGELOG.md](CHANGELOG.md).
 
 ### Arch Linux with `yay`
 
 The AUR-ready package lives in [`packaging/arch`](packaging/arch). It installs
-the official 1.0.9 AppImage under `/opt/openbeats`, creates
+the official 1.1.0 AppImage under `/opt/openbeats`, creates
 `/usr/bin/openbeats`, and declares the GTK, GStreamer and PulseAudio runtime it needs.
 
 **Install from this repository now** (works without the AUR):
@@ -118,14 +118,14 @@ ssh -T aur@aur.archlinux.org   # must greet you; needs an AUR SSH key
 git clone ssh://aur@aur.archlinux.org/openbeats-bin.git
 cp packaging/arch/PKGBUILD packaging/arch/.SRCINFO openbeats-bin/
 cd openbeats-bin && git add PKGBUILD .SRCINFO
-git commit -m "openbeats-bin 1.0.9" && git push
+git commit -m "openbeats-bin 1.1.0" && git push
 ```
 
 ### AppImage (portable Linux)
 
 ```bash
 curl -L -o OpenBeats.AppImage \
-  https://github.com/blsphmicwillow/OpenBeats/releases/download/v1.0.9/OpenBeats_1.0.9_amd64.AppImage
+  https://github.com/blsphmicwillow/OpenBeats/releases/download/v1.1.0/OpenBeats_1.1.0_amd64.AppImage
 chmod +x OpenBeats.AppImage
 ./OpenBeats.AppImage
 ```
@@ -140,8 +140,8 @@ and retry; `--appimage-extract-and-run` also bypasses the FUSE mount.
 ### Debian / Ubuntu
 
 ```bash
-curl -L -O https://github.com/blsphmicwillow/OpenBeats/releases/download/v1.0.9/OpenBeats_1.0.9_amd64.deb
-sudo apt install ./OpenBeats_1.0.9_amd64.deb
+curl -L -O https://github.com/blsphmicwillow/OpenBeats/releases/download/v1.1.0/OpenBeats_1.1.0_amd64.deb
+sudo apt install ./OpenBeats_1.1.0_amd64.deb
 openbeats
 ```
 
@@ -152,7 +152,7 @@ should not need to install audio plugins by hand.
 ### Fedora
 
 ```bash
-sudo dnf install ./OpenBeats-1.0.9-1.x86_64.rpm
+sudo dnf install ./OpenBeats-1.1.0-1.x86_64.rpm
 openbeats
 ```
 
@@ -161,7 +161,7 @@ server, so no separate multimedia package list is required.
 
 ### Windows
 
-1. Download `OpenBeats_1.0.9_x64-setup.exe` (or the `.msi`) from the release.
+1. Download `OpenBeats_1.1.0_x64-setup.exe` (or the `.msi`) from the release.
 2. Run it. Current installers use the WebView2 download bootstrapper: if
    WebView2 is missing, setup downloads it once, so allow network access on the
    first install.
@@ -170,7 +170,7 @@ server, so no separate multimedia package list is required.
 
 ### macOS (Apple silicon)
 
-1. Download `OpenBeats_1.0.9_aarch64.dmg` and open it.
+1. Download `OpenBeats_1.1.0_aarch64.dmg` and open it.
 2. Drag **OpenBeats** into **Applications**.
 3. The DMG is not notarised, so on first launch use **Control-click → Open**, or
    run `xattr -dr com.apple.quarantine /Applications/OpenBeats.app`.
@@ -228,13 +228,13 @@ and tells you. Leave it off for Bluetooth, turn it on for a wired interface or a
 USB DAC.
 
 **Can I use VST3, AU or CLAP plugins?**
-Hosting is available on Windows/macOS (out-of-process). On Linux, 1.0.9 adds a
-CLAP-only sidecar: **View → Plugin library…** scans `~/.clap`, `/usr/lib/clap`,
-`/usr/local/lib/clap` and `$CLAP_PATH`, and **Load** returns READY from a real
-`clack-host` instance. No platform routes a plugin into the mixer yet: inserts
-are not wired into the CPAL callback, so a loaded plugin cannot sit on a strip
-or affect audio. Windows/macOS keep the existing `plughost-helper` path, which
-is also not UI-wired or routed into the callback. The first-party
+On Linux, 1.1.0 hosts CLAP effects in a supervised helper and routes them into the native
+mixer, so a loaded effect sits on a strip and changes playback. **View, Plugin
+library...** scans `~/.clap`, `/usr/lib/clap`, `/usr/local/lib/clap` and
+`$CLAP_PATH`; load one onto a strip from the mixer. Latency is measured and
+compensated, and plugin state is saved with the project. VST3 and AU are not
+hosted on Linux. Windows and macOS keep the existing `plughost-helper` path, and
+their inserts are still not routed into the callback. The first-party
 **OpenBeats Gain** proof plugin is included. The honest status is in
 [docs/PLUGINS.md](docs/PLUGINS.md).
 
@@ -249,7 +249,7 @@ the Projects dialog rather than editing browser-storage files by hand; exports
 are written wherever you choose.
 
 **Is there an Intel Mac build?**
-Not in 1.0.9. Build from source with the steps in
+Not in 1.1.0. Build from source with the steps in
 [docs/BUILDING.md](docs/BUILDING.md).
 
 **How do I update?**
@@ -257,8 +257,8 @@ Download the latest release. The in-app banner and **Help → Check for updates�
 notify you and link to GitHub; silent self-update is not enabled because the
 release is not signed with a Tauri updater key.
 
-**Is OpenBeats really 1.0.9?**
-Yes. 1.0.9 puts all fourteen mixer insert types in the native Rust/CPAL
+**Is OpenBeats really 1.1.0?**
+Yes. 1.1.0 puts all fourteen mixer insert types in the native Rust/CPAL
 callback, executes per-strip routes and sends there, adds an **Effects** browser
 tab to the mixer, and fixes the Linux master-volume bridge so the knob reaches
 the native output. It also persists output/input, low-latency, cue and monitor
@@ -278,7 +278,7 @@ The version is bumped in the app, Tauri bundle and all Rust crates.
 - **Channel Rack** with step sequencer, per-channel instrument, mixer routing, mute/solo and 29 built-in instrument voices, including ten original engines added in 1.0.6 (Anvil, Prism, Sundial, Cordwood, Vector Nine, Acid Well, Dice, Dust Devil, Chatter, Hammer Felt) available in both the Rust/CPAL and Web Audio engines. **Add ▸ Linked** creates a channel together with its own playlist track and mixer strip, sharing one name and colour and routed automatically; **Relink** moves an existing channel to a fresh track and strip while carrying its inserts, sends, gain, pan and group.
 - **Piano roll** with draw, select, resize and velocity editing; scale highlighting.
 - **Playlist** with pattern clips, **audio clips** and **named markers**. Drop a WAV/MP3/OGG/FLAC on a lane for an LOD waveform, gain/pan/fades and loop-aware playback. Add markers with F6, drag or rename them, jump with Alt+Left/Alt+Right, and loop from a marker to the next one. Selected clips expose gain, pan and fade controls, with visible fade handles and a one-click crossfade to the next overlapping clip. Copy, cut and paste clips at the playhead with Ctrl/Cmd+C/X/V, and nudge them with Shift+Arrow keys. Shift/Cmd-click selects several clips; the batch inspector then edits gain and fades and quantises every selected start to the snap grid in one undo step. Track mute/solo, the loop region and the snap grid are unchanged.
-  - **Playlist audio clips: Web Audio only in 1.0.9; native Rust playback pending.**
+  - **Playlist audio clips: Web Audio only in 1.1.0; native Rust playback pending.**
   - Media bytes are cached in the WebView (IndexedDB) with a SHA-256 integrity hash; native app-data persistence is planned for 1.1.
 - **Mixer** with inserts, sends, buses and a master strip; 14 built-in effect types (3-band and 10-band EQ, compressor, limiter, reverb, delay, drive, filter, chorus, phaser, bitcrusher, tremolo, auto pan, ring modulator). The insert rack has **Chain** and **Effects** tabs: browse every effect by category and add it to the selected strip, or edit the loaded chain. All fourteen have native DSP in the CPAL callback. **Web Audio volume/pan automation lanes** have linear, hold and smooth segments and tempo-synced fade-in, tremolo and ducking presets that render into offline bounces. Save a strip's insert chain from the **Chains** menu and recall it on any other strip.
 - **Song / Pattern mode**, metronome, count-in, tempo and swing.
@@ -297,7 +297,7 @@ The version is bumped in the app, Tauri bundle and all Rust crates.
 ### Engine split (which engine executes what)
 - **Rust native (CPAL):** the transport and sequencer, all 29 procedural voices (including Anvil, Prism, Sundial, Cordwood, Vector Nine, Acid Well, Dice, Dust Devil, Chatter and Hammer Felt), and the master chain **EQ → compressor → limiter**. The transmitter meter and audio logger also run natively.
 - **Web Audio only:** **playlist audio clips**, per-clip audio effects (not yet modeled), and pan automation. All fourteen mixer-strip insert types are implemented in Rust: gain, 3-band and 10-band EQ, compressor, limiter, reverb, delay, drive, filter, chorus, phaser, bitcrusher, tremolo, auto pan and ring modulator. The React bridge sends every supported strip insert and volume lane. Offline bounce and Fix My Mix still render with Web Audio, so **desktop playback and a bounce can diverge** , they are not the same signal path yet.
-- **Native per-strip progress:** the CPAL callback renders one voice pool per channel, applies each channel's gain automation and native insert chain, executes the mixer graph's routes and sends, then runs the unchanged master EQ → compressor → limiter. All fourteen insert kinds process audio on a strip; every native effect is covered by a finite/changed-output test, and a -6 dB gain insert plus routing/send isolation are covered separately. The React snapshot sends every strip insert, volume lanes and the mixer graph. Sidechain ducking, the modular effect graph, per-audio-clip effects and plugin inserts are still offline-only.
+- **Native per-strip progress:** the CPAL callback renders one voice pool per channel, applies each channel's gain automation and native insert chain, executes the mixer graph's routes and sends, then runs the unchanged master EQ → compressor → limiter. All fourteen insert kinds process audio on a strip; every native effect is covered by a finite/changed-output test, and a -6 dB gain insert plus routing/send isolation are covered separately. The React snapshot sends every strip insert, volume lanes and the mixer graph. Sidechain ducking, the modular effect graph, per-audio-clip effects and Windows/macOS plugin inserts are still offline-only.
 - **Per-clip pan** is applied per note by the Rust engine; the Web Audio fallback keeps using channel pan. The two engines agree on clip gain, pitch, stretch and fades, but their instrument voices are close rather than sample-identical.
 
 ### Writing & mixing assistants (local DSP , no cloud, no accounts)
@@ -330,7 +330,7 @@ The version is bumped in the app, Tauri bundle and all Rust crates.
 ### Plugin library
 - **View → Plugin library…** (or the **Plugins** button) lists community VST3/CLAP releases from the GitHub-backed registry in [`plugins/registry.json`](plugins/registry.json), with vendor-style category filtering.
 - Original instruments and effects include **Glass Keys** (bright inharmonic bell), **Velvet Choir** (additive formant pad) and **FM Bass** (two-operator sine bass), all available in both engines, plus Web Audio **Chorus**, **Phaser**, **Bitcrusher**, **Tremolo**, **Auto Pan** and **Ring Mod** inserts. The first-party **OpenBeats Gain** proof plugin is built in [`plugins/openbeats-gain`](plugins/openbeats-gain); its release archive contains both `.clap` and `.vst3` bundles.
-- Download links open the publisher's GitHub Release. There is no silent install. Linux 1.0.9 can scan and load CLAP plugins in a helper process, but the loaded plugin is not inserted into the mixer yet; Windows/macOS keep the existing `plughost-helper` path. The source-verified investigation is in [the 1.0.7 report](docs/PLUGIN_HOST_REVERSE_ENGINEERING_1.0.7.md).
+- Download links open the publisher's GitHub Release. There is no silent install. Linux 1.1.0 can scan and load CLAP plugins in a helper process, but the loaded plugin is not inserted into the mixer yet; Windows/macOS keep the existing `plughost-helper` path. The source-verified investigation is in [the 1.0.7 report](docs/PLUGIN_HOST_REVERSE_ENGINEERING_1.0.7.md).
 - Community submissions go through [the plugin submission form](.github/ISSUE_TEMPLATE/plugin-submission.yml); `npm run plugins:check` validates the registry.
 
 ### Desktop integration
@@ -425,8 +425,8 @@ scripts/        icon generation and plugin validation/fetching
 - Installers are produced by CI. Building them requires the platform SDKs (Xcode on macOS, MSVC on Windows); cross-building installers is not supported.
 - CI builds the Linux packages on Ubuntu 22.04 (glibc 2.35), so they run on 22.04 and newer. A local build follows the host's glibc and may not start on older distributions.
 - The update checker **notifies** and links to the release. Silent in-app installation is prepared but needs a signed Tauri updater key pair (`TAURI_SIGNING_PRIVATE_KEY`, `plugins.updater.pubkey`) , see the build guide.
-- The desktop build plays through the **native Rust engine**; the browser build uses Web Audio. The two are not sample-identical yet. Per-strip inserts, volume automation, mixer routing and sends are wired into the native callback; sidechain, the modular graph, pan automation and plugin inserts are still not.
-- **VST3/CLAP hosting** runs out of process on Windows and macOS. Linux has a separate CLAP-only sidecar that scans and loads plugins. On every platform, **plugin inserts** are still not routed into the CPAL callback, so loading a plugin does not yet change playback.
+- The desktop build plays through the **native Rust engine**; the browser build uses Web Audio. The two are not sample-identical yet. Per-strip inserts, volume automation, mixer routing and sends are wired into the native callback; sidechain, the modular graph, pan automation and Windows/macOS plugin inserts are still not.
+- **CLAP hosting on Linux** loads effects into a supervised helper and routes them into the native mixer, live and in the offline export; plugin latency is measured and state is saved with the project. Windows and macOS still use `plughost-helper`, and their inserts are not routed into the callback yet.
 - The assistants are deterministic local DSP, not a hosted language model. Nothing is uploaded.
 - Not implemented yet: stem separation, a WASM wavetable synth, mixer folders, track freeze, PDC, per-clip effects, project snapshots, dockable panels, a spectral editor and a live-performance mode. See [ROADMAP.md](ROADMAP.md).
 

@@ -493,9 +493,9 @@ jobs:
 
             ### Notes
 
-            - Plugin hosting is unchanged in 1.0.9: inserts are still not routed
-              into the native audio callback, and Linux hosting remains
-              unavailable.
+            - Linux CLAP plugin inserts are routed into the native mixer and the
+              offline export. Windows and macOS plugin inserts are still not routed
+              into the callback.
             - Playlist audio clips, per-clip effects and pan automation remain
               Web Audio only.
             - macOS builds are unsigned and not notarised; use Control-click →
@@ -508,7 +508,7 @@ jobs:
             Install help: [docs/INSTALL.md](https://github.com/blsphmicwillow/OpenBeats/blob/${{ github.ref_name }}/docs/INSTALL.md).
           files: release-files/*
           fail_on_unmatched_files: true
-          # A tag with a dash (v1.0.9-rc1) must never publish as a stable
+          # A tag with a dash (v1.1.0-rc1) must never publish as a stable
           # release: /releases/latest would start offering it to everyone.
           draft: false
           prerelease: ${{ contains(github.ref_name, '-') }}

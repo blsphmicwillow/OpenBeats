@@ -3,6 +3,33 @@
 The same entries are bundled into the app and shown in the **Changelog** tab, so the notes ship with the build.
 Keep this file and `src/lib/changelog.ts` in sync, and bump `APP_VERSION` in `src/lib/version.ts`.
 
+## 1.1.0 - 2026-11-15
+
+**OpenBeats v1.1.0 - Linux CLAP plugins now reach the mixer.** Effects load into a supervised helper and are applied by the native engine, in live playback and in the offline export.
+
+### Plugin hosting
+
+- Linux CLAP effects are routed per strip into the native mixer, so loading one changes what you hear.
+- Hosting is supervised: the helper runs out of process and the audio callback only exchanges fixed-size blocks through a real-time safe bridge.
+- A plugin that fails to load, stalls or exits is reported and isolated, and the rest of the project keeps playing.
+- Plugin latency is measured and compensated; parameter changes and state are saved with the project and restored on load.
+- A native editor-window path opens plugin UIs without blocking audio.
+- New coverage: `clap_smoke` and the helper protocol tests exercise loading, block processing, latency reporting and failure handling.
+
+### Fixes
+
+- Windows: the X11 window handle conversion used the wrong integer width, which broke the desktop build.
+- CI: the Linux audio capture check is more reliable, and all five checks pass (Web, Audio Linux, Audio Windows, Desktop Linux, Desktop Windows).
+
+### Status
+
+- The release gate for 1.1.0 is automated: five CI checks on the merged commit. No hardware report is attached to this version yet.
+
+### Not in this release
+
+- Windows and macOS plugin inserts are still not routed into the audio callback.
+- Playlist audio clips, per-clip effects and pan automation remain Web Audio only.
+
 ## 1.0.9 — 2026-11-12
 
 **OpenBeats v1.0.9 — audio reliability. The app now tells you why it is silent, and the Linux packages install the bridge that makes it audible.**
