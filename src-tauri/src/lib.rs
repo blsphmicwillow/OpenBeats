@@ -191,6 +191,9 @@ pub fn run() {
             // Native audio engine
             audio_commands::start_playback,
             audio_commands::stop_playback,
+            audio_commands::capture_clap_plugin_states,
+            audio_commands::set_clap_plugin_parameter,
+            audio_commands::set_clap_plugin_gui,
             audio_commands::playback_state,
             audio_commands::native_audio_devices,
             audio_commands::play_test_tone,
@@ -276,7 +279,8 @@ pub fn run() {
             plugin_commands::recover_plugin_chain,
             plugin_commands::plugin_host_support,
             plugin_commands::scan_plugins_linux,
-            plugin_commands::load_plugin_linux
+            plugin_commands::load_plugin_linux,
+            plugin_commands::process_clap_offline
         ])
         .setup(|_app| Ok(()))
         .run(tauri::generate_context!())

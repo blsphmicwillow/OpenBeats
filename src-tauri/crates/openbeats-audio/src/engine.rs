@@ -14,7 +14,8 @@
 //! callback only ever tries to lock, so a stalled command thread produces a
 //! dropped buffer, never a blocked audio thread.
 
-use std::sync::atomic::{AtomicU32, Ordering};
+use std::collections::HashMap;
+use std::sync::atomic::{AtomicU32, AtomicU8, Ordering};
 use std::sync::mpsc::{self, Receiver, RecvTimeoutError, Sender};
 use std::sync::{Arc, Mutex};
 use std::thread::JoinHandle;
@@ -28,6 +29,7 @@ use crate::devices::{self, AudioDevices, Candidate, DeviceInfo};
 use crate::dsp::{Compressor, Eq3, Transmitter, TruePeakLimiter};
 use crate::logger::AudioLogger;
 use crate::mixer_runtime::MixerRuntime;
+use crate::plugin::{PluginControl, PluginProcessor, DEFAULT_PLUGIN_QUANTUM};
 use crate::sequencer::{PlaybackChannel, PlaybackProject, Sequencer, Trigger};
 use crate::strip::{gain_at, StripProcessor};
 use crate::synth::VoicePool;
@@ -35,7 +37,10 @@ use crate::DEFAULT_SAMPLE_RATE;
 
 /// What the audio thread is told to do.
 pub enum EngineCommand {
-    Play(PlaybackProject),
+    Play {
+        project: PlaybackProject,
+        plugin_inserts: Vec<(usize, PluginProcessor)>,
+    },
     Stop,
     SetMasterGain(f32),
     /// Level of the cue (headphone) bus on outputs 3/4.
@@ -108,6 +113,8 @@ struct Shared {
     stall_reopens: AtomicU32,
     /// The last stall reopen, with reason, buffers and silence.
     reopen_log: Mutex<String>,
+    plugin_status: Mutex<Vec<(usize, Arc<AtomicU8>)>>,
+    plugin_controls: Mutex<Vec<(usize, String, PluginControl)>>,
     /// Last cue gain survives a stream rebuild during playback.
     cue_gain: AtomicU32,
     /// The last stream or reopen failure, so the UI can explain silence that
@@ -140,6 +147,8 @@ impl Default for Shared {
             log_tick: AtomicU32::new(0),
             stall_reopens: AtomicU32::new(0),
             reopen_log: Mutex::new(String::new()),
+            plugin_status: Mutex::new(Vec::new()),
+            plugin_controls: Mutex::new(Vec::new()),
             cue_gain: AtomicU32::new(1.0f32.to_bits()),
             last_error: Mutex::new(String::new()),
             device: Mutex::new(String::new()),
@@ -220,6 +229,8 @@ pub struct EngineSnapshot {
     pub stall_reopens: u32,
     /// The last stall reopen, with its reason, buffers and silence.
     pub last_reopen: String,
+    /// Mixer strip IDs whose supervised CLAP helper has stopped.
+    pub failed_plugin_strips: Vec<usize>,
 }
 
 struct CallbackState {
@@ -535,9 +546,91 @@ impl NativeEngine {
     }
 
     pub fn play(&self, project: PlaybackProject) -> Result<(), String> {
+        let plugin_inserts = match prepare_plugin_inserts(&project, self.sample_rate()) {
+            Ok(inserts) => inserts,
+            Err(error) => {
+                clear_plugin_controls(&self.shared);
+                return Err(error);
+            }
+        };
+        store_plugin_controls(&self.shared, &project, &plugin_inserts);
         self.commands
-            .send(EngineCommand::Play(project))
-            .map_err(|_| "the audio engine stopped".to_string())
+            .send(EngineCommand::Play {
+                project,
+                plugin_inserts,
+            })
+            .map_err(|_| {
+                clear_plugin_controls(&self.shared);
+                "the audio engine stopped".to_string()
+            })
+    }
+
+    pub fn capture_plugin_states(
+        &self,
+    ) -> Result<Vec<(usize, String, Option<Vec<u8>>, HashMap<u32, f64>)>, String> {
+        let controls = self
+            .shared
+            .plugin_controls
+            .lock()
+            .map_err(|_| "the plugin state is unavailable".to_string())?
+            .clone();
+        controls
+            .into_iter()
+            .map(|(strip, plugin_id, control)| {
+                let state = control.save_state()?;
+                let parameters = control
+                    .parameters()?
+                    .into_iter()
+                    .filter(|parameter| !parameter.readonly)
+                    .map(|parameter| (parameter.id, parameter.value))
+                    .collect();
+                Ok((strip, plugin_id, state, parameters))
+            })
+            .collect()
+    }
+
+    pub fn set_plugin_parameter(
+        &self,
+        strip_id: usize,
+        plugin_id: &str,
+        parameter_id: u32,
+        value: f64,
+    ) -> Result<bool, String> {
+        let control = self
+            .shared
+            .plugin_controls
+            .lock()
+            .map_err(|_| "the plugin control channel is unavailable".to_string())?
+            .iter()
+            .find(|(strip, id, _)| *strip == strip_id && id == plugin_id)
+            .map(|(_, _, control)| control.clone());
+        let Some(control) = control else {
+            return Ok(false);
+        };
+        control.set_parameter(parameter_id, value)?;
+        Ok(true)
+    }
+
+    pub fn set_plugin_gui_open(
+        &self,
+        strip_id: usize,
+        plugin_id: &str,
+        open: bool,
+        parent_x11: Option<u64>,
+    ) -> Result<bool, String> {
+        let control = self
+            .shared
+            .plugin_controls
+            .lock()
+            .map_err(|_| "the plugin control channel is unavailable".to_string())?
+            .iter()
+            .find(|(strip, id, _)| *strip == strip_id && id == plugin_id)
+            .map(|(_, _, control)| control.clone());
+        let Some(control) = control else {
+            return Ok(false);
+        };
+        control.set_gui_open(open, parent_x11)?;
+        Ok(true)
     }
 
     pub fn stop(&self) {
@@ -591,8 +684,13 @@ impl NativeEngine {
         if samples.is_empty() {
             return None;
         }
-        let peak = samples.iter().fold(0.0f32, |acc, sample| acc.max(sample.abs()));
-        let sum: f64 = samples.iter().map(|sample| (*sample as f64) * (*sample as f64)).sum();
+        let peak = samples
+            .iter()
+            .fold(0.0f32, |acc, sample| acc.max(sample.abs()));
+        let sum: f64 = samples
+            .iter()
+            .map(|sample| (*sample as f64) * (*sample as f64))
+            .sum();
         let rms = (sum / samples.len() as f64).sqrt() as f32;
         Some((peak, rms))
     }
@@ -644,7 +742,11 @@ impl NativeEngine {
             device_swaps: self.shared.device_swaps.load(Ordering::Relaxed),
             callbacks: self.shared.callbacks.load(Ordering::Relaxed),
             peak,
-            peak_db: if peak > 0.0 { 20.0 * peak.log10() } else { -120.0 },
+            peak_db: if peak > 0.0 {
+                20.0 * peak.log10()
+            } else {
+                -120.0
+            },
             buffer_frames: self.shared.buffer_frames.load(Ordering::Relaxed),
             interval_max_ms: self.shared.interval_max_us.load(Ordering::Relaxed) as f32 / 1_000.0,
             deadline_misses: self.shared.deadline_misses.load(Ordering::Relaxed),
@@ -672,6 +774,20 @@ impl NativeEngine {
                 .last_error
                 .lock()
                 .map(|error| error.clone())
+                .unwrap_or_default(),
+            failed_plugin_strips: self
+                .shared
+                .plugin_status
+                .lock()
+                .map(|statuses| {
+                    statuses
+                        .iter()
+                        .filter_map(|(strip, status)| {
+                            (status.load(Ordering::Acquire) == crate::plugin::STATUS_FAILED)
+                                .then_some(*strip)
+                        })
+                        .collect()
+                })
                 .unwrap_or_default(),
         }
     }
@@ -1136,7 +1252,10 @@ fn open_session(
 
 fn apply_command(state: &mut CallbackState, shared: &Arc<Shared>, command: EngineCommand) {
     match command {
-        EngineCommand::Play(project) => {
+        EngineCommand::Play {
+            project,
+            plugin_inserts,
+        } => {
             state.master_gain = project.master_gain.clamp(0.0, 2.0);
             state.voice_pool.all_notes_off();
             state.strip_pools = project
@@ -1156,10 +1275,18 @@ fn apply_command(state: &mut CallbackState, shared: &Arc<Shared>, command: Engin
                 .collect();
             state.strip_frames = vec![(0.0, 0.0); project.channels.len()];
             let channel_mixers: Vec<usize> = project.channels.iter().map(|ch| ch.mixer).collect();
-            state.mixer_runtime = MixerRuntime::new(&project.mixer, &channel_mixers);
+            if let Ok(mut statuses) = shared.plugin_status.lock() {
+                *statuses = plugin_inserts
+                    .iter()
+                    .map(|(strip, processor)| (*strip, processor.failure_status()))
+                    .collect();
+            }
+            state.mixer_runtime =
+                MixerRuntime::new_with_plugins(&project.mixer, &channel_mixers, plugin_inserts);
             state.sequencer = Some(Sequencer::new(project, state.sample_rate));
             shared.playing.store(1, Ordering::Relaxed);
         }
+
         EngineCommand::Stop => {
             if let Some(seq) = state.sequencer.as_mut() {
                 seq.stop();
@@ -1212,6 +1339,63 @@ fn apply_command(state: &mut CallbackState, shared: &Arc<Shared>, command: Engin
         | EngineCommand::SetLowLatency(_)
         | EngineCommand::Reconfigure { .. } => {}
         EngineCommand::Shutdown => {}
+    }
+}
+
+fn prepare_plugin_inserts(
+    project: &PlaybackProject,
+    sample_rate: f32,
+) -> Result<Vec<(usize, PluginProcessor)>, String> {
+    let mut inserts = Vec::new();
+    for strip in &project.mixer.strips {
+        if let Some(plugin) = &strip.clap_plugin {
+            let helper = project.plugin_helper.as_deref().ok_or_else(|| {
+                format!(
+                    "cannot load CLAP plugin '{}' because the Linux helper is unavailable",
+                    plugin.name
+                )
+            })?;
+            let processor = PluginProcessor::launch(
+                helper,
+                &plugin.id,
+                sample_rate,
+                DEFAULT_PLUGIN_QUANTUM,
+                plugin.state.clone(),
+            )?;
+            for (&parameter_id, &value) in &plugin.parameters {
+                processor.set_parameter(parameter_id, value)?;
+            }
+            processor.flush_parameters()?;
+            inserts.push((strip.id, processor));
+        }
+    }
+    Ok(inserts)
+}
+
+fn store_plugin_controls(
+    shared: &Shared,
+    project: &PlaybackProject,
+    plugin_inserts: &[(usize, PluginProcessor)],
+) {
+    if let Ok(mut controls) = shared.plugin_controls.lock() {
+        *controls = plugin_inserts
+            .iter()
+            .filter_map(|(strip, processor)| {
+                project
+                    .mixer
+                    .strips
+                    .iter()
+                    .find(|candidate| candidate.id == *strip)
+                    .and_then(|candidate| candidate.clap_plugin.as_ref())
+                    .map(|plugin| (*strip, plugin.id.clone(), processor.control()))
+            })
+            .collect();
+    }
+}
+
+fn clear_plugin_controls(shared: &Shared) {
+    if let Ok(mut controls) = shared.plugin_controls.lock() {
+        controls.clear();
     }
 }
 
@@ -1269,7 +1453,8 @@ fn audio_thread(
                         eprintln!(
                             "openbeats: saved output failed ({err}); trying the system default"
                         );
-                        match open_session(None, low_latency, forced_buffer, &shared, &logger_slot) {
+                        match open_session(None, low_latency, forced_buffer, &shared, &logger_slot)
+                        {
                             Ok(session) => break session,
                             Err(fallback_err) => {
                                 if let Some(tx) = ready.take() {
@@ -1302,8 +1487,23 @@ fn audio_thread(
         if shared.playing.load(Ordering::Relaxed) == 1 {
             if let Some(mut project) = last_project.clone() {
                 project.start_step = shared.step.load(Ordering::Relaxed);
+                let plugin_inserts = match prepare_plugin_inserts(&project, session.sample_rate) {
+                    Ok(inserts) => inserts,
+                    Err(error) => {
+                        remember_error(&shared, &error);
+                        Vec::new()
+                    }
+                };
+                store_plugin_controls(&shared, &project, &plugin_inserts);
                 if let Ok(mut state) = session.state.lock() {
-                    apply_command(&mut state, &shared, EngineCommand::Play(project));
+                    apply_command(
+                        &mut state,
+                        &shared,
+                        EngineCommand::Play {
+                            project,
+                            plugin_inserts,
+                        },
+                    );
                 }
             }
         }
@@ -1354,8 +1554,8 @@ fn audio_thread(
                     break;
                 }
                 Ok(command) => {
-                    let is_play = matches!(&command, EngineCommand::Play(_));
-                    if let EngineCommand::Play(project) = &command {
+                    let is_play = matches!(&command, EngineCommand::Play { .. });
+                    if let EngineCommand::Play { project, .. } = &command {
                         last_project = Some(project.clone());
                     }
                     if matches!(&command, EngineCommand::Stop) {
@@ -1544,8 +1744,13 @@ fn render<T>(
     }
     shared.nominal_us.store(nominal as u32, Ordering::Relaxed);
     if let Some(previous) = guard.last_callback.replace(now) {
-        let delta_us = now.duration_since(previous).as_micros().min(u32::MAX as u128) as u32;
-        shared.interval_max_us.fetch_max(delta_us, Ordering::Relaxed);
+        let delta_us = now
+            .duration_since(previous)
+            .as_micros()
+            .min(u32::MAX as u128) as u32;
+        shared
+            .interval_max_us
+            .fetch_max(delta_us, Ordering::Relaxed);
         if delta_us as f32 > nominal * 1.5 {
             shared.deadline_misses.fetch_add(1, Ordering::Relaxed);
         }

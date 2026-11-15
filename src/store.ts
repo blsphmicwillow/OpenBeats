@@ -55,9 +55,19 @@ import {
   stepsToSeconds,
   swingOffset,
 } from './audio/sequencer';
-import { downloadBlob, renderSongToBuffer, renderSongToWav } from './audio/export';
+import {
+  downloadBlob,
+  renderSongToBuffer,
+  renderSongToBufferWithPlugins,
+  renderSongToWav,
+  renderSongToWavWithPlugins,
+} from './audio/export';
 import { masterBuffer, type MasterTarget } from './lib/mastering';
-import { nativeExportAudio } from './lib/nativeAudio';
+import {
+  captureNativePluginStates,
+  nativeExportAudio,
+  processNativeClapOffline,
+} from './lib/nativeAudio';
 import { exportFormat, type ExportFormatId } from './lib/exportFormats';
 import { checkForUpdate } from './lib/updates';
 import { APP_VERSION, DEFAULT_UPDATE_REPO } from './lib/version';
@@ -73,6 +83,25 @@ const SETTINGS_KEY = 'openbeats.settings.v1';
 const AUTOSAVE_KEY = 'openbeats.autosave.v1';
 const LIBRARY_KEY = 'openbeats.projects.v1';
 export const AUTOSAVE_INTERVALS = [0, 2, 5, 10, 15, 30, 60] as const;
+
+async function captureProjectPluginStates(project: Project): Promise<Project> {
+  if (!project.strips.some((strip) => strip.clapPlugin)) return project;
+  const captured = await captureNativePluginStates();
+  if (!captured?.length) return project;
+
+  const snapshot = structuredClone(project);
+  for (const { strip_id, plugin_id, state, parameters } of captured) {
+    const strip = snapshot.strips.find((candidate) => candidate.id === strip_id);
+    if (strip?.clapPlugin?.id === plugin_id) {
+      if (state !== null) strip.clapPlugin.state = state;
+      strip.clapPlugin.parameters = {
+        ...parameters,
+        ...strip.clapPlugin.parameters,
+      };
+    }
+  }
+  return snapshot;
+}
 
 export function currentPattern(project: Project): Pattern | undefined {
   return project.patterns.find((p) => p.id === project.currentPattern) ?? project.patterns[0];
@@ -157,6 +186,7 @@ export function normalizeProject(raw: unknown): Project {
     strips: strips.map((s, i) => ({
       ...createStrip(s.id ?? i, s.name ?? 'Insert', s.color ?? '#888'),
       ...s,
+      clapPlugin: s.clapPlugin ?? null,
       automation: normalizeAutomation(s.automation),
     })),
     tracks: Array.isArray(p.tracks) && p.tracks.length ? p.tracks : base.tracks,
@@ -1516,7 +1546,14 @@ export const useApp = create<AppState>((set, get) => ({
   },
 
   async saveProjectFile() {
-    const project = get().project;
+    let project: Project;
+    try {
+      project = await captureProjectPluginStates(get().project);
+    } catch (error) {
+      console.error('Could not capture CLAP plugin state', error);
+      get().toast('Could not save the project because a plugin state could not be captured');
+      return;
+    }
     const text = JSON.stringify({ format: 'openbeats-project', version: 1, project }, null, 2);
     const filename = `${project.name.replace(/[^\w\- ]+/g, '').trim() || 'project'}.obeats`;
     // Native builds get a real OS save dialog; the browser falls back to a download.
@@ -1559,22 +1596,38 @@ export const useApp = create<AppState>((set, get) => ({
 
   async exportSong({ format, quality, sampleRate, master }) {
     const state = get();
+    let project: Project;
+    try {
+      project = await captureProjectPluginStates(state.project);
+    } catch (error) {
+      console.error('Could not capture CLAP plugin state for export', error);
+      get().toast('Could not export because a plugin state could not be captured');
+      return false;
+    }
     state.stop();
     set((s) => ({ ui: { ...s.ui, exporting: { progress: 0 } } }));
-    const name = state.project.name.replace(/[^\w\- ]+/g, '').trim() || 'openbeats';
+    const name = project.name.replace(/[^\w\- ]+/g, '').trim() || 'openbeats';
     try {
       if (!isNative()) {
         if (format !== 'wav16') {
           get().toast('That format needs the desktop build — the browser writes 16-bit WAV');
           return false;
         }
-        const blob = await renderSongToWav(state.project, { sampleRate, master });
+        const blob = project.strips.some((strip) => strip.clapPlugin)
+          ? await renderSongToWavWithPlugins(
+              project,
+              { sampleRate, master },
+              processNativeClapOffline,
+            )
+          : await renderSongToWav(project, { sampleRate, master });
         downloadBlob(blob, master === 'none' ? `${name}.wav` : `${name}-${master}.wav`);
         get().toast(master === 'none' ? 'WAV exported — check your downloads' : `Mastered for ${master} — WAV downloaded`);
         return true;
       }
 
-      const rendered = await renderSongToBuffer(state.project, { sampleRate });
+      const rendered = project.strips.some((strip) => strip.clapPlugin)
+        ? await renderSongToBufferWithPlugins(project, { sampleRate }, processNativeClapOffline)
+        : await renderSongToBuffer(project, { sampleRate });
       const buffer = master === 'none' ? rendered : await masterBuffer(rendered, master);
       const saved = await nativeExportAudio({
         format,

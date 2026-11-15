@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useApp } from '../store';
 import { Knob } from '../ui/Knob';
 import { Fader } from '../ui/Fader';
@@ -21,6 +21,9 @@ import {
   type AutomationPresetId,
 } from '../model/automation';
 import { songLengthSteps } from '../audio/sequencer';
+import { isNative } from '../lib/native';
+import { nativePlaybackState } from '../lib/nativeAudio';
+import { ClapPluginEditor } from './ClapPluginEditor';
 
 function EqCurve({ effect, onChange }: { effect: Effect; onChange: (index: number, gain: number) => void }) {
   const ref = useRef<SVGSVGElement>(null);
@@ -338,6 +341,9 @@ export function Mixer() {
   const [draft, setDraft] = useState('');
   const [automationTarget, setAutomationTarget] = useState<AutomationTarget>('volume');
   const [fxView, setFxView] = useState<'chain' | 'effects'>('chain');
+  const [failedPluginStrips, setFailedPluginStrips] = useState<number[]>([]);
+  const [pluginStatusError, setPluginStatusError] = useState<string | null>(null);
+  const [pluginEditorOpen, setPluginEditorOpen] = useState(false);
   const {
     updateStrip,
     setAutomation,
@@ -359,6 +365,36 @@ export function Mixer() {
   } = useApp.getState();
 
   const selected = project.strips.find((s) => s.id === project.selectedStrip) ?? project.strips[0];
+  useEffect(() => {
+    if (!isNative()) return;
+    let active = true;
+    let refreshing = false;
+    const refresh = async () => {
+      if (refreshing) return;
+      refreshing = true;
+      try {
+        const status = await nativePlaybackState();
+        if (active) {
+          setFailedPluginStrips(status?.failed_plugin_strips ?? []);
+          setPluginStatusError(null);
+        }
+      } catch (error) {
+        if (active) {
+          setPluginStatusError(
+            error instanceof Error ? error.message : 'Could not read native plugin status',
+          );
+        }
+      } finally {
+        refreshing = false;
+      }
+    };
+    void refresh();
+    const timer = window.setInterval(() => void refresh(), 500);
+    return () => {
+      active = false;
+      window.clearInterval(timer);
+    };
+  }, []);
   const fxCategories = Array.from(new Set(Object.values(EFFECT_DEFS).map((d) => d.category)));
   const channelsOnStrip = (stripId: number) => project.channels.filter((c) => c.mixer === stripId);
   const colorFor = (strip: Strip) => (strip.id === 0 ? 'var(--accent)' : strip.color);
@@ -699,7 +735,7 @@ export function Mixer() {
         {fxView === 'effects' ? (
           <div style={{ display: 'grid', gap: 10 }}>
             <span className="tiny-note">
-              Add a native insert to {selected.id === 0 ? 'Master' : selected.name || `Insert ${selected.id}`}. The same chain renders in the desktop engine and the WAV bounce.
+              Add a native insert to {selected.id === 0 ? 'Master' : selected.name || `Insert ${selected.id}`}. Linux CLAP effects are hosted out of process on channel strips.
             </span>
             {fxCategories.map((category) => (
               <div key={category}>
@@ -729,12 +765,47 @@ export function Mixer() {
               </div>
             ))}
           </div>
-        ) : selected.effects.length === 0 ? (
+        ) : selected.effects.length === 0 && !selected.clapPlugin ? (
           <div className="tiny-note">
             No inserts yet — add an EQ, compressor, delay or reverb. Effects are native to OpenBeats, follow your theme and render into the WAV bounce.
           </div>
         ) : (
           <div className="fx-cards">
+            {selected.clapPlugin && (
+              <div className="fx-card">
+                <div className="fx-card-head">
+                  <span>{selected.clapPlugin.name || selected.clapPlugin.id}</span>
+                  <span className="fx-type">CLAP · Linux</span>
+                  <div className="spacer" />
+                  <button
+                    className="tbtn small flat"
+                    title="Open CLAP parameter editor"
+                    onClick={() => setPluginEditorOpen(true)}
+                  >
+                    Edit
+                  </button>
+                  <button
+                    className="tbtn small flat"
+                    title="Remove CLAP insert"
+                    onClick={() =>
+                      patchProject((project) => {
+                        const strip = project.strips.find((candidate) => candidate.id === selected.id);
+                        if (strip) strip.clapPlugin = null;
+                      })
+                    }
+                  >
+                    Remove
+                  </button>
+                </div>
+                <span className="tiny-note">
+                  {failedPluginStrips.includes(selected.id)
+                    ? 'Plugin stopped; this strip is using delayed dry audio.'
+                    : pluginStatusError
+                      ? `Plugin status unavailable: ${pluginStatusError}`
+                      : `${selected.clapPlugin.vendor || 'Unknown vendor'} · loaded in a supervised helper when playback starts`}
+                </span>
+              </div>
+            )}
             {selected.effects.map((fx) => (
               <EffectCard key={fx.id} strip={selected} effect={fx} />
             ))}
@@ -780,6 +851,14 @@ export function Mixer() {
           Volume/pan ramps are applied by Web Audio during playback and offline export. Native CPAL ignores them, so playback uses Web Audio while this project has automation points.
         </span>
       </div>
+      {pluginEditorOpen && selected.clapPlugin && (
+        <ClapPluginEditor
+          key={`${selected.id}:${selected.clapPlugin.id}`}
+          stripId={selected.id}
+          plugin={selected.clapPlugin}
+          onClose={() => setPluginEditorOpen(false)}
+        />
+      )}
     </div>
   );
 }

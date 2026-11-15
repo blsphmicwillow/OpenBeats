@@ -1,4 +1,5 @@
 import { invokeNative, isNative } from './native';
+import type { NativeClapParameter } from './nativeAudio';
 
 /** One CLAP descriptor returned by the Linux sidecar. */
 export interface LinuxClapPlugin {
@@ -18,10 +19,10 @@ export async function scanLinuxPlugins(): Promise<LinuxClapPlugin[]> {
 }
 
 /**
- * Load one scanned plugin into the sidecar. `READY` means the instance was
- * created and activated; it does not yet mean the plugin is in the mixer.
+ * Isolated load probe used before inserting a plugin. It returns the controls
+ * exposed by the activated and processed CLAP instance.
  */
-export async function loadLinuxPlugin(id: string): Promise<string> {
+export async function loadLinuxPlugin(id: string): Promise<NativeClapParameter[]> {
   if (!isNative()) throw new Error('Linux CLAP loading is only available in the desktop app');
-  return invokeNative<string>('load_plugin_linux', { id });
+  return invokeNative<NativeClapParameter[]>('load_plugin_linux', { id });
 }

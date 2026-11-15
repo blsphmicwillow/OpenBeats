@@ -134,6 +134,13 @@ export interface PlaybackSnapshot {
       route: number | null;
       sends: { to: number; amount: number; pre_fader: boolean }[];
       sidechain: number | null;
+      clap_plugin: {
+        id: string;
+        name: string;
+        vendor: string;
+        state?: number[] | null;
+        parameters?: Record<number, number>;
+      } | null;
     }[];
   };
 }
@@ -143,6 +150,31 @@ export interface NativePlaybackStatus {
   sample_rate: number;
   device: string;
   voices_ready: boolean;
+}
+
+export interface CapturedPluginState {
+  strip_id: number;
+  plugin_id: string;
+  state: number[] | null;
+  parameters: Record<number, number>;
+}
+
+export interface NativeClapParameter {
+  id: number;
+  name: string;
+  module: string;
+  min_value: number;
+  max_value: number;
+  default_value: number;
+  value: number;
+  readonly: boolean;
+  hidden: boolean;
+  stepped: boolean;
+}
+
+export interface NativeOfflinePluginResult {
+  pcm: Float32Array;
+  latencyFrames: number;
 }
 
 export interface NativePlaybackState {
@@ -183,6 +215,8 @@ export interface NativePlaybackState {
   stall_reopens: number;
   /** The last stall reopen, with reason, buffers and silence. */
   last_reopen: string;
+  /** Mixer strip IDs whose supervised CLAP helper has stopped. */
+  failed_plugin_strips: number[];
 }
 
 export interface DeviceInfo {
@@ -472,6 +506,7 @@ export function buildPlaybackSnapshot(
         route: strip.route,
         sends: strip.sends.map((send) => ({ ...send, pre_fader: false })),
         sidechain: null,
+        clap_plugin: strip.clapPlugin ?? null,
       })),
     },
     patterns: useClips
@@ -515,6 +550,76 @@ export async function startNativePlayback(
 export async function stopNativePlayback(): Promise<void> {
   if (!isNative()) return;
   await nativeInvoke<null>('stop_playback');
+}
+
+export async function captureNativePluginStates(): Promise<CapturedPluginState[] | null> {
+  if (!isNative()) return null;
+  return invokeAudio<CapturedPluginState[]>('capture_clap_plugin_states');
+}
+
+export async function inspectNativeClapPlugin(id: string): Promise<NativeClapParameter[]> {
+  if (!isNative()) throw new Error('CLAP plugin inspection is only available in the desktop app');
+  return invokeAudio<NativeClapParameter[]>('load_plugin_linux', { id });
+}
+
+export async function setNativeClapParameter(
+  stripId: number,
+  pluginId: string,
+  parameterId: number,
+  value: number,
+): Promise<boolean> {
+  if (!isNative()) return false;
+  return invokeAudio<boolean>('set_clap_plugin_parameter', {
+    stripId,
+    pluginId,
+    parameterId,
+    value,
+  });
+}
+
+export async function setNativeClapPluginGui(
+  stripId: number,
+  pluginId: string,
+  open: boolean,
+): Promise<boolean> {
+  if (!isNative()) return false;
+  return invokeAudio<boolean>('set_clap_plugin_gui', {
+    stripId,
+    pluginId,
+    open,
+  });
+}
+
+export async function processNativeClapOffline(
+  id: string,
+  sampleRate: number,
+  state: number[] | null | undefined,
+  parameters: Record<number, number> | undefined,
+  interleavedPcm: Float32Array,
+): Promise<NativeOfflinePluginResult | null> {
+  if (!isNative()) return null;
+  const bytes = new Uint8Array(
+    interleavedPcm.buffer,
+    interleavedPcm.byteOffset,
+    interleavedPcm.byteLength,
+  );
+  const result = await invokeAudio<{ pcm_base64: string; latency_frames: number }>(
+    'process_clap_offline',
+    {
+      id,
+      sampleRate,
+      state: state ?? null,
+      parameters: parameters ?? {},
+      pcmBase64: base64FromBytes(bytes),
+    },
+  );
+  const binary = atob(result.pcm_base64);
+  const outputBytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i += 1) outputBytes[i] = binary.charCodeAt(i);
+  return {
+    pcm: new Float32Array(outputBytes.buffer),
+    latencyFrames: result.latency_frames,
+  };
 }
 
 export async function nativePlaybackState(): Promise<NativePlaybackState | null> {
