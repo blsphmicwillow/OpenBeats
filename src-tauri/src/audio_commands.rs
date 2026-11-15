@@ -207,10 +207,12 @@ pub fn set_clap_plugin_gui(
     let parent_x11 = window
         .window_handle()
         .ok()
-        .and_then(|handle| match handle.as_raw() {
-            RawWindowHandle::Xlib(handle) => Some(u64::from(handle.window)),
-            RawWindowHandle::Xcb(handle) => Some(u64::from(handle.window.get())),
-            _ => None,
+        .and_then(|handle| -> Option<u64> {
+            match handle.as_raw() {
+                RawWindowHandle::Xlib(handle) => Some(u64::from(handle.window)),
+                RawWindowHandle::Xcb(handle) => Some(u64::from(handle.window.get())),
+                _ => None,
+            }
         });
     let guard = state
         .engine
