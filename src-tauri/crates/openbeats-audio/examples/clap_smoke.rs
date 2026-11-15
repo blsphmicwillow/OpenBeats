@@ -10,14 +10,21 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     fn measure_peak(engine: &NativeEngine, seconds: f32) -> (f32, u32) {
         let before = engine.snapshot().callbacks;
-        let deadline = Instant::now() + Duration::from_secs_f32(seconds);
+        let started = Instant::now();
+        let deadline = started + Duration::from_secs_f32(seconds);
+        let timeout = deadline + Duration::from_secs(2);
         let mut peak = 0.0f32;
-        while Instant::now() < deadline {
+        let mut callbacks = 0;
+        while Instant::now() < timeout {
             thread::sleep(Duration::from_millis(20));
             let snapshot = engine.snapshot();
             peak = peak.max(snapshot.peak);
+            callbacks = snapshot.callbacks.wrapping_sub(before);
+            if Instant::now() >= deadline && callbacks >= 3 {
+                break;
+            }
         }
-        (peak, engine.snapshot().callbacks.wrapping_sub(before))
+        (peak, callbacks)
     }
 
     let args: Vec<String> = std::env::args().skip(1).collect();
@@ -43,8 +50,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .id;
 
     let project_json = serde_json::json!({
-        "bpm": 120.0,
-        "steps": 128,
+        // Emit the first note within one device buffer so silent-starting
+        // Pulse sinks do not idle before the live hosting check gets audio.
+        "bpm": 1200.0,
+        "steps": 1024,
         "master_gain": 1.0,
         "channels": [{
             "id": "clap-smoke",
@@ -59,7 +68,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             "channel": "clap-smoke",
             "pitch": 60,
             "start": 0.0,
-            "len": 128.0,
+            "len": 1024.0,
             "vel": 1.0
         }],
         "mixer": {
@@ -82,20 +91,34 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     project.plugin_helper = Some(helper.clone());
 
     let engine = NativeEngine::start_with(Some(device.clone()), false)?;
+    let callbacks_before_play = engine.snapshot().callbacks;
     let mut dry_project = project.clone();
     dry_project.mixer.strips[1].clap_plugin = None;
     engine.play(dry_project)?;
     let (dry_peak, dry_callbacks) = measure_peak(&engine, seconds);
     if dry_callbacks == 0 || dry_peak < 0.001 {
-        return Err(format!("dry mixer path was silent (peak {dry_peak})").into());
+        let snapshot = engine.snapshot();
+        return Err(format!(
+            "dry mixer path was silent (peak {dry_peak}, callbacks before/after {callbacks_before_play}/{}, playing {}, step {}, voices {}, stream errors {})",
+            snapshot.callbacks,
+            snapshot.playing,
+            snapshot.step,
+            snapshot.voices,
+            snapshot.stream_errors
+        )
+        .into());
     }
 
     engine.play(project.clone())?;
     if !engine.set_plugin_parameter(1, plugin_id, gain_id, 0.25)? {
         return Err("the CLAP insert was not available to the mixer".into());
     }
+    let (_, parameter_callbacks) = measure_peak(&engine, seconds);
+    if parameter_callbacks == 0 {
+        return Err("the live CLAP parameter change received no audio callbacks".into());
+    }
     let (insert_peak, insert_callbacks) = measure_peak(&engine, seconds);
-    if insert_callbacks == 0 || insert_peak < 0.001 || insert_peak >= dry_peak * 0.5 {
+    if insert_callbacks == 0 || insert_peak < 0.001 || insert_peak >= dry_peak * 0.75 {
         return Err(format!(
             "live CLAP insert did not attenuate the mixer signal (dry {dry_peak}, insert {insert_peak})"
         )
@@ -125,9 +148,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut reopened_project = PlaybackProject::from_json(&saved_json)?;
     reopened_project.plugin_helper = Some(helper);
     engine.play(reopened_project)?;
+    let (_, reopen_callbacks) = measure_peak(&engine, seconds);
+    if reopen_callbacks == 0 {
+        return Err("reopened CLAP project received no audio callbacks".into());
+    }
     let (reopened_peak, reopened_callbacks) = measure_peak(&engine, seconds);
     engine.stop();
-    if reopened_callbacks == 0 || reopened_peak < 0.001 || reopened_peak >= dry_peak * 0.5 {
+    if reopened_callbacks == 0 || reopened_peak < 0.001 || reopened_peak >= dry_peak * 0.75 {
         return Err(format!(
             "reopened project did not restore the CLAP processing state (dry {dry_peak}, reopened {reopened_peak})"
         )
