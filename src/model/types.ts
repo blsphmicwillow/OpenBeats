@@ -183,6 +183,16 @@ export interface Send {
   amount: number;
 }
 
+export interface ClapPluginInsert {
+  id: string;
+  name: string;
+  vendor: string;
+  /** Opaque CLAP state bytes captured by the native host. */
+  state?: number[] | null;
+  /** Current writable parameter values, keyed by their stable CLAP IDs. */
+  parameters?: Record<number, number>;
+}
+
 export type AutomationTarget = 'volume' | 'pan';
 export type AutomationCurve = 'linear' | 'hold' | 'smooth';
 
@@ -213,6 +223,8 @@ export interface Strip {
   route: number;
   sends: Send[];
   effects: Effect[];
+  /** Linux CLAP effect hosted out of process on this channel strip. */
+  clapPlugin?: ClapPluginInsert | null;
   /** Optional group label used by the mixer's collapse feature. */
   group: string;
   collapsed: boolean;

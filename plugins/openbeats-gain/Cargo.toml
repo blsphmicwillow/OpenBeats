@@ -16,6 +16,8 @@ crate-type = ["cdylib"]
 # VST3 is optional in the crate so the CLAP build stays lean.
 nice-plug = { version = "=0.4.2", default-features = false, features = ["vst3"] }
 
+[workspace]
+
 [profile.release]
 codegen-units = 1
 lto = "thin"

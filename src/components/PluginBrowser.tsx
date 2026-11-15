@@ -26,6 +26,10 @@ const ISSUE_URL =
 export function PluginBrowser() {
   const open = useApp((s) => s.ui.pluginsOpen);
   const setUI = useApp((s) => s.setUI);
+  const selectedStrip = useApp((s) => s.project.selectedStrip);
+  const selectedStripPlugin = useApp(
+    (s) => s.project.strips.find((strip) => strip.id === s.project.selectedStrip)?.clapPlugin ?? null,
+  );
   const [catalog, setCatalog] = useState<PluginCatalog | null>(null);
   const [selectedId, setSelectedId] = useState('');
   const [query, setQuery] = useState('');
@@ -37,6 +41,7 @@ export function PluginBrowser() {
   const [localBusy, setLocalBusy] = useState(false);
   const [localError, setLocalError] = useState('');
   const [localLoaded, setLocalLoaded] = useState('');
+  const [loadResults, setLoadResults] = useState<Record<string, boolean>>({});
   const [loadingLocal, setLoadingLocal] = useState('');
 
   const load = async (force = false) => {
@@ -60,6 +65,7 @@ export function PluginBrowser() {
     setLocalBusy(true);
     setLocalError('');
     setLocalLoaded('');
+    setLoadResults({});
     try {
       const platform = await nativePlatform();
       if (platform !== 'linux') {
@@ -80,11 +86,36 @@ export function PluginBrowser() {
   const loadLocal = async (id: string) => {
     setLoadingLocal(id);
     setLocalError('');
+    setLocalLoaded('');
     try {
-      await loadLinuxPlugin(id);
+      const state = useApp.getState();
+      const strip = state.project.strips.find((candidate) => candidate.id === selectedStrip);
+      if (!strip) throw new Error('Select a mixer strip before inserting a plugin');
+      const plugin = localPlugins.find((candidate) => candidate.id === id);
+      if (!plugin) throw new Error('Rescan the plugin library and try again');
+      const parameters = await loadLinuxPlugin(id);
+      const values = Object.fromEntries(
+        parameters
+          .filter((parameter) => !parameter.readonly)
+          .map((parameter) => [parameter.id, parameter.value]),
+      );
+      state.patchProject((project) => {
+        const target = project.strips.find((candidate) => candidate.id === selectedStrip);
+        if (target) {
+          target.clapPlugin = {
+            id: plugin.id,
+            name: plugin.name,
+            vendor: plugin.vendor,
+            parameters: values,
+          };
+        }
+      });
       setLocalLoaded(id);
+      setLoadResults((current) => ({ ...current, [id]: true }));
     } catch (error) {
-      setLocalError(error instanceof Error ? error.message : 'Could not load the Linux CLAP plugin');
+      const message = error instanceof Error ? error.message : 'Could not insert the Linux CLAP plugin';
+      setLocalError(message);
+      setLoadResults((current) => ({ ...current, [id]: false }));
     } finally {
       setLoadingLocal('');
     }
@@ -129,7 +160,7 @@ export function PluginBrowser() {
   return (
     <Modal
       title="Plugin library"
-      subtitle={`Native VST3/CLAP releases · OpenBeats ${APP_VERSION} browses downloads; Linux CLAP plugins scan and load in a sidecar`}
+      subtitle={`Native VST3/CLAP releases · OpenBeats ${APP_VERSION} browses downloads; insert Linux CLAP effects on mixer strips`}
       onClose={close}
       footer={
         <>
@@ -200,7 +231,7 @@ export function PluginBrowser() {
           {linuxHost && (
             <div className="plugin-local">
               <div className="plugin-local-head">
-                <span>Linux CLAP</span>
+                <span>Linux CLAP · Mixer strip {selectedStrip}</span>
                 <button
                   className="link-btn"
                   onClick={() => void scanLocal()}
@@ -218,7 +249,7 @@ export function PluginBrowser() {
               )}
               {localPlugins.map((plugin, index) => (
                 <div
-                  className={`plugin-card ${localLoaded === plugin.id ? 'active' : ''}`}
+                  className={`plugin-card ${selectedStripPlugin?.id === plugin.id ? 'active' : ''}`}
                   key={`${plugin.id}-${index}`}
                 >
                   <span className="plugin-card-top">
@@ -228,18 +259,30 @@ export function PluginBrowser() {
                       onClick={() => void loadLocal(plugin.id)}
                       disabled={Boolean(loadingLocal)}
                     >
-                      {loadingLocal === plugin.id ? 'Loading…' : 'Load'}
+                      {loadingLocal === plugin.id
+                        ? 'Inserting…'
+                        : selectedStripPlugin?.id === plugin.id
+                          ? 'Inserted'
+                          : 'Insert'}
                     </button>
                   </span>
                   <span className="plugin-card-author">{plugin.vendor || 'Unknown vendor'}</span>
                   <span className="plugin-card-meta">{plugin.id}</span>
+                  <span className="plugin-card-meta">
+                    {localLoaded === plugin.id
+                      ? 'Load and process probe passed'
+                      : loadResults[plugin.id] === true
+                        ? 'Load and process probe passed'
+                        : loadResults[plugin.id] === false
+                          ? 'Load test failed'
+                          : 'Scanned · not load-tested'}
+                  </span>
                 </div>
               ))}
-              {localLoaded && (
+              {localLoaded && selectedStripPlugin?.id === localLoaded && (
                 <div className="tiny-note">
-                  READY:{' '}
-                  {localPlugins.find((plugin) => plugin.id === localLoaded)?.name ?? localLoaded}.
-                  Mixer insert routing is not wired yet.
+                    {selectedStripPlugin.name} passed an isolated load and process test and is saved on
+                    mixer strip {selectedStrip}. Playback uses a separate supervised instance.
                 </div>
               )}
             </div>
@@ -371,8 +414,8 @@ export function PluginBrowser() {
               <div className="plugin-security">
                 <b>Native binaries:</b> plugins run with your user permissions. Only download from
                 publishers you trust; “reviewed” means provenance was checked, not audited. Linux
-                CLAP plugins are loaded in a separate helper process; mixer insert routing is still
-                pending.
+                CLAP inserts run in a separate helper process and are never called from the audio
+                callback.
               </div>
             </>
           )}

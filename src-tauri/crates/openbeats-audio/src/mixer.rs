@@ -8,6 +8,7 @@
 //! instead of silently producing garbage.
 
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 /// One additional destination for a strip.
 #[derive(Debug, Clone, Copy, PartialEq, Deserialize, Serialize)]
@@ -56,6 +57,21 @@ pub struct MixerStrip {
     /// Strip whose signal ducks this one (sidechain input).
     #[serde(default)]
     pub sidechain: Option<usize>,
+    #[serde(default)]
+    pub clap_plugin: Option<ClapPluginInsert>,
+}
+
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
+pub struct ClapPluginInsert {
+    pub id: String,
+    #[serde(default)]
+    pub name: String,
+    #[serde(default)]
+    pub vendor: String,
+    #[serde(default)]
+    pub state: Option<Vec<u8>>,
+    #[serde(default)]
+    pub parameters: HashMap<u32, f64>,
 }
 
 fn unity() -> f32 {
@@ -72,6 +88,7 @@ impl MixerStrip {
             route: None,
             sends: Vec::new(),
             sidechain: None,
+            clap_plugin: None,
         }
     }
 }
@@ -317,6 +334,21 @@ impl Sidechain {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn clap_insert_state_round_trips_and_legacy_inserts_default_to_none() {
+        let plugin: ClapPluginInsert = serde_json::from_str(
+            r#"{"id":"gain","name":"Gain","vendor":"OpenBeats","state":[0,128,255],"parameters":{"7":0.5}}"#,
+        )
+        .unwrap();
+        assert_eq!(plugin.state, Some(vec![0, 128, 255]));
+        assert_eq!(plugin.parameters.get(&7), Some(&0.5));
+
+        let legacy: ClapPluginInsert =
+            serde_json::from_str(r#"{"id":"gain","name":"Gain","vendor":"OpenBeats"}"#).unwrap();
+        assert_eq!(legacy.state, None);
+        assert!(legacy.parameters.is_empty());
+    }
 
     fn strips() -> Vec<MixerStrip> {
         let mut master = MixerStrip::new(0);

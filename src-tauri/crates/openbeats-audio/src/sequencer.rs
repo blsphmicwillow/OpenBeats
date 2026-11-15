@@ -5,6 +5,7 @@
 //! notes) so the Rust side never has to understand the whole editor model.
 
 use serde::{Deserialize, Serialize};
+use std::path::PathBuf;
 
 use crate::automation::AutomationLane;
 use crate::clips::{expand_clip, PlaybackClip, PlaybackPattern};
@@ -118,6 +119,8 @@ pub struct PlaybackProject {
     /// Routing, send and gain data for the native callback.
     #[serde(default)]
     pub mixer: MixerGraph,
+    #[serde(skip)]
+    pub plugin_helper: Option<PathBuf>,
 }
 
 impl PlaybackProject {
@@ -403,6 +406,7 @@ mod tests {
             clips: Vec::new(),
             patterns: Vec::new(),
             mixer: MixerGraph::default(),
+            plugin_helper: None,
         }
     }
 
