@@ -430,6 +430,11 @@ scripts/        icon generation and plugin validation/fetching
 - The assistants are deterministic local DSP, not a hosted language model. Nothing is uploaded.
 - Not implemented yet: stem separation, a WASM wavetable synth, mixer folders, track freeze, PDC, per-clip effects, project snapshots, dockable panels, a spectral editor and a live-performance mode. See [ROADMAP.md](ROADMAP.md).
 
+## Contributors
+
+- **[blsphmicwillow](https://github.com/blsphmicwillow)**: design, native engine, UI, packaging and releases.
+- **[lizard (@lizardman124)](https://github.com/lizardman124)**: Linux CLAP plugin hosting, plugin documentation and the audio capture check in CI.
+
 ## Contributing
 
 Issues and pull requests are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) first; `npm run build` and a manual smoke test are expected before a PR.
