@@ -1,9 +1,8 @@
 /**
  * Transport glue for playlist audio clips.
  *
- * ENGINE: Web Audio only. `scheduleAudioClips` is called by the Web Audio tick
- * in `store.ts`; the native transport never sees audio clips, which is why the
- * UI carries "Playlist audio clips: Web Audio (desktop native pending)".
+ * This is the browser Web Audio scheduler. Desktop audio clips are rendered by
+ * the Rust callback in `crates/openbeats-audio/src/audio_clips.rs`.
  *
  * Loop handling: on play/seek the player schedules the current pass plus the
  * next loop pass. When the transport wraps, `advanceAudioClips` extends one more

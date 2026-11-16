@@ -4,9 +4,11 @@
 //! transport, the synth voices, the master chain and the recovery buffer.
 
 use std::collections::HashMap;
-use std::sync::Mutex;
+use std::path::PathBuf;
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
+use base64::{engine::general_purpose::STANDARD, Engine as _};
 use openbeats_audio::analyzer::SpectralAnalyzer;
 use openbeats_audio::arp::{ArpEvent, Arpeggiator};
 use openbeats_audio::automation::{AutomationLane, AutomationSet};
@@ -31,12 +33,13 @@ use openbeats_audio::workflow::{
     auto_gain_staging, health_check, humanize, tap_tempo, Groove, HealthIssue, ProjectHealth,
 };
 use serde::Serialize;
+use sha2::{Digest, Sha256};
 use tauri::{AppHandle, Manager, State};
 
 /// Holds the engine; the stream lives on its own thread inside it.
 #[derive(Default)]
 pub struct AudioState {
-    engine: Mutex<Option<NativeEngine>>,
+    engine: Arc<Mutex<Option<NativeEngine>>>,
 }
 
 #[derive(Serialize)]
@@ -102,38 +105,173 @@ pub fn audio_bridge_status() -> String {
     openbeats_audio::engine::bridge_status().to_string()
 }
 
+const MAX_PLAYLIST_MEDIA_BYTES: usize = 500 * 1024 * 1024;
+const PLAYLIST_MEDIA_EXTENSIONS: [&str; 9] = [
+    "wav", "mp3", "ogg", "oga", "flac", "m4a", "aac", "aif", "aiff",
+];
+
+fn playlist_media_path(app: &AppHandle, hash: &str, extension: &str) -> Result<PathBuf, String> {
+    let hash = hash.to_ascii_lowercase();
+    if hash.len() != 64 || !hash.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+        return Err("playlist media hash is invalid".into());
+    }
+    let extension = extension.to_ascii_lowercase();
+    if !PLAYLIST_MEDIA_EXTENSIONS.contains(&extension.as_str()) {
+        return Err("playlist media format is not supported".into());
+    }
+    let directory = app
+        .path()
+        .app_data_dir()
+        .map_err(|error| format!("could not locate the app data directory: {error}"))?
+        .join("playlist-media");
+    Ok(directory.join(format!("{hash}.{extension}")))
+}
+
+fn hash_matches(bytes: &[u8], expected: &str) -> bool {
+    format!("{:x}", Sha256::digest(bytes)) == expected
+}
+
+/// Whether media for a Playlist clip is already in the local native cache.
+#[tauri::command]
+pub fn has_playlist_media(app: AppHandle, hash: String, extension: String) -> Result<bool, String> {
+    let path = playlist_media_path(&app, &hash, &extension)?;
+    match std::fs::symlink_metadata(path) {
+        Ok(metadata) => Ok(metadata.file_type().is_file() && !metadata.file_type().is_symlink()),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(false),
+        Err(error) => Err(format!("could not inspect cached playlist media: {error}")),
+    }
+}
+
+/// Copies verified clip media from the WebView store into the app's local cache.
+#[tauri::command]
+pub async fn cache_playlist_media(
+    app: AppHandle,
+    hash: String,
+    extension: String,
+    data: String,
+) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let path = playlist_media_path(&app, &hash, &extension)?;
+        let bytes = STANDARD
+            .decode(data)
+            .map_err(|error| format!("playlist media could not be decoded: {error}"))?;
+        if bytes.is_empty() || bytes.len() > MAX_PLAYLIST_MEDIA_BYTES {
+            return Err("playlist media must be between 1 byte and 500 MB".into());
+        }
+        let hash = hash.to_ascii_lowercase();
+        if !hash_matches(&bytes, &hash) {
+            return Err("playlist media failed its SHA-256 integrity check".into());
+        }
+        if let Ok(existing) = std::fs::read(&path) {
+            if hash_matches(&existing, &hash) {
+                return Ok(());
+            }
+        }
+        let directory = path
+            .parent()
+            .ok_or_else(|| "playlist media cache path is invalid".to_string())?;
+        std::fs::create_dir_all(directory)
+            .map_err(|error| format!("could not create playlist media cache: {error}"))?;
+        let temporary = directory.join(format!(".{}-{}.tmp", hash, std::process::id()));
+        std::fs::write(&temporary, bytes)
+            .map_err(|error| format!("could not write playlist media cache: {error}"))?;
+        if path.exists() {
+            std::fs::remove_file(&path)
+                .map_err(|error| format!("could not replace cached playlist media: {error}"))?;
+        }
+        std::fs::rename(&temporary, &path)
+            .map_err(|error| format!("could not finish caching playlist media: {error}"))
+    })
+    .await
+    .map_err(|error| format!("playlist media cache task failed: {error}"))?
+}
+
+fn attach_playlist_media(app: &AppHandle, project: &mut PlaybackProject) -> Result<(), String> {
+    let mut decoded_by_hash: HashMap<String, Arc<DecodedClip>> = HashMap::new();
+    for clip in &mut project.audio_clips {
+        let key = clip.media_hash.to_ascii_lowercase();
+        if let Some(decoded) = decoded_by_hash.get(&key) {
+            clip.samples = Arc::clone(&decoded.samples);
+            clip.sample_rate = decoded.sample_rate;
+            clip.channels = decoded.channels;
+            clip.normalization_gain = decoded.normalization_gain;
+            continue;
+        }
+        let path = playlist_media_path(app, &key, &clip.media_ext)?;
+        let decoded = openbeats_audio::decode::decode_file(&path).map_err(|error| {
+            format!(
+                "could not load Playlist audio clip \"{}\": {error}",
+                clip.id
+            )
+        })?;
+        let mut peak = 0.0f32;
+        for sample in decoded.samples.iter() {
+            peak = peak.max(sample.abs());
+        }
+        let normalization_gain = if peak > 0.0 {
+            10.0f32.powf(-1.0 / 20.0) / peak
+        } else {
+            1.0
+        };
+        let decoded = Arc::new(DecodedClip {
+            samples: Arc::new(decoded.samples),
+            sample_rate: decoded.sample_rate,
+            channels: decoded.channels,
+            normalization_gain,
+        });
+        clip.samples = Arc::clone(&decoded.samples);
+        clip.sample_rate = decoded.sample_rate;
+        clip.channels = decoded.channels;
+        clip.normalization_gain = decoded.normalization_gain;
+        decoded_by_hash.insert(key, decoded);
+    }
+    Ok(())
+}
+
+struct DecodedClip {
+    samples: Arc<Vec<f32>>,
+    sample_rate: u32,
+    channels: u16,
+    normalization_gain: f32,
+}
+
 /// Starts (or reuses) the CPAL stream and plays the supplied sequencer data.
 #[tauri::command]
-pub fn start_playback(
+pub async fn start_playback(
     app: AppHandle,
     state: State<'_, AudioState>,
     project_data: String,
 ) -> Result<PlaybackStatus, String> {
-    let mut project = PlaybackProject::from_json(&project_data)?;
-    #[cfg(target_os = "linux")]
-    {
-        project.plugin_helper = crate::plugin_commands::clap_helper_path(&app);
-    }
-    let mut guard = state
-        .engine
-        .lock()
-        .map_err(|_| "the audio state is unavailable".to_string())?;
-
-    if guard.is_none() {
-        match NativeEngine::start() {
-            Ok(engine) => *guard = Some(engine),
-            Err(err) => return Err(err),
+    let engine_state = Arc::clone(&state.engine);
+    tauri::async_runtime::spawn_blocking(move || {
+        let mut project = PlaybackProject::from_json(&project_data)?;
+        attach_playlist_media(&app, &mut project)?;
+        #[cfg(target_os = "linux")]
+        {
+            project.plugin_helper = crate::plugin_commands::clap_helper_path(&app);
         }
-    }
+        let mut guard = engine_state
+            .lock()
+            .map_err(|_| "the audio state is unavailable".to_string())?;
 
-    let engine = guard.as_ref().ok_or("the audio engine did not start")?;
-    engine.play(project)?;
-    Ok(PlaybackStatus {
-        playing: true,
-        sample_rate: engine.sample_rate(),
-        device: engine.device_name().to_string(),
-        voices_ready: true,
+        if guard.is_none() {
+            match NativeEngine::start() {
+                Ok(engine) => *guard = Some(engine),
+                Err(err) => return Err(err),
+            }
+        }
+
+        let engine = guard.as_ref().ok_or("the audio engine did not start")?;
+        engine.play(project)?;
+        Ok(PlaybackStatus {
+            playing: true,
+            sample_rate: engine.sample_rate(),
+            device: engine.device_name().to_string(),
+            voices_ready: true,
+        })
     })
+    .await
+    .map_err(|error| format!("native playback task failed: {error}"))?
 }
 
 #[tauri::command]
@@ -207,12 +345,10 @@ pub fn set_clap_plugin_gui(
     let parent_x11 = window
         .window_handle()
         .ok()
-        .and_then(|handle| -> Option<u64> {
-            match handle.as_raw() {
-                RawWindowHandle::Xlib(handle) => Some(u64::from(handle.window)),
-                RawWindowHandle::Xcb(handle) => Some(u64::from(handle.window.get())),
-                _ => None,
-            }
+        .and_then(|handle| match handle.as_raw() {
+            RawWindowHandle::Xlib(handle) => Some(u64::from(handle.window)),
+            RawWindowHandle::Xcb(handle) => Some(u64::from(handle.window.get())),
+            _ => None,
         });
     let guard = state
         .engine

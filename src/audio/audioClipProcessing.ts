@@ -1,9 +1,5 @@
 /**
- * Web Audio-only processing for playlist audio clips.
- *
- * ENGINE: these helpers are used by the live Web Audio scheduler and the
- * offline Web Audio bounce. The Rust/CPAL engine has no audio-clip voice, so
- * reverse and normalize are not available in native playback.
+ * Web Audio processing for playlist clips and offline bounce.
  */
 
 import type { AudioClip } from '../model/audioClip';

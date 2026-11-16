@@ -24,6 +24,7 @@ use std::time::{Duration, Instant};
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use cpal::{FromSample, SampleFormat, SizedSample, SupportedBufferSize};
 
+use crate::audio_clips::render_audio_clips;
 use crate::automation::AutomationLane;
 use crate::devices::{self, AudioDevices, Candidate, DeviceInfo};
 use crate::dsp::{Compressor, Eq3, Transmitter, TruePeakLimiter};
@@ -321,6 +322,7 @@ impl CallbackState {
     fn next_frame(&mut self) -> (f32, f32, f32) {
         let mut left = 0.0f32;
         let mut right = 0.0f32;
+        let mut audio_clip_frame = (0.0, 0.0);
 
         // Disjoint field borrows so the sequencer can be read while the voice
         // pool is written.
@@ -365,6 +367,11 @@ impl CallbackState {
                         }
                     }
                 }
+                audio_clip_frame = render_audio_clips(
+                    &seq.project().audio_clips,
+                    seq.position_steps(),
+                    seq.project().bpm,
+                );
             }
         }
         if let Some(accent) = click {
@@ -407,6 +414,8 @@ impl CallbackState {
         };
         left += voice_l;
         right += voice_r;
+        left += audio_clip_frame.0;
+        right += audio_clip_frame.1;
 
         // Test tone, so "is the device alive" is answerable without a project.
         if self.tone_seconds_left > 0.0 {

@@ -7,6 +7,7 @@ import {
   createAudioClipFromDrop,
   resolveSnapTick,
   secondsToTicks,
+  trimAudioClipEnd,
   TICKS_PER_STEP,
   ticksToSteps,
   type AudioClip,
@@ -26,6 +27,7 @@ type DragState =
   | { kind: 'loop-move'; startX: number; origStart: number; origEnd: number }
   | { kind: 'playhead'; startX: number; rulerLeft: number }
   | { kind: 'audio-clip'; id: string; track: number; startX: number; origStartTick: number }
+  | { kind: 'audio-resize'; id: string; startX: number; origLen: number; sourceDurationTicks: number }
   | { kind: 'audio-slip'; id: string; startX: number; origOffset: number; lengthTicks: number; sourceDurationTicks: number }
   | { kind: 'marker'; id: string; startX: number; origStart: number }
   | { kind: 'fade-in' | 'fade-out'; id: string; audio: boolean; startX: number; orig: number; len: number };
@@ -200,6 +202,23 @@ export function Playlist() {
           d.sourceDurationTicks,
         );
         updateAudioClip(d.id, { source_offset_ticks: value }, `audio-slip:${d.id}`);
+      } else if (d.kind === 'audio-resize') {
+        const clip = state.project.audioClips.find((candidate) => candidate.id === d.id);
+        if (!clip) return;
+        const trimmed = trimAudioClipEnd(
+          clip,
+          snapStep(d.origLen / TICKS_PER_STEP + deltaSteps) * TICKS_PER_STEP,
+          d.sourceDurationTicks,
+        );
+        updateAudioClip(
+          d.id,
+          {
+            length_ticks: trimmed.length_ticks,
+            fade_in: trimmed.fade_in,
+            fade_out: trimmed.fade_out,
+          },
+          `audio-resize:${d.id}`,
+        );
       } else if (d.kind === 'fade-in' || d.kind === 'fade-out') {
         const direction = d.kind === 'fade-in' ? 1 : -1;
         const raw = d.audio
@@ -591,7 +610,7 @@ export function Playlist() {
     const clip = project.audioClips.find((c) => c.id === clipId);
     if (!clip) return;
     openMenu(e.clientX, e.clientY, [
-      { label: `${clip.name} — Web Audio clip`, disabled: true },
+      { label: `${clip.name} — audio clip`, disabled: true },
       { label: 'Copy clip', shortcut: 'Ctrl+C', onClick: () => copyClip(clip.id) },
       { label: 'Cut clip', shortcut: 'Ctrl+X', onClick: () => {
         cutClip(clip.id);
@@ -612,11 +631,11 @@ export function Playlist() {
         onClick: () => updateAudioClip(clip.id, { loop_mode: clip.loop_mode === 'loop' ? 'off' : 'loop' }),
       },
       {
-        label: `Reverse playback: ${clip.reversed ? 'on' : 'off'} (Web Audio only)`,
+        label: `Reverse playback: ${clip.reversed ? 'on' : 'off'}`,
         onClick: () => updateAudioClip(clip.id, { reversed: !clip.reversed }),
       },
       {
-        label: `Normalize peak to −1 dBFS: ${clip.normalized ? 'on' : 'off'} (Web Audio only)`,
+        label: `Normalize peak to −1 dBFS: ${clip.normalized ? 'on' : 'off'}`,
         onClick: () => updateAudioClip(clip.id, { normalized: !clip.normalized }),
       },
       { separator: true },
@@ -903,7 +922,7 @@ export function Playlist() {
           Loop bars {Math.floor(project.loopStart / barSteps) + 1}–{Math.max(1, Math.ceil(project.loopEnd / barSteps))}
         </span>
         <span className="tiny-note" title="Which engine plays audio clips">
-          Playlist audio: Web Audio (desktop native pending). Alt-drag a clip to slip.
+          Playlist audio: Web Audio in browser · Rust/CPAL on desktop. Drag the right edge to trim.
         </span>
         <div className="spacer" />
         <button
@@ -942,7 +961,7 @@ export function Playlist() {
             </button>
           </div>
           <span className="tiny-note">
-            Batch edits apply to all selected clips. Fades are in 16th steps; audio-clip fades remain Web Audio only.
+            Batch edits apply to all selected clips. Fades are in 16th steps.
           </span>
         </div>
       )}
@@ -999,7 +1018,7 @@ export function Playlist() {
             </>
           )}
           <span className="tiny-note">
-            Pattern fades: Rust + Web Audio. Audio-clip fades, reverse, normalize and slip: Web Audio only (live and bounce). Alt-drag an audio clip to slip its source.
+          Pattern and audio clips use Rust/CPAL on desktop and Web Audio in the browser. Alt-drag an audio clip to slip its source.
           </span>
         </div>
       )}
@@ -1405,7 +1424,7 @@ export function Playlist() {
                           width,
                           ['--clip-color' as string]: '#4cc9f0',
                         }}
-                        title={`${clip.name} — Web Audio clip (native playback pending). Drag to move, drag the SLIP grip to slip the source; right-click for gain, pan, loop, reverse and normalize.`}
+                        title={`${clip.name} — drag to move, the right edge to trim, or the SLIP grip to slip the source; right-click for gain, pan, loop, reverse and normalize.`}
                         onPointerDown={(e) => {
                           if (e.button !== 0) return;
                           e.preventDefault();
@@ -1515,6 +1534,23 @@ export function Playlist() {
                             />
                           </>
                         )}
+                        <div
+                          className="clip-resize"
+                          title="Drag to trim the audio clip"
+                          onPointerDown={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            pushHistory();
+                            const sourceDuration = sourceDurationTicksFor(clip);
+                            beginDrag(e, {
+                              kind: 'audio-resize',
+                              id: clip.id,
+                              startX: e.clientX,
+                              origLen: clip.length_ticks,
+                              sourceDurationTicks: sourceDuration,
+                            });
+                          }}
+                        />
                       </div>
                     );
                   })}

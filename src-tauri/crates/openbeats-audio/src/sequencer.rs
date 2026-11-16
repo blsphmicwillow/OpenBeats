@@ -7,6 +7,7 @@
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
+use crate::audio_clips::PlaybackAudioClip;
 use crate::automation::AutomationLane;
 use crate::clips::{expand_clip, PlaybackClip, PlaybackPattern};
 use crate::mixer::MixerGraph;
@@ -116,6 +117,9 @@ pub struct PlaybackProject {
     pub clips: Vec<PlaybackClip>,
     #[serde(default)]
     pub patterns: Vec<PlaybackPattern>,
+    /// Playlist audio clips, with decoded PCM attached before the stream starts.
+    #[serde(default)]
+    pub audio_clips: Vec<PlaybackAudioClip>,
     /// Routing, send and gain data for the native callback.
     #[serde(default)]
     pub mixer: MixerGraph,
@@ -405,6 +409,7 @@ mod tests {
             ],
             clips: Vec::new(),
             patterns: Vec::new(),
+            audio_clips: Vec::new(),
             mixer: MixerGraph::default(),
             plugin_helper: None,
         }

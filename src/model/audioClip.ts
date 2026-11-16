@@ -1,10 +1,8 @@
 /**
- * Playlist audio clips (Task B, 1.0.5).
+ * Playlist audio clips.
  *
- * ENGINE: these clips are executed by **Web Audio only**. The native Rust/CPAL
- * sequencer expands *pattern* clips (`crates/openbeats-audio/src/clips.rs`) and
- * has no audio-clip voice, so desktop playback falls back to the WebView engine
- * for this feature. There is no Rust implementation to agree with yet.
+ * Browser playback uses Web Audio. Desktop playback sends clip metadata to
+ * Rust/CPAL, which reads verified media from the app's local cache.
  *
  * Ticks are the model unit: 480 per quarter note, 120 per 16th step, so one
  * 4/4 bar is 1920 ticks. The playlist UI still works in 16th steps; helpers
@@ -55,16 +53,16 @@ export interface AudioClip {
   pan: number;
   pitch_cents: number;
   /**
-   * Persisted for the .obeats contract. 1.0.5 Web Audio playback ignores it:
+   * Persisted for the .obeats contract. Playback currently ignores it:
    * resampling would change pitch, and a phase-vocoder stretcher is not built.
    */
   stretch_ratio: number;
   /** Fade lengths in ticks. */
   fade_in: number;
   fade_out: number;
-  /** Reverse playback. ENGINE: Web Audio only; the native path has no audio-clip voice. */
+  /** Reverse playback. */
   reversed?: boolean;
-  /** Peak-normalize to -1 dBFS. ENGINE: Web Audio only. */
+  /** Peak-normalize to -1 dBFS. */
   normalized?: boolean;
   loop_mode: LoopMode;
   /** Display name (file name by default). */
@@ -108,6 +106,25 @@ export function clampSourceOffset(
 ): number {
   const max = Math.max(0, Math.round(sourceDurationTicks) - Math.max(1, Math.round(clipLengthTicks)));
   return Math.max(0, Math.min(max, Math.round(offsetTicks)));
+}
+
+/** Trims the clip end without allowing a non-looping clip past its source. */
+export function trimAudioClipEnd(
+  clip: AudioClip,
+  lengthTicks: number,
+  sourceDurationTicks: number,
+): AudioClip {
+  const maxLength =
+    clip.loop_mode === 'loop'
+      ? Number.MAX_SAFE_INTEGER
+      : Math.max(1, Math.round(sourceDurationTicks) - Math.max(0, clip.source_offset_ticks ?? 0));
+  const length = Math.max(1, Math.min(maxLength, Math.round(lengthTicks)));
+  return {
+    ...clip,
+    length_ticks: length,
+    fade_in: Math.min(clip.fade_in, length),
+    fade_out: Math.min(clip.fade_out, length),
+  };
 }
 
 export interface SnapContext {

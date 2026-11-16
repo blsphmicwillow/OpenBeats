@@ -1,8 +1,7 @@
 /**
- * Session sample library for playlist audio clips.
- *
- * ENGINE: Web Audio path only. Decoded buffers are held in memory for playback
- * and waveform drawing; the bytes themselves live in `mediaStore.ts`.
+ * Session sample library for Playlist audio clips. Decoded buffers are held in
+ * memory for Web Audio playback and waveform drawing; original bytes live in
+ * `mediaStore.ts` and are cached locally for native playback.
  */
 
 import type { MediaRef } from '../model/audioClip';

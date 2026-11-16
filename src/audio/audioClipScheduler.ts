@@ -1,10 +1,8 @@
 /**
  * Web Audio scheduling for playlist audio clips.
  *
- * ENGINE: **Web Audio only.** The Rust/CPAL sequencer has no audio-clip voice,
- * so a desktop project containing audio clips is played by the WebView engine.
- * See the label in README: "Playlist audio clips: Web Audio only in 1.0.5;
- * native Rust playback pending."
+ * This scheduler is the browser/Web Audio implementation. Desktop playback has
+ * a sample-frame renderer in the native Rust/CPAL callback.
  *
  * The pure part (`scheduleWindows`) is the important one: it answers "given the
  * playhead, the loop region and a look-ahead horizon, which slice of which
