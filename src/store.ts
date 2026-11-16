@@ -42,7 +42,7 @@ import {
 } from './model/clipClipboard';
 import { markerLoopRange, nextMarker, normalizeMarkers, previousMarker } from './model/markers';
 import { normalizeAutomation, projectHasAutomation } from './model/automation';
-import { putSample } from './audio/mediaStore';
+import { getSample, putSample, verifySample } from './audio/mediaStore';
 import { buildPeaksOffThread } from './audio/waveformClient';
 import { registerSample } from './audio/sampleLibrary';
 import { analyzeSample } from './lib/tagging';
@@ -65,7 +65,10 @@ import {
 import { masterBuffer, type MasterTarget } from './lib/mastering';
 import {
   captureNativePluginStates,
+  nativeCachePlaylistMedia,
   nativeExportAudio,
+  nativeHasPlaylistMedia,
+  playlistMediaExtension,
   processNativeClapOffline,
 } from './lib/nativeAudio';
 import { exportFormat, type ExportFormatId } from './lib/exportFormats';
@@ -1195,11 +1198,13 @@ export const useApp = create<AppState>((set, get) => ({
   /**
    * Drop handler for playlist audio clips: decode, hash into the media store,
    * compute peak LODs off the UI thread, then commit the model clip.
-   * ES/CPAL note: the clip plays through Web Audio only (native pending).
    */
   async importAudioClipFiles(files, track, startTick) {
     await get().initAudio();
-    const ctx = engine.ctx;
+    const OfflineContext = window.OfflineAudioContext;
+    const ctx =
+      engine.ctx ??
+      (nativeShell() && OfflineContext ? new OfflineContext(1, 1, 44_100) : null);
     if (!ctx) {
       get().toast('Audio could not start — click the studio and try again');
       return 0;
@@ -1243,9 +1248,7 @@ export const useApp = create<AppState>((set, get) => ({
       }
     }
     if (added) {
-      get().toast(
-        `${added} audio clip${added === 1 ? '' : 's'} added — Web Audio only in 1.0.5 (native playback pending)`,
-      );
+      get().toast(`${added} audio clip${added === 1 ? '' : 's'} added to the Playlist`);
     }
     return added;
   },
@@ -1900,9 +1903,8 @@ function tick() {
   let guard = 0;
   while (nextTime < ctx.currentTime + 0.15 && guard < 128) {
     const local = ((nextStep % total) + total) % total;
-    // Playlist audio clips are scheduled by Web Audio only (native pending).
-    // `advanceAudioClips` detects the wrap because `local` moves backwards, and
-    // then queues the next loop pass at the wrapped offset.
+    // The Web Audio transport extends clip windows on loop wraps. Native
+    // playback renders clips directly from the CPAL callback.
     if (transport.songMode) advanceAudioClips(project, local);
     if (!project.loop && nextStep >= total) {
       state.stop();
@@ -1959,43 +1961,72 @@ function nativeShell(): boolean {
 }
 
 async function startNativeFromSnapshot(start: number): Promise<boolean> {
-  const { buildPlaybackSnapshot, configureNativeAudio, nativePlaybackState, startNativePlayback } = await import(
-    './lib/nativeAudio'
-  );
-  const { project, transport, settings } = useApp.getState();
-  const current = await nativePlaybackState();
-  if (!current || current.sample_rate <= 0) {
-    // The startup chime normally opens the saved device; this covers a disabled
-    // chime and the first play after launch.
-    await configureNativeAudio(settings.audio);
-  }
-  const snapshot = buildPlaybackSnapshot(project, transport.songMode, start);
-  const status = await startNativePlayback(snapshot);
-  if (!status) return false;
-  const outputName = settings.audio.outputLabel || friendlyDeviceName(status.device);
+  try {
+    const { buildPlaybackSnapshot, configureNativeAudio, nativePlaybackState, startNativePlayback } = await import(
+      './lib/nativeAudio'
+    );
+    const { project, transport, settings } = useApp.getState();
+    const current = await nativePlaybackState();
+    if (!current || current.sample_rate <= 0) {
+      // The startup chime normally opens the saved device; this covers a disabled
+      // chime and the first play after launch.
+      await configureNativeAudio(settings.audio);
+    }
+    if (transport.songMode) {
+      const media = new Map<string, { hash: string; extension: string }>();
+      for (const clip of project.audioClips) {
+        const extension = playlistMediaExtension(clip.media_ref.name, clip.media_ref.mime);
+        media.set(`${clip.media_ref.hash}.${extension}`, {
+          hash: clip.media_ref.hash,
+          extension,
+        });
+      }
+      for (const item of media.values()) {
+        if (await nativeHasPlaylistMedia(item.hash, item.extension)) continue;
+        const ref = project.audioClips.find((clip) => clip.media_ref.hash === item.hash)?.media_ref;
+        if (ref && ref.bytes > 500 * 1024 * 1024) {
+          throw new Error(`The source media “${ref.name}” exceeds the 500 MB desktop cache limit.`);
+        }
+        const bytes = ref ? await getSample(ref) : null;
+        if (!ref || !bytes || !(await verifySample(ref, bytes))) {
+          throw new Error(`The source media for hash ${item.hash.slice(0, 8)} is missing or damaged.`);
+        }
+        await nativeCachePlaylistMedia(item.hash, item.extension, bytes);
+      }
+    }
+    const snapshot = buildPlaybackSnapshot(project, transport.songMode, start);
+    const status = await startNativePlayback(snapshot);
+    if (!status) return false;
+    const outputName = settings.audio.outputLabel || friendlyDeviceName(status.device);
 
-  nativeActive = true;
-  if (playTimer) {
-    clearInterval(playTimer);
-    playTimer = null;
+    nativeActive = true;
+    if (playTimer) {
+      clearInterval(playTimer);
+      playTimer = null;
+    }
+    useApp.setState((s) => ({
+      audioReady: true,
+      audioError: null,
+      transport: {
+        ...s.transport,
+        playing: true,
+        anchorStep: start,
+        anchorTime: performance.now() / 1000,
+        step: start,
+      },
+      ui: { ...s.ui, hint: `Playing natively on ${outputName} — Space to stop.` },
+    }));
+    if (nativePoll) clearInterval(nativePoll);
+    nativePoll = window.setInterval(() => {
+      void pollNativeTransport();
+    }, 60);
+    return true;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error('Could not prepare native Playlist audio', error);
+    useApp.getState().toast(`Native audio clips could not be loaded: ${message}`);
+    return false;
   }
-  useApp.setState((s) => ({
-    audioReady: true,
-    audioError: null,
-    transport: {
-      ...s.transport,
-      playing: true,
-      anchorStep: start,
-      anchorTime: performance.now() / 1000,
-      step: start,
-    },
-    ui: { ...s.ui, hint: `Playing natively on ${outputName} — Space to stop.` },
-  }));
-  if (nativePoll) clearInterval(nativePoll);
-  nativePoll = window.setInterval(() => {
-    void pollNativeTransport();
-  }, 60);
-  return true;
 }
 
 async function pollNativeTransport() {

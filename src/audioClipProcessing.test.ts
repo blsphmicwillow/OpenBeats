@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { scheduleWindows } from './audio/audioClipScheduler';
-import { clampSourceOffset, type AudioClip } from './model/audioClip';
+import { songLengthSteps } from './audio/sequencer';
+import { clampSourceOffset, trimAudioClipEnd, type AudioClip } from './model/audioClip';
+import type { Project } from './model/types';
 import {
   NORMALIZE_CEILING,
   normalizationGain,
@@ -61,6 +63,22 @@ describe('audio clip processing', () => {
     expect(clampSourceOffset(-20, 100, 1000)).toBe(0);
     expect(clampSourceOffset(450, 100, 1000)).toBe(450);
     expect(clampSourceOffset(950, 100, 1000)).toBe(900);
+  });
+
+  it('trims without running past the source and keeps fades inside the new edge', () => {
+    const sourceClip = { ...clip(false, 240), length_ticks: 960, fade_in: 300, fade_out: 500 };
+    const trimmed = trimAudioClipEnd(sourceClip, 900, 1_000);
+    expect(trimmed.length_ticks).toBe(760);
+    expect(trimmed.fade_in).toBe(300);
+    expect(trimmed.fade_out).toBe(500);
+    expect(trimAudioClipEnd(sourceClip, 400, 1_000).fade_out).toBe(400);
+    expect(trimAudioClipEnd({ ...sourceClip, loop_mode: 'loop' }, 900, 1_000).length_ticks).toBe(900);
+  });
+
+  it('extends the song length to include audio clips', () => {
+    const audio = { ...clip(false, 0), start_tick: 7_680, length_ticks: 1_920 };
+    const project = { clips: [], audioClips: [audio], loopEnd: 16 } as Project;
+    expect(songLengthSteps(project)).toBe(80);
   });
 
   it('schedules a split half from its media offset', () => {

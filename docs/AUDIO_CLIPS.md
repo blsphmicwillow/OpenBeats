@@ -1,14 +1,9 @@
-# Playlist audio clips (1.0.5)
+# Playlist audio clips
 
-**Engine: Web Audio only.** The UI states this in the playlist toolbar:
-
-> Playlist audio clips: Web Audio (desktop native pending).
-
-The Rust/CPAL engine expands *pattern* clips
-(`src-tauri/crates/openbeats-audio/src/clips.rs`) and has no audio-clip voice, so
-a desktop project that contains audio clips is played by the WebView engine. The
-native transport does not receive them. There is no second implementation to
-compare against yet, so no parity claim is made here.
+Playlist audio clips can be dropped on a lane, moved, trimmed from the right
+edge, slipped within their source, looped, and displayed as LOD waveforms.
+Browser playback uses Web Audio; desktop playback decodes verified sources
+into native sample buffers and renders them in the Rust/CPAL callback.
 
 ## Model
 
@@ -35,16 +30,19 @@ AudioClip {
   resampling would change pitch and a phase-vocoder stretcher is not built.
   (Pattern clips do stretch in the Rust sequencer; that is a different path.)
 
-## Media storage — documented limitation
+## Media storage
 
 Bytes are stored in the WebView's IndexedDB (`src/audio/mediaStore.ts`), keyed by
 their SHA-256, at `idb://openbeats-media/<hash>`. Identical files share one copy,
 and re-opening a project can re-hash the bytes to prove integrity.
 
-**Media is cached in the WebView for 1.0.5; native app-data persistence is
-planned for 1.1.** The Tauri filesystem commands are not used for clip media
-yet: streaming through them needs a chunked read/write command pair and a
-migration, and shipping a half-wired path would be worse than stating the gap.
+For desktop playback, the frontend sends each missing source to a Tauri command
+as base64 in a separate cache request. Rust verifies the SHA-256, stores the
+original file under its content hash in app-data `playlist-media`, then decodes
+it off the audio callback before starting playback. Sources over 500 MB are
+rejected for native playback. Playback JSON contains only clip metadata, not
+media bytes. WAV, MP3, OGG, FLAC, AIFF and M4A/AAC use the existing Symphonia
+decoder.
 
 ## Waveform LOD
 
@@ -62,7 +60,7 @@ migration, and shipping a half-wired path would be worse than stating the gap.
 
 ## Scheduling and the loop-region fix
 
-`src/audio/audioClipScheduler.ts` separates maths from nodes:
+`src/audio/audioClipScheduler.ts` separates browser scheduling maths from nodes:
 
 - `scheduleWindows(clips, transport, bufferDurations)` is pure. It converts
   ticks → seconds from the tempo, intersects each clip with the current loop
@@ -70,6 +68,10 @@ migration, and shipping a half-wired path would be worse than stating the gap.
   `{ clipId, whenSec, offsetSec, durationSec, loopPass, loopWithinSource }`.
 - `AudioClipPlayer` turns those windows into `AudioBufferSourceNode`s with gain,
   fades and an optional panner.
+
+The native callback renders the active source frame per callback, applying clip
+gain, fades, pan, reverse, normalization, source looping and track mute/solo.
+Loop-region seeks and wraps follow the native sequencer playhead.
 
 **Loop fix:** windows are computed for the current pass *and* the wrapped pass,
 and a wrap resumes at `loopStart − clipStart` into the file. A clip that starts
@@ -80,9 +82,10 @@ pass when the transport step moves backwards, without stopping what is playing.
 ## Snapping and drag
 
 Precedence is **playhead → clip edge → grid** (`resolveSnapTick`), with a 10 px
-tolerance converted to ticks from the current zoom. A drag only renders a ghost;
+tolerance converted to ticks from the current zoom. File drags render a ghost;
 peaks are computed on drop, and a cancelled pointer drag restores the original
-`start_tick`, so a cancel leaves no model residue.
+`start_tick`. The right-edge handle trims clip length, keeps fades inside the
+new edge, and prevents non-looping clips from extending past their source.
 
 ## Tests
 

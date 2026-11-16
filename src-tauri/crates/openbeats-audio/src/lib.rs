@@ -17,6 +17,7 @@
 
 pub mod analyzer;
 pub mod arp;
+pub mod audio_clips;
 pub mod automation;
 pub mod chime;
 pub mod chord;

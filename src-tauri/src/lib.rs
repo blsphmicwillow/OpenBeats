@@ -190,6 +190,8 @@ pub fn run() {
             discord_clear,
             // Native audio engine
             audio_commands::start_playback,
+            audio_commands::has_playlist_media,
+            audio_commands::cache_playlist_media,
             audio_commands::stop_playback,
             audio_commands::capture_clap_plugin_states,
             audio_commands::set_clap_plugin_parameter,

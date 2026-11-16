@@ -1,8 +1,8 @@
 /**
  * Task B smoke tests — playlist audio clips.
  *
- * ENGINE UNDER TEST: Web Audio only. The native Rust/CPAL path has no
- * audio-clip voice in 1.0.5, so nothing here claims native playback.
+ * These tests cover the browser Web Audio scheduler and pure drop planning.
+ * Native callback rendering is covered by the Rust audio-clip unit tests.
  *
  * jsdom has neither Web Audio nor a reliable DataTransfer constructor, so:
  *  - `FakeAudioContext` records node creation and `start()` arguments;

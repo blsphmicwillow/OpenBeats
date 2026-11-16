@@ -1,15 +1,9 @@
 /**
  * Binary media store for playlist audio clips.
  *
- * ENGINE: Web Audio path only. The bytes live in the WebView's IndexedDB in
- * both the browser demo and the desktop build.
- *
- * NATIVE LIMITATION (deliberate, documented in README and docs/AUDIO_CLIPS.md):
- * the Tauri app-data directory is not used yet. Streaming media through the
- * existing Rust filesystem commands would mean a new chunked read/write command
- * pair plus a migration; for 1.0.5 the media cache stays in the WebView.
- * "Media is cached in the WebView for 1.0.5; native app-data persistence is
- * planned for 1.1."
+ * The WebView IndexedDB is the project media store in browser and desktop
+ * builds. Desktop playback mirrors verified sources into the native app-data
+ * cache before starting the Rust/CPAL transport.
  *
  * Integrity: every stored file is hashed with SHA-256 (WebCrypto). The hash is
  * kept in the project (`MediaRef.hash`) and re-checked when a project reopens,

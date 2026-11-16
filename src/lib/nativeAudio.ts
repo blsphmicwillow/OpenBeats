@@ -103,6 +103,23 @@ export interface PlaybackClipSnapshot {
   muted: boolean;
 }
 
+export interface PlaybackAudioClipSnapshot {
+  id: string;
+  media_hash: string;
+  media_ext: string;
+  start_tick: number;
+  length_ticks: number;
+  source_offset_ticks: number;
+  gain: number;
+  pan: number;
+  fade_in: number;
+  fade_out: number;
+  loop_mode: 'off' | 'loop';
+  reversed: boolean;
+  normalized: boolean;
+  muted: boolean;
+}
+
 export interface PlaybackPatternSnapshot {
   id: string;
   bars: number;
@@ -124,6 +141,8 @@ export interface PlaybackSnapshot {
   notes: PlaybackNoteSnapshot[];
   /** Song-mode clips, expanded natively with pan/pitch/stretch/fades. */
   clips: PlaybackClipSnapshot[];
+  /** Song-mode audio clips; their media is cached separately from this JSON. */
+  audio_clips: PlaybackAudioClipSnapshot[];
   patterns: PlaybackPatternSnapshot[];
   mixer: {
     strips: {
@@ -421,6 +440,31 @@ function nativeAutomation(project: Project, mixer: number): NativeAutomationLane
   ];
 }
 
+const PLAYLIST_MEDIA_EXTENSIONS = new Set([
+  'wav', 'mp3', 'ogg', 'oga', 'flac', 'm4a', 'aac', 'aif', 'aiff',
+]);
+
+export function playlistMediaExtension(name: string, mime: string): string {
+  const suffix = name.split('.').pop()?.toLowerCase() ?? '';
+  if (PLAYLIST_MEDIA_EXTENSIONS.has(suffix)) return suffix;
+  const byMime: Record<string, string> = {
+    'audio/mpeg': 'mp3',
+    'audio/mp3': 'mp3',
+    'audio/wav': 'wav',
+    'audio/wave': 'wav',
+    'audio/x-wav': 'wav',
+    'audio/ogg': 'ogg',
+    'audio/flac': 'flac',
+    'audio/aiff': 'aiff',
+    'audio/x-aiff': 'aiff',
+    'audio/mp4': 'm4a',
+    'audio/aac': 'aac',
+  };
+  const extension = byMime[mime.toLowerCase()];
+  if (extension) return extension;
+  throw new Error(`Native playback does not support the media format “${mime || name}”.`);
+}
+
 export function buildPlaybackSnapshot(
   project: Project,
   songMode: boolean,
@@ -497,6 +541,26 @@ export function buildPlaybackSnapshot(
           muted: project.tracks[clip.track]?.mute ?? false,
         }))
       : [],
+    audio_clips: songMode
+        ? project.audioClips.map((clip) => ({
+            id: clip.id,
+            media_hash: clip.media_ref.hash,
+            media_ext: playlistMediaExtension(clip.media_ref.name, clip.media_ref.mime),
+            start_tick: clip.start_tick,
+            length_ticks: clip.length_ticks,
+            source_offset_ticks: clip.source_offset_ticks ?? 0,
+            gain: clip.gain,
+            pan: clip.pan,
+            fade_in: clip.fade_in,
+            fade_out: clip.fade_out,
+            loop_mode: clip.loop_mode,
+            reversed: clip.reversed === true,
+            normalized: clip.normalized === true,
+            muted:
+              project.tracks[clip.track]?.mute === true ||
+              (project.tracks.some((track) => track.solo) && project.tracks[clip.track]?.solo !== true),
+          }))
+        : [],
     mixer: {
       strips: project.strips.map((strip) => ({
         id: strip.id,
@@ -545,6 +609,19 @@ export async function startNativePlayback(
   } catch {
     return null;
   }
+}
+
+export async function nativeHasPlaylistMedia(hash: string, extension: string): Promise<boolean> {
+  return invokeAudio<boolean>('has_playlist_media', { hash, extension });
+}
+
+export async function nativeCachePlaylistMedia(
+  hash: string,
+  extension: string,
+  bytes: ArrayBuffer,
+): Promise<void> {
+  const data = base64FromBytes(new Uint8Array(bytes));
+  await invokeAudio<null>('cache_playlist_media', { hash, extension, data });
 }
 
 export async function stopNativePlayback(): Promise<void> {

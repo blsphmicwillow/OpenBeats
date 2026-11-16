@@ -1,4 +1,5 @@
 import type { Clip, Note, Project } from '../model/types';
+import { TICKS_PER_STEP } from '../model/audioClip';
 
 export const STEPS_PER_BAR = 16;
 
@@ -21,7 +22,12 @@ export function patternSteps(project: Project, patternId: string): number {
 }
 
 export function songLengthSteps(project: Project): number {
-  const end = project.clips.reduce((max, c) => Math.max(max, c.start + c.len), 0);
+  const patternEnd = project.clips.reduce((max, c) => Math.max(max, c.start + c.len), 0);
+  const audioEnd = project.audioClips.reduce(
+    (max, clip) => Math.max(max, (clip.start_tick + clip.length_ticks) / TICKS_PER_STEP),
+    0,
+  );
+  const end = Math.max(patternEnd, audioEnd);
   const minimum = project.loopEnd || STEPS_PER_BAR * 4;
   return Math.max(STEPS_PER_BAR * 4, Math.ceil(Math.max(end, minimum) / STEPS_PER_BAR) * STEPS_PER_BAR);
 }
