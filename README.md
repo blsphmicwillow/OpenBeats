@@ -3,9 +3,9 @@
 **An open-source beatmaking studio for the desktop.** Channel Rack, step sequencer, piano roll, playlist and mixer, built with a Rust/Tauri desktop shell, a native Rust/CPAL audio engine and a React/Web Audio front end. Linux, Windows and macOS.
 
 [![Latest release](https://img.shields.io/github/v/release/blsphmicwillow/OpenBeats?label=release&color=ffa31a)](https://github.com/blsphmicwillow/OpenBeats/releases/latest)
-[![Release build](https://github.com/blsphmicwillow/OpenBeats/actions/workflows/release.yml/badge.svg?branch=v1.0.9)](https://github.com/blsphmicwillow/OpenBeats/actions/workflows/release.yml)
+[![Release build](https://github.com/blsphmicwillow/OpenBeats/actions/workflows/release.yml/badge.svg?branch=v1.1.0)](https://github.com/blsphmicwillow/OpenBeats/actions/workflows/release.yml)
 [![License: GPL-3.0-or-later](https://img.shields.io/badge/license-GPL--3.0--or--later-blue)](LICENSE)
-[![Platforms](https://img.shields.io/badge/platform-linux%20%7C%20windows%20%7C%20macOS-lightgrey)](#install-openbeats-108)
+[![Platforms](https://img.shields.io/badge/platform-linux%20%7C%20windows%20%7C%20macOS-lightgrey)](#install-openbeats-110)
 
 ![OpenBeats studio](docs/screenshots/studio-default.png)
 
@@ -49,30 +49,30 @@ Eleven built-in themes, Classic and Modern chrome, and an editable **My theme** 
 
 ---
 
-## Install OpenBeats 1.0.9
+## Install OpenBeats 1.1.0
 
 Every package is built by GitHub Actions and attached to the
-[1.0.9 release](https://github.com/blsphmicwillow/OpenBeats/releases/tag/v1.0.9).
+[1.1.0 release](https://github.com/blsphmicwillow/OpenBeats/releases/tag/v1.1.0).
 No account is required.
 
 | Platform | Release file | Install |
 | --- | --- | --- |
 | Arch Linux | `openbeats-bin` (in this repo) | `cd packaging/arch && yay -Bi .` , see below |
-| Linux (any) | `OpenBeats_1.0.9_amd64.AppImage` | `chmod +x`, then run it |
-| Debian / Ubuntu | `OpenBeats_1.0.9_amd64.deb` | `sudo apt install ./OpenBeats_1.0.9_amd64.deb` |
-| Fedora / RPM | `OpenBeats-1.0.9-1.x86_64.rpm` | `sudo dnf install ./OpenBeats-1.0.9-1.x86_64.rpm` |
-| Windows 10/11 | `OpenBeats_1.0.9_x64-setup.exe` | Run the installer (or use the `.msi`) |
-| macOS (Apple silicon) | `OpenBeats_1.0.9_aarch64.dmg` | Open the DMG and drag OpenBeats to Applications |
+| Linux (any) | `OpenBeats_1.1.0_amd64.AppImage` | `chmod +x`, then run it |
+| Debian / Ubuntu | `OpenBeats_1.1.0_amd64.deb` | `sudo apt install ./OpenBeats_1.1.0_amd64.deb` |
+| Fedora / RPM | `OpenBeats-1.1.0-1.x86_64.rpm` | `sudo dnf install ./OpenBeats-1.1.0-1.x86_64.rpm` |
+| Windows 10/11 | `OpenBeats_1.1.0_x64-setup.exe` | Run the installer (or use the `.msi`) |
+| macOS (Apple silicon) | `OpenBeats_1.1.0_aarch64.dmg` | Open the DMG and drag OpenBeats to Applications |
 | Source | `git clone` | [docs/BUILDING.md](docs/BUILDING.md) |
 
-There is no separate Intel-Mac DMG in 1.0.9; Intel Macs can build from source.
+There is no separate Intel-Mac DMG in 1.1.0; Intel Macs can build from source.
 Full per-platform commands, dependencies and troubleshooting are in
 [docs/INSTALL.md](docs/INSTALL.md). Release history: [CHANGELOG.md](CHANGELOG.md).
 
 ### Arch Linux with `yay`
 
 The AUR-ready package lives in [`packaging/arch`](packaging/arch). It installs
-the official 1.0.9 AppImage under `/opt/openbeats`, creates
+the official 1.1.0 AppImage under `/opt/openbeats`, creates
 `/usr/bin/openbeats`, and declares the GTK, GStreamer and PulseAudio runtime it needs.
 
 **Install from this repository now** (works without the AUR):
@@ -118,14 +118,14 @@ ssh -T aur@aur.archlinux.org   # must greet you; needs an AUR SSH key
 git clone ssh://aur@aur.archlinux.org/openbeats-bin.git
 cp packaging/arch/PKGBUILD packaging/arch/.SRCINFO openbeats-bin/
 cd openbeats-bin && git add PKGBUILD .SRCINFO
-git commit -m "openbeats-bin 1.0.9" && git push
+git commit -m "openbeats-bin 1.1.0" && git push
 ```
 
 ### AppImage (portable Linux)
 
 ```bash
 curl -L -o OpenBeats.AppImage \
-  https://github.com/blsphmicwillow/OpenBeats/releases/download/v1.0.9/OpenBeats_1.0.9_amd64.AppImage
+  https://github.com/blsphmicwillow/OpenBeats/releases/download/v1.1.0/OpenBeats_1.1.0_amd64.AppImage
 chmod +x OpenBeats.AppImage
 ./OpenBeats.AppImage
 ```
@@ -140,8 +140,8 @@ and retry; `--appimage-extract-and-run` also bypasses the FUSE mount.
 ### Debian / Ubuntu
 
 ```bash
-curl -L -O https://github.com/blsphmicwillow/OpenBeats/releases/download/v1.0.9/OpenBeats_1.0.9_amd64.deb
-sudo apt install ./OpenBeats_1.0.9_amd64.deb
+curl -L -O https://github.com/blsphmicwillow/OpenBeats/releases/download/v1.1.0/OpenBeats_1.1.0_amd64.deb
+sudo apt install ./OpenBeats_1.1.0_amd64.deb
 openbeats
 ```
 
@@ -152,7 +152,7 @@ should not need to install audio plugins by hand.
 ### Fedora
 
 ```bash
-sudo dnf install ./OpenBeats-1.0.9-1.x86_64.rpm
+sudo dnf install ./OpenBeats-1.1.0-1.x86_64.rpm
 openbeats
 ```
 
@@ -161,7 +161,7 @@ server, so no separate multimedia package list is required.
 
 ### Windows
 
-1. Download `OpenBeats_1.0.9_x64-setup.exe` (or the `.msi`) from the release.
+1. Download `OpenBeats_1.1.0_x64-setup.exe` (or the `.msi`) from the release.
 2. Run it. Current installers use the WebView2 download bootstrapper: if
    WebView2 is missing, setup downloads it once, so allow network access on the
    first install.
@@ -170,7 +170,7 @@ server, so no separate multimedia package list is required.
 
 ### macOS (Apple silicon)
 
-1. Download `OpenBeats_1.0.9_aarch64.dmg` and open it.
+1. Download `OpenBeats_1.1.0_aarch64.dmg` and open it.
 2. Drag **OpenBeats** into **Applications**.
 3. The DMG is not notarised, so on first launch use **Control-click → Open**, or
    run `xattr -dr com.apple.quarantine /Applications/OpenBeats.app`.
