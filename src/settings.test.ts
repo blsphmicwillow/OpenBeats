@@ -47,6 +47,11 @@ describe('audio settings persistence', () => {
     });
   });
 
+  it('falls back to English when the saved language is unknown', () => {
+    expect(normalizeSettings({ language: 'xx' }).language).toBe('en');
+    expect(normalizeSettings({ language: 'fr' }).language).toBe('fr');
+  });
+
   it('keeps valid audio choices and clamps levels from storage', () => {
     const settings = normalizeSettings({
       audio: {

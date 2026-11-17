@@ -99,6 +99,10 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    document.documentElement.lang = settings.language;
+  }, [settings.language]);
+
+  useEffect(() => {
     // WebKitGTK needs a user gesture to unlock Web Audio. Pointer and keyboard
     // gestures both count, and Space must work without clicking first.
     const unlock = () => {
