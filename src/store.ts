@@ -76,6 +76,7 @@ import { checkForUpdate } from './lib/updates';
 import { APP_VERSION, DEFAULT_UPDATE_REPO } from './lib/version';
 import { isNative, openTextNative, saveBinaryNative, saveTextNative } from './lib/native';
 import { friendlyDeviceName } from './lib/deviceNames';
+import { isLanguageCode } from './i18n/languages';
 import { parseMidi, writeMidi } from './lib/daw/midi';
 import { parseAls } from './lib/daw/als';
 import { parseRpp, writeRpp } from './lib/daw/rpp';
@@ -163,6 +164,7 @@ export function normalizeSettings(raw: Partial<Settings> | null): Settings {
   return {
     ...base,
     ...raw,
+    language: isLanguageCode(raw.language) ? raw.language : base.language,
     updateRepo,
     autosaveMinutes: minutes,
     audio,

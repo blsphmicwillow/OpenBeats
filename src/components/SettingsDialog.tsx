@@ -35,6 +35,8 @@ import {
   type BridgeState,
 } from '../lib/audioAdvice';
 import type { KeyAction, Settings, Theme } from '../model/types';
+import { LANGUAGES, type LanguageCode } from '../i18n/languages';
+import { useT } from '../i18n/useT';
 
 type Tab = 'appearance' | 'accessibility' | 'workflow' | 'updates' | 'keys' | 'audio' | 'opensource';
 
@@ -62,6 +64,7 @@ export function SettingsDialog() {
   const [layoutName, setLayoutName] = useState('');
   const [capturing, setCapturing] = useState<KeyAction | null>(null);
   const importRef = useRef<HTMLInputElement>(null);
+  const t = useT();
   const {
     setUI,
     patchSettings,
@@ -114,33 +117,33 @@ export function SettingsDialog() {
 
   return (
     <Modal
-      title="Settings"
-      subtitle="Everything is stored locally in this browser"
+      title={t('Settings')}
+      subtitle={t('Everything is stored locally in this browser')}
       onClose={() => setUI({ settingsOpen: false })}
       footer={
         <>
-          <span className="tiny-note">UI scale, theme, keymap and workflow are saved automatically.</span>
+          <span className="tiny-note">{t('UI scale, theme, keymap and workflow are saved automatically.')}</span>
           <div className="spacer" />
           <button className="btn ghost" onClick={() => patchSettings(defaultSettings())}>
-            Restore defaults
+            {t('Restore defaults')}
           </button>
           <button className="btn primary" onClick={() => setUI({ settingsOpen: false })}>
-            Done
+            {t('Done')}
           </button>
         </>
       }
     >
       <div className="settings-layout">
         <div className="settings-tabs" role="tablist" aria-label="Settings sections">
-          {TABS.map((t) => (
+          {TABS.map((item) => (
             <button
-              key={t.id}
+              key={item.id}
               role="tab"
-              aria-selected={tab === t.id}
-              className={`settings-tab ${tab === t.id ? 'active' : ''}`}
-              onClick={() => setTab(t.id)}
+              aria-selected={tab === item.id}
+              className={`settings-tab ${tab === item.id ? 'active' : ''}`}
+              onClick={() => setTab(item.id)}
             >
-              {t.label}
+              {t(item.label)}
             </button>
           ))}
         </div>
@@ -148,25 +151,44 @@ export function SettingsDialog() {
         <div className="settings-pane">
           {tab === 'appearance' && (
             <>
-              <h3>Theme</h3>
+              <div className="field">
+                <div className="field-label">
+                  {t('Language')}
+                  <small>{t('Changes the language of the interface. Applies immediately.')}</small>
+                </div>
+                <div className="field-control">
+                  <select
+                    className="select"
+                    aria-label={t('Language')}
+                    value={settings.language}
+                    onChange={(e) => patchSettings({ language: e.target.value as LanguageCode })}
+                  >
+                    {LANGUAGES.map((lang) => (
+                      <option key={lang.code} value={lang.code}>
+                        {lang.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              <h3>{t('Theme')}</h3>
               <p className="hinttext">
-                Themes restyle every panel, knob, meter and native effect instantly. Duplicate one, tweak the colours, then
-                export it as JSON to share.
+                {t('Themes restyle every panel, knob, meter and native effect instantly. Duplicate one, tweak the colours, then export it as JSON to share.')}
               </p>
               <div className="theme-grid">
-                {THEMES.map((t) => (
+                {THEMES.map((th) => (
                   <div
-                    key={t.id}
-                    className={`theme-card ${settings.themeId === t.id ? 'active' : ''}`}
-                    onClick={() => patchSettings({ themeId: t.id })}
+                    key={th.id}
+                    className={`theme-card ${settings.themeId === th.id ? 'active' : ''}`}
+                    onClick={() => patchSettings({ themeId: th.id })}
                   >
-                    <div className="tc-name">{t.name}</div>
+                    <div className="tc-name">{th.name}</div>
                     <div className="theme-swatch">
-                      <i style={{ background: t.bg }} />
-                      <i style={{ background: t.panel }} />
-                      <i style={{ background: t.panel3 }} />
-                      <i style={{ background: t.accent }} />
-                      <i style={{ background: t.text }} />
+                      <i style={{ background: th.bg }} />
+                      <i style={{ background: th.panel }} />
+                      <i style={{ background: th.panel3 }} />
+                      <i style={{ background: th.accent }} />
+                      <i style={{ background: th.text }} />
                     </div>
                   </div>
                 ))}
@@ -174,7 +196,7 @@ export function SettingsDialog() {
                   className={`theme-card ${settings.themeId === 'custom' ? 'active' : ''}`}
                   onClick={() => patchSettings({ themeId: 'custom' })}
                 >
-                  <div className="tc-name">My theme (editable)</div>
+                  <div className="tc-name">{t('My theme (editable)')}</div>
                   <div className="theme-swatch">
                     <i style={{ background: settings.customTheme.bg }} />
                     <i style={{ background: settings.customTheme.panel }} />
@@ -187,8 +209,8 @@ export function SettingsDialog() {
 
               <div className="field">
                 <div className="field-label">
-                  Interface mode
-                  <small>Classic keeps the workstation chrome; Modern flattens it. Your theme colours carry across both.</small>
+                  {t('Interface mode')}
+                  <small>{t('Classic keeps the workstation chrome; Modern flattens it. Your theme colours carry across both.')}</small>
                 </div>
                 <div className="field-control">
                   {(['classic', 'modern'] as const).map((m) => (
@@ -197,7 +219,7 @@ export function SettingsDialog() {
                       className={`btn ${settings.uiMode === m ? 'primary' : 'ghost'}`}
                       onClick={() => patchSettings({ uiMode: m })}
                     >
-                      {m === 'classic' ? 'Classic' : 'Modern'}
+                      {m === 'classic' ? t('Classic') : t('Modern')}
                     </button>
                   ))}
                 </div>
@@ -213,13 +235,13 @@ export function SettingsDialog() {
                     })
                   }
                 >
-                  Copy current theme → My theme
+                  {t('Copy current theme → My theme')}
                 </button>
                 <button className="btn ghost" onClick={() => saveFile('openbeats-theme.json', theme)}>
-                  Export theme JSON
+                  {t('Export theme JSON')}
                 </button>
                 <button className="btn ghost" onClick={() => importRef.current?.click()}>
-                  Import theme
+                  {t('Import theme')}
                 </button>
                 <input
                   ref={importRef}
@@ -233,9 +255,9 @@ export function SettingsDialog() {
                       const imported = JSON.parse(await file.text()) as Theme;
                       if (!imported.bg || !imported.accent) throw new Error('missing colours');
                       patchSettings({ themeId: 'custom', customTheme: { ...imported, id: 'custom' } });
-                      toast('Theme imported');
+                      toast(t('Theme imported'));
                     } catch {
-                      toast('That file is not an OpenBeats theme');
+                      toast(t('That file is not an OpenBeats theme'));
                     }
                     e.target.value = '';
                   }}
@@ -243,9 +265,9 @@ export function SettingsDialog() {
               </div>
 
               <div className="field-label" style={{ marginTop: 18 }}>
-                Colour editor
+                {t('Colour editor')}
                 <small style={{ display: 'block', fontWeight: 400 }}>
-                  Wheel, HEX and RGB stay in sync. Edits are saved to “My theme”, so built-in palettes stay untouched.
+                  {t('Wheel, HEX and RGB stay in sync. Edits are saved to “My theme”, so built-in palettes stay untouched.')}
                 </small>
               </div>
               <ThemeColorEditor
@@ -264,8 +286,8 @@ export function SettingsDialog() {
               />
               <div className="field">
                 <div className="field-label">
-                  Glass surfaces
-                  <small>Translucent panels and background blur. Works best with the Glass presets.</small>
+                  {t('Glass surfaces')}
+                  <small>{t('Translucent panels and background blur. Works best with the Glass presets.')}</small>
                 </div>
                 <div className="field-control">
                   <input
@@ -288,8 +310,8 @@ export function SettingsDialog() {
 
               <div className="field">
                 <div className="field-label">
-                  Accent override
-                  <small>Pushes one accent colour across the current theme.</small>
+                  {t('Accent override')}
+                  <small>{t('Pushes one accent colour across the current theme.')}</small>
                 </div>
                 <div className="field-control">
                   <input
@@ -298,20 +320,19 @@ export function SettingsDialog() {
                     onChange={(e) => patchSettings({ accent: e.target.value })}
                   />
                   <button className="btn ghost" onClick={() => patchSettings({ accent: null })}>
-                    Clear
+                    {t('Clear')}
                   </button>
                 </div>
               </div>
 
-              <h3 style={{ marginTop: 18 }}>Workspace layouts</h3>
+              <h3 style={{ marginTop: 18 }}>{t('Workspace layouts')}</h3>
               <p className="hinttext">
-                Store panel widths, browser visibility, the active view and collapsed mixer groups under a name, then
-                recall the whole workspace in one click. Layouts are saved with your settings on this device.
+                {t('Store panel widths, browser visibility, the active view and collapsed mixer groups under a name, then recall the whole workspace in one click. Layouts are saved with your settings on this device.')}
               </p>
               <div className="field">
                 <div className="field-label">
-                  Layout name
-                  <small>For example “Arrangement”, “Mixing” or “Sound design”.</small>
+                  {t('Layout name')}
+                  <small>{t('For example “Arrangement”, “Mixing” or “Sound design”.')}</small>
                 </div>
                 <div className="field-control">
                   <input
@@ -319,7 +340,7 @@ export function SettingsDialog() {
                     value={layoutName}
                     onChange={(e) => setLayoutName(e.target.value)}
                     placeholder="Mixing"
-                    aria-label="Workspace layout name"
+                    aria-label={t('Workspace layout name')}
                   />
                   <button
                     className="btn"
@@ -328,15 +349,15 @@ export function SettingsDialog() {
                       setLayoutName('');
                     }}
                   >
-                    Save current
+                    {t('Save current')}
                   </button>
                 </div>
               </div>
               {settings.layouts.length > 0 && (
                 <div className="field">
                   <div className="field-label">
-                    Saved layouts
-                    <small>{settings.layouts.length} saved · applying one never changes your project audio.</small>
+                    {t('Saved layouts')}
+                    <small>{t('{count} saved · applying one never changes your project audio.', { count: settings.layouts.length })}</small>
                   </div>
                   <div className="field-control" style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                     {settings.layouts.map((layout) => (
@@ -366,13 +387,13 @@ export function SettingsDialog() {
 
           {tab === 'workflow' && (
             <>
-              <h3>Workflow</h3>
-              <p className="hinttext">Small conveniences that change how the studio feels day to day.</p>
+              <h3>{t('Workflow')}</h3>
+              <p className="hinttext">{t('Small conveniences that change how the studio feels day to day.')}</p>
 
               <div className="field">
                 <div className="field-label">
-                  Bounce mastering
-                  <small>Applied to the offline render on export.</small>
+                  {t('Bounce mastering')}
+                  <small>{t('Applied to the offline render on export.')}</small>
                 </div>
                 <div className="field-control">
                   <select
@@ -380,7 +401,7 @@ export function SettingsDialog() {
                     value={settings.masterTarget}
                     onChange={(e) => patchSettings({ masterTarget: e.target.value as Settings['masterTarget'] })}
                   >
-                    <option value="none">None (raw mix)</option>
+                    <option value="none">{t('None (raw mix)')}</option>
                     <option value="spotify">Spotify · −14 LUFS</option>
                     <option value="club">Club · −9 LUFS</option>
                     <option value="soundcloud">SoundCloud · −13 LUFS</option>
@@ -398,8 +419,8 @@ export function SettingsDialog() {
               ).map(([key, label, desc]) => (
                 <div className="field" key={key}>
                   <div className="field-label">
-                    {label}
-                    <small>{desc}</small>
+                    {t(label)}
+                    <small>{t(desc)}</small>
                   </div>
                   <div className="field-control">
                     <input
@@ -412,44 +433,44 @@ export function SettingsDialog() {
               ))}
               <div className="field">
                 <div className="field-label">
-                  Autosave
-                  <small>Write a crash-safe snapshot to this device on a timer. A crash restores the last snapshot.</small>
+                  {t('Autosave')}
+                  <small>{t('Write a crash-safe snapshot to this device on a timer. A crash restores the last snapshot.')}</small>
                 </div>
                 <div className="field-control" style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
                   <select
                     className="select"
-                    aria-label="Autosave interval"
+                    aria-label={t('Autosave interval')}
                     value={String(settings.autosaveMinutes)}
                     onChange={(e) =>
                       patchSettings({ autosaveMinutes: Number(e.target.value) as Settings['autosaveMinutes'] })
                     }
                   >
-                    <option value="0">Never</option>
-                    <option value="2">Every 2 minutes</option>
-                    <option value="5">Every 5 minutes</option>
-                    <option value="10">Every 10 minutes</option>
-                    <option value="15">Every 15 minutes</option>
-                    <option value="30">Every 30 minutes</option>
-                    <option value="60">Every hour</option>
+                    <option value="0">{t('Never')}</option>
+                    <option value="2">{t('Every 2 minutes')}</option>
+                    <option value="5">{t('Every 5 minutes')}</option>
+                    <option value="10">{t('Every 10 minutes')}</option>
+                    <option value="15">{t('Every 15 minutes')}</option>
+                    <option value="30">{t('Every 30 minutes')}</option>
+                    <option value="60">{t('Every hour')}</option>
                   </select>
                   <button className="btn ghost" onClick={autosaveNow}>
-                    Save now
+                    {t('Save now')}
                   </button>
                 </div>
               </div>
               <div className="field">
                 <div className="field-label">
-                  Last autosave
-                  <small>{lastSaved ? new Date(lastSaved).toLocaleString() : 'No snapshot yet'}</small>
+                  {t('Last autosave')}
+                  <small>{lastSaved ? new Date(lastSaved).toLocaleString() : t('No snapshot yet')}</small>
                 </div>
                 <div className="field-control">
-                  <span className="tiny-note">{settings.autosaveMinutes ? `Autosaves every ${settings.autosaveMinutes} min while you work` : 'Timed autosave is off — use Save now or save a file'}</span>
+                  <span className="tiny-note">{settings.autosaveMinutes ? t('Autosaves every {minutes} min while you work', { minutes: settings.autosaveMinutes }) : t('Timed autosave is off — use Save now or save a file')}</span>
                 </div>
               </div>
               <div className="field">
                 <div className="field-label">
-                  Discord Rich Presence
-                  <small>Show “Making a beat..” and the current project name in Discord using the built-in OpenBeats app ID.</small>
+                  {t('Discord Rich Presence')}
+                  <small>{t('Show “Making a beat..” and the current project name in Discord using the built-in OpenBeats app ID.')}</small>
                 </div>
                 <div className="field-control">
                   <input
@@ -462,46 +483,46 @@ export function SettingsDialog() {
               </div>
               <div className="field">
                 <div className="field-label">
-                  Default snap
-                  <small>Used by the playlist and piano roll.</small>
+                  {t('Default snap')}
+                  <small>{t('Used by the playlist and piano roll.')}</small>
                 </div>
                 <div className="field-control">
                   <select className="select" value={String(settings.snap)} onChange={(e) => patchSettings({ snap: Number(e.target.value) })}>
-                    <option value="1">1/16 note</option>
-                    <option value="0.5">1/32 note</option>
-                    <option value="0.25">1/64 note</option>
-                    <option value="0">Off (free)</option>
+                    <option value="1">{t('1/16 note')}</option>
+                    <option value="0.5">{t('1/32 note')}</option>
+                    <option value="0.25">{t('1/64 note')}</option>
+                    <option value="0">{t('Off (free)')}</option>
                   </select>
                 </div>
               </div>
               <div className="field">
                 <div className="field-label">
-                  Sample previews
-                  <small>Audition packs and samples with a single click.</small>
+                  {t('Sample previews')}
+                  <small>{t('Audition packs and samples with a single click.')}</small>
                 </div>
                 <div className="field-control">
-                  <span className="tiny-note">always on</span>
+                  <span className="tiny-note">{t('always on')}</span>
                 </div>
               </div>
               <div className="field">
                 <div className="field-label">
-                  Tutorial
-                  <small>Replay the guided tour of the studio.</small>
+                  {t('Tutorial')}
+                  <small>{t('Replay the guided tour of the studio.')}</small>
                 </div>
                 <div className="field-control">
                   <button className="btn" onClick={() => { setUI({ settingsOpen: false, tutorialStep: 0 }); }}>
-                    Start the tour
+                    {t('Start the tour')}
                   </button>
                 </div>
               </div>
               <div className="field">
                 <div className="field-label">
-                  Panel sizes
-                  <small>Reset the browser and channel rack widths.</small>
+                  {t('Panel sizes')}
+                  <small>{t('Reset the browser and channel rack widths.')}</small>
                 </div>
                 <div className="field-control">
                   <button className="btn ghost" onClick={() => setUI({ rackWidth: 470, browserWidth: 232, browserOpen: true })}>
-                    Reset layout
+                    {t('Reset layout')}
                   </button>
                 </div>
               </div>
@@ -510,15 +531,14 @@ export function SettingsDialog() {
 
           {tab === 'accessibility' && (
             <>
-              <h3>Accessibility</h3>
+              <h3>{t('Accessibility')}</h3>
               <p className="hinttext">
-                Readability and motion controls. Everything here applies immediately and is saved with your settings;
-                none of it changes your project.
+                {t('Readability and motion controls. Everything here applies immediately and is saved with your settings; none of it changes your project.')}
               </p>
               <div className="field">
                 <div className="field-label">
-                  Reduce motion
-                  <small>Disables the recording pulse, meters and interface transitions.</small>
+                  {t('Reduce motion')}
+                  <small>{t('Disables the recording pulse, meters and interface transitions.')}</small>
                 </div>
                 <div className="field-control">
                   <input
@@ -530,8 +550,8 @@ export function SettingsDialog() {
               </div>
               <div className="field">
                 <div className="field-label">
-                  High contrast
-                  <small>Stronger borders, brighter labels and clearer separators on any theme.</small>
+                  {t('High contrast')}
+                  <small>{t('Stronger borders, brighter labels and clearer separators on any theme.')}</small>
                 </div>
                 <div className="field-control">
                   <input
@@ -543,8 +563,8 @@ export function SettingsDialog() {
               </div>
               <div className="field">
                 <div className="field-label">
-                  Keyboard focus rings
-                  <small>Always outline the focused control, even when using a mouse.</small>
+                  {t('Keyboard focus rings')}
+                  <small>{t('Always outline the focused control, even when using a mouse.')}</small>
                 </div>
                 <div className="field-control">
                   <input
@@ -556,8 +576,8 @@ export function SettingsDialog() {
               </div>
               <div className="field">
                 <div className="field-label">
-                  Reduce transparency
-                  <small>Replaces frosted glass with solid panels and disables backdrop blur.</small>
+                  {t('Reduce transparency')}
+                  <small>{t('Replaces frosted glass with solid panels and disables backdrop blur.')}</small>
                 </div>
                 <div className="field-control">
                   <input
@@ -569,7 +589,7 @@ export function SettingsDialog() {
               </div>
               <div className="field">
                 <div className="field-label">
-                  Interface scale <small>{Math.round(settings.scale * 100)}%</small>
+                  {t('Interface scale')} <small>{Math.round(settings.scale * 100)}%</small>
                 </div>
                 <div className="field-control">
                   <input
@@ -584,8 +604,8 @@ export function SettingsDialog() {
               </div>
               <div className="field">
                 <div className="field-label">
-                  Density
-                  <small>Compact fits more tracks; comfortable adds breathing room.</small>
+                  {t('Density')}
+                  <small>{t('Compact fits more tracks; comfortable adds breathing room.')}</small>
                 </div>
                 <div className="field-control">
                   <select
@@ -593,15 +613,15 @@ export function SettingsDialog() {
                     value={settings.density}
                     onChange={(e) => patchSettings({ density: e.target.value as Settings['density'] })}
                   >
-                    <option value="comfortable">Comfortable</option>
-                    <option value="compact">Compact</option>
+                    <option value="comfortable">{t('Comfortable')}</option>
+                    <option value="compact">{t('Compact')}</option>
                   </select>
                 </div>
               </div>
               <div className="field">
                 <div className="field-label">
-                  Hint bar
-                  <small>Show the explanation bar at the bottom of the window.</small>
+                  {t('Hint bar')}
+                  <small>{t('Show the explanation bar at the bottom of the window.')}</small>
                 </div>
                 <div className="field-control">
                   <input
@@ -613,8 +633,8 @@ export function SettingsDialog() {
               </div>
               <div className="field">
                 <div className="field-label">
-                  Values at the pointer
-                  <small>Show knob and fader values next to the cursor while dragging.</small>
+                  {t('Values at the pointer')}
+                  <small>{t('Show knob and fader values next to the cursor while dragging.')}</small>
                 </div>
                 <div className="field-control">
                   <input
@@ -629,15 +649,14 @@ export function SettingsDialog() {
 
           {tab === 'updates' && (
             <>
-              <h3>Updates</h3>
+              <h3>{t('Updates')}</h3>
               <p className="hinttext">
-                OpenBeats checks this repository’s GitHub Releases for a newer build. The check is a single request to
-                api.github.com; nothing about you or your projects is sent.
+                {t('OpenBeats checks this repository’s GitHub Releases for a newer build. The check is a single request to api.github.com; nothing about you or your projects is sent.')}
               </p>
               <div className="field">
                 <div className="field-label">
-                  Installed version
-                  <small>Bundled with this build.</small>
+                  {t('Installed version')}
+                  <small>{t('Bundled with this build.')}</small>
                 </div>
                 <div className="field-control">
                   <span className="chip">{APP_VERSION}</span>
@@ -645,10 +664,9 @@ export function SettingsDialog() {
               </div>
               <div className="field">
                 <div className="field-label">
-                  Automatic update checks
+                  {t('Automatic update checks')}
                   <small>
-                    Off means OpenBeats never contacts GitHub on its own — no launch check, no banner. You can still
-                    check manually below.
+                    {t('Off means OpenBeats never contacts GitHub on its own — no launch check, no banner. You can still check manually below.')}
                   </small>
                 </div>
                 <div className="field-control">
@@ -664,8 +682,8 @@ export function SettingsDialog() {
               </div>
               <div className="field">
                 <div className="field-label">
-                  Update repository
-                  <small>GitHub “owner/repo” whose Releases feed the checker.</small>
+                  {t('Update repository')}
+                  <small>{t('GitHub “owner/repo” whose Releases feed the checker.')}</small>
                 </div>
                 <div className="field-control">
                   <input
@@ -678,22 +696,22 @@ export function SettingsDialog() {
               </div>
               <div className="field">
                 <div className="field-label">
-                  Check now
-                  <small>Manual checks work even when automatic checks are off.</small>
+                  {t('Check now')}
+                  <small>{t('Manual checks work even when automatic checks are off.')}</small>
                 </div>
                 <div className="field-control">
-                  <button className="btn" onClick={() => void useApp.getState().checkUpdates()}>Check for updates</button>
-                  {updateChecking && <span className="tiny-note">checking…</span>}
+                  <button className="btn" onClick={() => void useApp.getState().checkUpdates()}>{t('Check for updates')}</button>
+                  {updateChecking && <span className="tiny-note">{t('checking…')}</span>}
                 </div>
               </div>
               <div className="field">
                 <div className="field-label">
-                  Release notes
-                  <small>The Changelog tab always shows what changed in this build.</small>
+                  {t('Release notes')}
+                  <small>{t('The Changelog tab always shows what changed in this build.')}</small>
                 </div>
                 <div className="field-control">
                   <button className="btn ghost" onClick={() => { setUI({ settingsOpen: false, tab: 'changelog' }); }}>
-                    Open changelog
+                    {t('Open changelog')}
                   </button>
                 </div>
               </div>
@@ -702,10 +720,9 @@ export function SettingsDialog() {
 
           {tab === 'keys' && (
             <>
-              <h3>Keyboard</h3>
+              <h3>{t('Keyboard')}</h3>
               <p className="hinttext">
-                Click a shortcut, then press the combination you want. Letters are case-insensitive; Ctrl works as Cmd on
-                macOS. QWERTY note keys always play the selected channel.
+                {t('Click a shortcut, then press the combination you want. Letters are case-insensitive; Ctrl works as Cmd on macOS. QWERTY note keys always play the selected channel.')}
               </p>
               {(Object.keys(DEFAULT_KEYMAP) as KeyAction[]).map((action) => (
                 <div className="keymap-row" key={action}>
@@ -713,21 +730,21 @@ export function SettingsDialog() {
                   <button
                     className={`km-combo ${capturing === action ? 'capturing' : ''}`}
                     onClick={() => setCapturing(capturing === action ? null : action)}
-                    title="Click, then press a key combination"
+                    title={t('Click, then press a key combination')}
                   >
-                    {capturing === action ? 'press keys…' : settings.keymap[action]}
+                    {capturing === action ? t('press keys…') : settings.keymap[action]}
                   </button>
                 </div>
               ))}
               <div style={{ marginTop: 10, display: 'flex', gap: 6 }}>
                 <button className="btn ghost" onClick={() => patchSettings({ keymap: { ...DEFAULT_KEYMAP } })}>
-                  Reset shortcuts
+                  {t('Reset shortcuts')}
                 </button>
               </div>
               <p className="hinttext" style={{ marginTop: 12 }}>
-                Editing: <span className="code">Z–M</span> and <span className="code">Q–U</span> play notes,{' '}
-                <span className="code">+</span>/<span className="code">−</span> transpose the selected channel,{' '}
-                <span className="code">Delete</span> is not bound (use right-click) so nothing disappears by accident.
+                {t('Editing:')} <span className="code">Z–M</span> {t('and')} <span className="code">Q–U</span> {t('play notes,')}{' '}
+                <span className="code">+</span>/<span className="code">−</span> {t('transpose the selected channel,')}{' '}
+                <span className="code">Delete</span> {t('is not bound (use right-click) so nothing disappears by accident.')}
               </p>
             </>
           )}
@@ -736,59 +753,56 @@ export function SettingsDialog() {
 
           {tab === 'opensource' && (
             <>
-              <h3>OpenBeats is free software</h3>
+              <h3>{t('OpenBeats is free software')}</h3>
               <p className="hinttext">
-                OpenBeats is an original, open-source beatmaking studio built with React, TypeScript and the Web Audio API.
-                It is licensed under the GNU GPL v3: you can use it, study it, change it and share it. No code, assets or
-                samples from any commercial DAW are included — the workflow is inspired by classic pattern-based studios,
-                and every sound is synthesised or supplied by you.
+                {t('OpenBeats is an original, open-source beatmaking studio built with React, TypeScript and the Web Audio API. It is licensed under the GNU GPL v3: you can use it, study it, change it and share it. No code, assets or samples from any commercial DAW are included — the workflow is inspired by classic pattern-based studios, and every sound is synthesised or supplied by you.')}
               </p>
               <div className="field">
-                <div className="field-label">License</div>
+                <div className="field-label">{t('License')}</div>
                 <a className="btn ghost" href="https://www.gnu.org/licenses/gpl-3.0.html" target="_blank" rel="noreferrer">
-                  GPL-3.0 text
+                  {t('GPL-3.0 text')}
                 </a>
               </div>
               <div className="field">
-                <div className="field-label">Built with</div>
+                <div className="field-label">{t('Built with')}</div>
                 <div className="field-control tiny-note">React · Vite · TypeScript · Zustand · Web Audio</div>
               </div>
               <div className="field">
-                <div className="field-label">Project format</div>
-                <div className="field-control tiny-note">.obeats — readable JSON, versioned</div>
+                <div className="field-label">{t('Project format')}</div>
+                <div className="field-control tiny-note">{t('.obeats — readable JSON, versioned')}</div>
               </div>
               <div className="field">
                 <div className="field-label">
-                  Settings file
-                  <small>Move your theme, shortcuts and workflow between machines.</small>
+                  {t('Settings file')}
+                  <small>{t('Move your theme, shortcuts and workflow between machines.')}</small>
                 </div>
                 <div className="field-control">
                   <button className="btn ghost" onClick={() => saveFile('openbeats-settings.json', settings)}>
-                    Export settings
+                    {t('Export settings')}
                   </button>
                   <button className="btn ghost" onClick={() => setUI({ aboutOpen: true })}>
-                    Manual
+                    {t('Manual')}
                   </button>
                 </div>
               </div>
               <div className="field">
                 <div className="field-label">
-                  Start over
-                  <small>Clears the autosaved project and every setting.</small>
+                  {t('Start over')}
+                  <small>{t('Clears the autosaved project and every setting.')}</small>
                 </div>
                 <div className="field-control">
                   <button
                     className="btn danger"
                     onClick={() => {
-                      if (window.confirm('Clear the autosaved project and reset all settings?')) useApp.getState().resetAll();
+                      if (window.confirm(t('Clear the autosaved project and reset all settings?'))) useApp.getState().resetAll();
                     }}
                   >
-                    Reset everything
+                    {t('Reset everything')}
                   </button>
                 </div>
               </div>
               <p className="hinttext" style={{ marginTop: 12 }}>
-                Tip: projects are plain JSON. Keep them in version control alongside your music — diffs are readable.
+                {t('Tip: projects are plain JSON. Keep them in version control alongside your music — diffs are readable.')}
               </p>
             </>
           )}

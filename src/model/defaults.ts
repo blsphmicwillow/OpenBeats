@@ -11,6 +11,7 @@ import type {
   Theme,
 } from './types';
 import { DEFAULT_THEME } from '../themes';
+import { DEFAULT_LANGUAGE } from '../i18n/languages';
 import { DEFAULT_UPDATE_REPO } from '../lib/version';
 
 let uidCounter = 0;
@@ -577,6 +578,7 @@ export function defaultCustomTheme(): Theme {
 
 export function defaultSettings(): Settings {
   return {
+    language: DEFAULT_LANGUAGE,
     themeId: 'charcoal',
     uiMode: 'classic',
     masterTarget: 'none',

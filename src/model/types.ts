@@ -9,6 +9,7 @@
  */
 
 import type { AudioClip } from './audioClip';
+import type { LanguageCode } from '../i18n/languages';
 
 export type PresetId =
   | 'kick'
@@ -345,6 +346,8 @@ export interface AudioPreferences {
 }
 
 export interface Settings {
+  /** UI language. Strings not yet translated fall back to English. */
+  language: LanguageCode;
   themeId: string;
   /** Classic FL-style chrome or the modernised vector skin. Themes apply to both. */
   uiMode: UiMode;
