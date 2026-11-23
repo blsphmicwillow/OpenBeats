@@ -396,7 +396,7 @@ export interface Settings {
   layouts: WorkspaceLayout[];
 }
 
-export type WorkspaceTab = 'playlist' | 'pianoroll' | 'mixer' | 'changelog';
+export type WorkspaceTab = 'playlist' | 'pianoroll' | 'mixer' | 'changelog' | 'history';
 
 export interface SavedProject {
   id: string;

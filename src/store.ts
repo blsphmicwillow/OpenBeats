@@ -428,6 +428,9 @@ export const useApp = create<AppState>((set, get) => ({
       return;
     }
     lastCoalesceKey = coalesce ?? null;
+    // Named snapshots are throttled separately from undo, so the History panel
+    // has coarse restore points without recording every keystroke.
+    captureSnapshotIfDue(get().project);
     lastCoalesceAt = now;
     set((s) => ({
       history: { past: [...s.history.past.slice(-59), s.project], future: [] },
@@ -1955,6 +1958,7 @@ export function transportNow(): number {
 }
 
 import { createsWebAudio, resolveAudioInit } from './lib/audioInit';
+import { captureIfDue as captureSnapshotIfDue } from './lib/snapshots';
 
 /** True inside the Tauri shell, where the Rust engine can take the transport. */
 function nativeShell(): boolean {

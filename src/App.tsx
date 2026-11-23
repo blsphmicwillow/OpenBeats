@@ -24,6 +24,9 @@ const LearnDialog = lazy(() => import('./components/LearnDialog').then((m) => ({
 const Tutorial = lazy(() => import('./components/Tutorial').then((m) => ({ default: m.Tutorial })));
 const ContextMenu = lazy(() => import('./components/ContextMenu').then((m) => ({ default: m.ContextMenu })));
 const Changelog = lazy(() => import('./components/Changelog').then((m) => ({ default: m.Changelog })));
+const HistoryPanel = lazy(() =>
+  import('./components/HistoryPanel').then((m) => ({ default: m.HistoryPanel })),
+);
 const CommandPalette = lazy(() => import('./components/CommandPalette').then((m) => ({ default: m.CommandPalette })));
 const FixMyMix = lazy(() => import('./components/FixMyMix').then((m) => ({ default: m.FixMyMix })));
 const HumToMelody = lazy(() => import('./components/HumToMelody').then((m) => ({ default: m.HumToMelody })));
@@ -45,6 +48,7 @@ const TABS: { id: WorkspaceTab; label: string; icon: React.ReactNode }[] = [
   { id: 'playlist', label: 'Playlist', icon: <IconGrid size={12} /> },
   { id: 'pianoroll', label: 'Piano roll', icon: <IconPiano size={12} /> },
   { id: 'mixer', label: 'Mixer', icon: <IconMixer size={12} /> },
+  { id: 'history', label: 'History', icon: <IconGrid size={12} /> },
   { id: 'changelog', label: 'Changelog', icon: <IconWave size={12} /> },
 ];
 
@@ -435,6 +439,11 @@ export default function App() {
               {ui.tab === 'playlist' && <MemoPlaylist />}
               {ui.tab === 'pianoroll' && <MemoPianoRoll />}
               {ui.tab === 'mixer' && <MemoMixer />}
+              {ui.tab === 'history' && (
+                <Suspense fallback={<div className="browser-empty">Loading snapshots…</div>}>
+                  <HistoryPanel />
+                </Suspense>
+              )}
               {ui.tab === 'changelog' && (
                 <Suspense fallback={<div className="browser-empty">Loading release notes…</div>}>
                   <Changelog />
