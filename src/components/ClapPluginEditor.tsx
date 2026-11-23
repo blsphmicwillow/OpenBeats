@@ -1,3 +1,4 @@
+import { useT } from '../i18n/useT';
 import { useEffect, useState } from 'react';
 import type { ClapPluginInsert } from '../model/types';
 import {
@@ -19,6 +20,7 @@ export function ClapPluginEditor({
   plugin: ClapPluginInsert;
   onClose: () => void;
 }) {
+  const t = useT();
   const [parameters, setParameters] = useState<NativeClapParameter[]>([]);
   const [values, setValues] = useState<Record<number, number>>(plugin.parameters ?? {});
   const [busy, setBusy] = useState(true);
@@ -112,7 +114,7 @@ export function ClapPluginEditor({
       {busy && <div className="tiny-note">Loading plugin parameters…</div>}
       {error && <div className="plugin-warning">{error}</div>}
       {!busy && !error && parameters.length === 0 && (
-        <div className="tiny-note">This plugin exposes no editable CLAP parameters.</div>
+        <div className="tiny-note">{t('This plugin exposes no editable CLAP parameters.')}</div>
       )}
       {!busy && !error && parameters.length > 0 && (
         <div className="fx-card-body">

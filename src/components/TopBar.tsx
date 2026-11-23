@@ -1,3 +1,4 @@
+import { useT } from '../i18n/useT';
 import { useRef, useState } from 'react';
 import { useApp } from '../store';
 import { Knob } from '../ui/Knob';
@@ -23,6 +24,7 @@ import {
 } from '../ui/icons';
 
 export function TopBar() {
+  const t = useT();
   const project = useApp((s) => s.project);
   const transport = useApp((s) => s.transport);
   const ui = useApp((s) => s.ui);
@@ -78,26 +80,26 @@ export function TopBar() {
   };
 
   const fileMenu: MenuItem[] = [
-    { label: 'Projects…', shortcut: 'Ctrl+Shift+O', onClick: () => setUI({ projectHubOpen: true }) },
-    { label: 'New project', shortcut: '', onClick: () => newProject('blank') },
-    { label: 'Load demo song', onClick: () => newProject('demo') },
+    { label: t('Projects…'), shortcut: 'Ctrl+Shift+O', onClick: () => setUI({ projectHubOpen: true }) },
+    { label: t('New project'), shortcut: '', onClick: () => newProject('blank') },
+    { label: t('Load demo song'), onClick: () => newProject('demo') },
     { separator: true },
-    { label: 'Open project…', shortcut: 'Ctrl+O', onClick: () => fileRef.current?.click() },
-    { label: 'Save project as…', shortcut: 'Ctrl+S', onClick: saveProjectFile },
-    { label: 'Import / export song…', onClick: () => setUI({ exchangeOpen: true }) },
-    { label: 'Import pack folder…', onClick: () => importPack('folder') },
-    { label: 'Import pack .zip…', onClick: () => importPack('zip') },
-    { label: 'Export audio…', onClick: () => setUI({ exportOpen: true }) },
+    { label: t('Open project…'), shortcut: 'Ctrl+O', onClick: () => fileRef.current?.click() },
+    { label: t('Save project as…'), shortcut: 'Ctrl+S', onClick: saveProjectFile },
+    { label: t('Import / export song…'), onClick: () => setUI({ exchangeOpen: true }) },
+    { label: t('Import pack folder…'), onClick: () => importPack('folder') },
+    { label: t('Import pack .zip…'), onClick: () => importPack('zip') },
+    { label: t('Export audio…'), onClick: () => setUI({ exportOpen: true }) },
     { separator: true },
-    { label: 'Reset all settings & project', danger: true, onClick: resetAll },
+    { label: t('Reset all settings & project'), danger: true, onClick: resetAll },
   ];
 
   const editMenu: MenuItem[] = [
-    { label: 'Undo', shortcut: 'Ctrl+Z', disabled: !history.past.length, onClick: undo },
-    { label: 'Redo', shortcut: 'Ctrl+Shift+Z', disabled: !history.future.length, onClick: redo },
+    { label: t('Undo'), shortcut: 'Ctrl+Z', disabled: !history.past.length, onClick: undo },
+    { label: t('Redo'), shortcut: 'Ctrl+Shift+Z', disabled: !history.future.length, onClick: redo },
     { separator: true },
-    { label: 'Duplicate pattern', shortcut: 'Ctrl+D', onClick: () => duplicatePattern() },
-    { label: 'New pattern', onClick: addPattern },
+    { label: t('Duplicate pattern'), shortcut: 'Ctrl+D', onClick: () => duplicatePattern() },
+    { label: t('New pattern'), onClick: addPattern },
     ...(selectedChannel
       ? [
           { separator: true } as MenuItem,
@@ -110,45 +112,45 @@ export function TopBar() {
 
   const layoutMenu: MenuItem[] = [
     { separator: true },
-    { label: 'Workspace layouts', disabled: true },
+    { label: t('Workspace layouts'), disabled: true },
     ...(layouts.length
       ? layouts.map((layout) => ({
           label: layout.name,
           checked: ui.activeLayout === layout.id,
           onClick: () => applyWorkspaceLayout(layout.id),
         }))
-      : [{ label: 'No saved layouts yet', disabled: true } as MenuItem]),
-    { label: 'Save current layout…', onClick: () => setUI({ settingsOpen: true }) },
+      : [{ label: t('No saved layouts yet'), disabled: true } as MenuItem]),
+    { label: t('Save current layout…'), onClick: () => setUI({ settingsOpen: true }) },
   ];
 
   const viewMenu: MenuItem[] = [
-    { label: 'Playlist', shortcut: 'F5', checked: ui.tab === 'playlist', onClick: () => setUI({ tab: 'playlist' }) },
-    { label: 'Piano roll', shortcut: 'F7', checked: ui.tab === 'pianoroll', onClick: () => setUI({ tab: 'pianoroll' }) },
-    { label: 'Mixer', shortcut: 'F9', checked: ui.tab === 'mixer', onClick: () => setUI({ tab: 'mixer' }) },
+    { label: t('Playlist'), shortcut: 'F5', checked: ui.tab === 'playlist', onClick: () => setUI({ tab: 'playlist' }) },
+    { label: t('Piano roll'), shortcut: 'F7', checked: ui.tab === 'pianoroll', onClick: () => setUI({ tab: 'pianoroll' }) },
+    { label: t('Mixer'), shortcut: 'F9', checked: ui.tab === 'mixer', onClick: () => setUI({ tab: 'mixer' }) },
     { separator: true },
-    { label: 'Browser panel', checked: ui.browserOpen, onClick: () => setUI({ browserOpen: !ui.browserOpen }) },
+    { label: t('Browser panel'), checked: ui.browserOpen, onClick: () => setUI({ browserOpen: !ui.browserOpen }) },
     {
-      label: 'Packs…',
+      label: t('Packs…'),
       onClick: () => {
         setUI({ browserOpen: true });
         window.dispatchEvent(new Event('openbeats:show-packs'));
       },
     },
     ...layoutMenu,
-    { label: 'Plugin library…', checked: ui.pluginsOpen, onClick: () => setUI({ pluginsOpen: true }) },
-    { label: 'Settings…', shortcut: 'F11', onClick: () => setUI({ settingsOpen: true }) },
+    { label: t('Plugin library…'), checked: ui.pluginsOpen, onClick: () => setUI({ pluginsOpen: true }) },
+    { label: t('Settings…'), shortcut: 'F11', onClick: () => setUI({ settingsOpen: true }) },
   ];
 
   const helpMenu: MenuItem[] = [
-    { label: 'Tutorial', onClick: () => setUI({ tutorialStep: 0 }) },
-    { label: 'Manual & shortcuts', shortcut: 'F1', onClick: () => setUI({ aboutOpen: true }) },
+    { label: t('Tutorial'), onClick: () => setUI({ tutorialStep: 0 }) },
+    { label: t('Manual & shortcuts'), shortcut: 'F1', onClick: () => setUI({ aboutOpen: true }) },
     {
       label: ui.updateChecking ? 'Checking for updates…' : 'Check for updates…',
       disabled: ui.updateChecking,
       onClick: () => void checkUpdates(),
     },
     { separator: true },
-    { label: 'OpenBeats is free software (GPL-3.0)', disabled: true },
+    { label: t('OpenBeats is free software (GPL-3.0)'), disabled: true },
   ];
 
   const patternMenu: MenuItem[] = [
@@ -158,10 +160,10 @@ export function TopBar() {
       onClick: () => selectPattern(p.id),
     })),
     { separator: true },
-    { label: 'New pattern', onClick: addPattern },
-    { label: 'Clone pattern', onClick: () => duplicatePattern() },
+    { label: t('New pattern'), onClick: addPattern },
+    { label: t('Clone pattern'), onClick: () => duplicatePattern() },
     {
-      label: 'Pattern length',
+      label: t('Pattern length'),
       disabled: true,
     },
     ...[1, 2, 4, 8].map((bars) => ({
@@ -171,7 +173,7 @@ export function TopBar() {
     })),
     { separator: true },
     {
-      label: 'Delete pattern',
+      label: t('Delete pattern'),
       danger: true,
       disabled: project.patterns.length <= 1,
       onClick: () => activePattern && removePattern(activePattern.id),
@@ -179,55 +181,55 @@ export function TopBar() {
   ];
 
   const channelMenu: MenuItem[] = [
-    { label: 'Kick', onClick: () => addChannel('kick') },
-    { label: 'Snare', onClick: () => addChannel('snare') },
-    { label: 'Hi-hat', onClick: () => addChannel('hat') },
-    { label: 'Clap', onClick: () => addChannel('clap') },
+    { label: t('Kick'), onClick: () => addChannel('kick') },
+    { label: t('Snare'), onClick: () => addChannel('snare') },
+    { label: t('Hi-hat'), onClick: () => addChannel('hat') },
+    { label: t('Clap'), onClick: () => addChannel('clap') },
     { separator: true },
-    { label: 'Bass', onClick: () => addChannel('bass') },
-    { label: 'Lead', onClick: () => addChannel('lead') },
-    { label: 'FM Keys', onClick: () => addChannel('keys') },
-    { label: 'Chord stack', onClick: () => addChannel('chords') },
+    { label: t('Bass'), onClick: () => addChannel('bass') },
+    { label: t('Lead'), onClick: () => addChannel('lead') },
+    { label: t('FM Keys'), onClick: () => addChannel('keys') },
+    { label: t('Chord stack'), onClick: () => addChannel('chords') },
     { separator: true },
-    { label: 'Pluck', onClick: () => addChannel('pluck') },
-    { label: 'Pad', onClick: () => addChannel('pad') },
-    { label: 'Riser FX', onClick: () => addChannel('fx') },
+    { label: t('Pluck'), onClick: () => addChannel('pluck') },
+    { label: t('Pad'), onClick: () => addChannel('pad') },
+    { label: t('Riser FX'), onClick: () => addChannel('fx') },
   ];
 
   const stepBpm = (delta: number) => setBpm(project.bpm + delta);
 
   const compactMenu: MenuItem[] = [
-    { label: 'Projects…', onClick: () => setUI({ projectHubOpen: true }) },
-    { label: 'New project', onClick: () => newProject('blank') },
-    { label: 'Load demo song', onClick: () => newProject('demo') },
-    { label: 'Open project…', onClick: () => fileRef.current?.click() },
-    { label: 'Save project as…', onClick: saveProjectFile },
-    { label: 'Import / export song…', onClick: () => setUI({ exchangeOpen: true }) },
-    { label: 'Import pack folder…', onClick: () => importPack('folder') },
-    { label: 'Import pack .zip…', onClick: () => importPack('zip') },
-    { label: 'Export audio…', onClick: () => setUI({ exportOpen: true }) },
+    { label: t('Projects…'), onClick: () => setUI({ projectHubOpen: true }) },
+    { label: t('New project'), onClick: () => newProject('blank') },
+    { label: t('Load demo song'), onClick: () => newProject('demo') },
+    { label: t('Open project…'), onClick: () => fileRef.current?.click() },
+    { label: t('Save project as…'), onClick: saveProjectFile },
+    { label: t('Import / export song…'), onClick: () => setUI({ exchangeOpen: true }) },
+    { label: t('Import pack folder…'), onClick: () => importPack('folder') },
+    { label: t('Import pack .zip…'), onClick: () => importPack('zip') },
+    { label: t('Export audio…'), onClick: () => setUI({ exportOpen: true }) },
     { separator: true },
-    { label: 'Undo', disabled: !history.past.length, onClick: undo },
-    { label: 'Redo', disabled: !history.future.length, onClick: redo },
+    { label: t('Undo'), disabled: !history.past.length, onClick: undo },
+    { label: t('Redo'), disabled: !history.future.length, onClick: redo },
     { separator: true },
-    { label: 'Playlist', checked: ui.tab === 'playlist', onClick: () => setUI({ tab: 'playlist' }) },
-    { label: 'Piano roll', checked: ui.tab === 'pianoroll', onClick: () => setUI({ tab: 'pianoroll' }) },
-    { label: 'Mixer', checked: ui.tab === 'mixer', onClick: () => setUI({ tab: 'mixer' }) },
-    { label: 'Browser', checked: ui.browserOpen, onClick: () => setUI({ browserOpen: !ui.browserOpen }) },
+    { label: t('Playlist'), checked: ui.tab === 'playlist', onClick: () => setUI({ tab: 'playlist' }) },
+    { label: t('Piano roll'), checked: ui.tab === 'pianoroll', onClick: () => setUI({ tab: 'pianoroll' }) },
+    { label: t('Mixer'), checked: ui.tab === 'mixer', onClick: () => setUI({ tab: 'mixer' }) },
+    { label: t('Browser'), checked: ui.browserOpen, onClick: () => setUI({ browserOpen: !ui.browserOpen }) },
     {
-      label: 'Packs…',
+      label: t('Packs…'),
       onClick: () => {
         setUI({ browserOpen: true });
         window.dispatchEvent(new Event('openbeats:show-packs'));
       },
     },
     ...layoutMenu,
-    { label: 'Plugin library…', onClick: () => setUI({ pluginsOpen: true }) },
+    { label: t('Plugin library…'), onClick: () => setUI({ pluginsOpen: true }) },
     { separator: true },
-    { label: 'Tutorial', onClick: () => setUI({ tutorialStep: 0 }) },
-    { label: 'Manual & shortcuts', onClick: () => setUI({ aboutOpen: true }) },
-    { label: 'Check for updates…', disabled: ui.updateChecking, onClick: () => void checkUpdates() },
-    { label: 'Settings…', onClick: () => setUI({ settingsOpen: true }) },
+    { label: t('Tutorial'), onClick: () => setUI({ tutorialStep: 0 }) },
+    { label: t('Manual & shortcuts'), onClick: () => setUI({ aboutOpen: true }) },
+    { label: t('Check for updates…'), disabled: ui.updateChecking, onClick: () => void checkUpdates() },
+    { label: t('Settings…'), onClick: () => setUI({ settingsOpen: true }) },
   ];
 
   return (
@@ -237,12 +239,12 @@ export function TopBar() {
           <IconLogo size={17} />
         </span>
         <span className="logo-text">
-          <b>OpenBeats</b>
+          <b>{t('OpenBeats')}</b>
           <span>open-source studio</span>
         </span>
       </div>
 
-      <button className="menu-btn compact-menu" onClick={(e) => show(e, 'all', compactMenu)} title="Menu">
+      <button className="menu-btn compact-menu" onClick={(e) => show(e, 'all', compactMenu)} title={t('Menu')}>
         ☰
       </button>
 
@@ -266,7 +268,7 @@ export function TopBar() {
           className={`tbtn ${transport.songMode ? 'active' : ''}`}
           onClick={toggleSongMode}
           onMouseEnter={() => hint('Pattern / Song mode (L) — Song plays the playlist arrangement.')}
-          title="Pattern / Song mode (L)"
+          title={t('Pattern / Song mode (L)')}
         >
           {transport.songMode ? 'SONG' : 'PAT'}
         </button>
@@ -274,20 +276,20 @@ export function TopBar() {
           className={`tbtn play ${transport.playing ? 'active' : ''}`}
           onClick={togglePlay}
           onMouseEnter={() => hint('Play / pause (Space).')}
-          title="Play / pause (Space)"
+          title={t('Play / pause (Space)')}
           aria-label={transport.playing ? 'Pause' : 'Play'}
           aria-pressed={transport.playing}
         >
           <IconPlay />
         </button>
-        <button className="tbtn" onClick={rewind} title="Stop and return to the start" aria-label="Stop" onMouseEnter={() => hint('Stop and return to bar 1.')}>
+        <button className="tbtn" onClick={rewind} title={t('Stop and return to the start')} aria-label={t('Stop')} onMouseEnter={() => hint('Stop and return to bar 1.')}>
           <IconStop />
         </button>
         <button
           className={`tbtn rec ${transport.record ? 'active' : ''}`}
           onClick={toggleRecord}
-          title="Record arm (R)"
-          aria-label="Record arm"
+          title={t('Record arm (R)')}
+          aria-label={t('Record arm')}
           aria-pressed={transport.record}
           onMouseEnter={() => hint('Arm recording: play the QWERTY keys while rolling to write notes into the current pattern.')}
         >
@@ -298,7 +300,7 @@ export function TopBar() {
       <div className="tb-group">
         <div
           className="display"
-          title="Tempo — drag or scroll to change"
+          title={t('Tempo — drag or scroll to change')}
           onPointerDown={(e) => {
             (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
             bpmDrag.current = { y: e.clientY, bpm: project.bpm };
@@ -316,7 +318,7 @@ export function TopBar() {
           onDoubleClick={() => setBpm(120)}
           role="slider"
           tabIndex={0}
-          aria-label="Tempo in beats per minute"
+          aria-label={t('Tempo in beats per minute')}
           aria-valuemin={40}
           aria-valuemax={300}
           aria-valuenow={Math.round(project.bpm)}
@@ -334,10 +336,10 @@ export function TopBar() {
           <span className="display-label">tempo</span>
           <span className="display-value">
             {Math.round(project.bpm)}
-            <small>BPM</small>
+            <small>{t('BPM')}</small>
           </span>
         </div>
-        <div className="display sig-display" style={{ minWidth: 54, cursor: 'default' }} title="Time signature">
+        <div className="display sig-display" style={{ minWidth: 54, cursor: 'default' }} title={t('Time signature')}>
           <span className="display-label">sig</span>
           <span className="display-value">
             {project.beatsPerBar}
@@ -361,8 +363,8 @@ export function TopBar() {
           <button
             className={`tbtn ${project.loop ? 'active' : ''}`}
             onClick={() => patchProject((p) => (p.loop = !p.loop))}
-            title="Loop"
-            aria-label="Loop"
+            title={t('Loop')}
+            aria-label={t('Loop')}
             aria-pressed={project.loop}
             onMouseEnter={() => hint('Loop the pattern / song arrangement.')}
           >
@@ -371,8 +373,8 @@ export function TopBar() {
           <button
             className={`tbtn ${project.metronome ? 'active' : ''}`}
             onClick={toggleMetronome}
-            title="Metronome (C)"
-            aria-label="Metronome"
+            title={t('Metronome (C)')}
+            aria-label={t('Metronome')}
             aria-pressed={project.metronome}
             onMouseEnter={() => hint('Metronome click on every beat.')}
           >
@@ -385,7 +387,7 @@ export function TopBar() {
         <button className="tbtn small pattern-nav" onClick={() => {
           const idx = project.patterns.findIndex((p) => p.id === project.currentPattern);
           selectPattern(project.patterns[(idx - 1 + project.patterns.length) % project.patterns.length].id);
-        }} title="Previous pattern (PageUp)" aria-label="Previous pattern">
+        }} title={t('Previous pattern (PageUp)')} aria-label={t('Previous pattern')}>
           ‹
         </button>
         <select
@@ -393,7 +395,7 @@ export function TopBar() {
           value={project.currentPattern}
           onChange={(e) => selectPattern(e.target.value)}
           onMouseEnter={() => hint('Pattern selector — the channel rack and piano roll edit this pattern.')}
-          title="Current pattern"
+          title={t('Current pattern')}
         >
           {project.patterns.map((p, i) => (
             <option key={p.id} value={p.id}>
@@ -401,24 +403,24 @@ export function TopBar() {
             </option>
           ))}
         </select>
-        <button className="tbtn small" onClick={(e) => show(e, 'pattern', patternMenu)} title="Pattern menu">
+        <button className="tbtn small" onClick={(e) => show(e, 'pattern', patternMenu)} title={t('Pattern menu')}>
           ▾
         </button>
         <button className="tbtn small pattern-nav" onClick={() => {
           const idx = project.patterns.findIndex((p) => p.id === project.currentPattern);
           selectPattern(project.patterns[(idx + 1) % project.patterns.length].id);
-        }} title="Next pattern (PageDown)" aria-label="Next pattern">
+        }} title={t('Next pattern (PageDown)')} aria-label={t('Next pattern')}>
           ›
         </button>
-        <button className="tbtn small pattern-extra" onClick={addPattern} title="New pattern" aria-label="New pattern">
+        <button className="tbtn small pattern-extra" onClick={addPattern} title={t('New pattern')} aria-label={t('New pattern')}>
           <IconPlus size={11} />
         </button>
-        <button className="tbtn small pattern-extra" onClick={() => duplicatePattern()} title="Clone pattern (Ctrl+D)" aria-label="Clone pattern">
+        <button className="tbtn small pattern-extra" onClick={() => duplicatePattern()} title={t('Clone pattern (Ctrl+D)')} aria-label={t('Clone pattern')}>
           <IconCopy size={11} />
         </button>
       </div>
 
-      <button className="tbtn add-channel-btn" onClick={(e) => show(e, 'add', channelMenu)} title="Add a channel" onMouseEnter={() => hint('Add a new instrument channel to the rack.')}>
+      <button className="tbtn add-channel-btn" onClick={(e) => show(e, 'add', channelMenu)} title={t('Add a channel')} onMouseEnter={() => hint('Add a new instrument channel to the rack.')}>
         + Channel
       </button>
 
@@ -443,16 +445,16 @@ export function TopBar() {
       <div className="spacer" />
 
       <div className="tb-group history-group" style={{ borderLeft: 0 }}>
-        <button className="tbtn flat" onClick={undo} disabled={!history.past.length} title="Undo (Ctrl+Z)" aria-label="Undo">
+        <button className="tbtn flat" onClick={undo} disabled={!history.past.length} title={t('Undo (Ctrl+Z)')} aria-label={t('Undo')}>
           <IconUndo size={13} />
         </button>
-        <button className="tbtn flat" onClick={redo} disabled={!history.future.length} title="Redo (Ctrl+Shift+Z)" aria-label="Redo">
+        <button className="tbtn flat" onClick={redo} disabled={!history.future.length} title={t('Redo (Ctrl+Shift+Z)')} aria-label={t('Redo')}>
           <IconRedo size={13} />
         </button>
       </div>
 
       <div className="tb-group actions-group">
-        <button className="tbtn" onClick={saveProjectFile} title="Save project as… (Ctrl+S)" aria-label="Save project as" onMouseEnter={() => hint('Save the whole project as a portable .obeats file, anywhere on disk.')}>
+        <button className="tbtn" onClick={saveProjectFile} title={t('Save project as… (Ctrl+S)')} aria-label={t('Save project as')} onMouseEnter={() => hint('Save the whole project as a portable .obeats file, anywhere on disk.')}>
           <IconSave size={13} />
         </button>
         <button
@@ -460,8 +462,8 @@ export function TopBar() {
           onClick={() => setUI({ exportOpen: true })}
           disabled={!!ui.exporting}
           data-tour="bounce"
-          title="Export the song to audio"
-          aria-label="Export the song to audio"
+          title={t('Export the song to audio')}
+          aria-label={t('Export the song to audio')}
           onMouseEnter={() => hint('Render the arrangement offline to WAV, FLAC, MP3, OGG or M4A.')}
         >
           <IconDownload size={13} />
@@ -470,19 +472,19 @@ export function TopBar() {
         <button
           className={`tbtn ${ui.browserOpen ? 'active' : ''}`}
           onClick={() => setUI({ browserOpen: !ui.browserOpen })}
-          title="Browser (F10)"
-          aria-label="Toggle sample browser"
+          title={t('Browser (F10)')}
+          aria-label={t('Toggle sample browser')}
           aria-pressed={ui.browserOpen}
         >
           <IconFolder size={13} />
         </button>
-        <button className="tbtn" onClick={() => setUI({ pluginsOpen: true })} data-tour="plugins" title="Browse VST3/CLAP plugins" aria-label="Open plugin library">
+        <button className="tbtn" onClick={() => setUI({ pluginsOpen: true })} data-tour="plugins" title={t('Browse VST3/CLAP plugins')} aria-label={t('Open plugin library')}>
           Plugins
         </button>
-        <button className="tbtn" onClick={() => setUI({ settingsOpen: true })} title="Settings (F11)" aria-label="Open settings" data-tour="settings">
+        <button className="tbtn" onClick={() => setUI({ settingsOpen: true })} title={t('Settings (F11)')} aria-label={t('Open settings')} data-tour="settings">
           <IconGear size={13} />
         </button>
-        <button className="tbtn" onClick={() => setUI({ aboutOpen: true })} data-tour="help" title="Manual, shortcuts and credits (F1)" aria-label="Open manual and shortcuts">
+        <button className="tbtn" onClick={() => setUI({ aboutOpen: true })} data-tour="help" title={t('Manual, shortcuts and credits (F1)')} aria-label={t('Open manual and shortcuts')}>
           <IconHelp size={13} />
         </button>
       </div>
@@ -498,7 +500,7 @@ export function TopBar() {
           e.target.value = '';
         }}
       />
-      <span className="chip gpl-chip" title="This project is open source — press F1 for the manual">
+      <span className="chip gpl-chip" title={t('This project is open source — press F1 for the manual')}>
         GPL-3.0
       </span>
     </div>

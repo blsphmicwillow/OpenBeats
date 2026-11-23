@@ -1,3 +1,4 @@
+import { useT } from '../i18n/useT';
 import { useEffect, useRef, useState } from 'react';
 import { useApp } from '../store';
 import { Knob } from '../ui/Knob';
@@ -26,6 +27,7 @@ import { nativePlaybackState } from '../lib/nativeAudio';
 import { ClapPluginEditor } from './ClapPluginEditor';
 
 function EqCurve({ effect, onChange }: { effect: Effect; onChange: (index: number, gain: number) => void }) {
+  const t = useT();
   const ref = useRef<SVGSVGElement>(null);
   const W = 320;
   const H = 58;
@@ -75,6 +77,7 @@ function EqCurve({ effect, onChange }: { effect: Effect; onChange: (index: numbe
 }
 
 function EffectCard({ strip, effect }: { strip: Strip; effect: Effect }) {
+  const t = useT();
   const { updateEffect, removeEffect, pushHistory, hint } = useApp.getState();
   const def = EFFECT_DEFS[effect.type];
   return (
@@ -96,7 +99,7 @@ function EffectCard({ strip, effect }: { strip: Strip; effect: Effect }) {
         >
           {effect.bypass ? 'off' : 'on'}
         </button>
-        <button className="tbtn small flat" title="Remove effect" onClick={() => removeEffect(strip.id, effect.id)}>
+        <button className="tbtn small flat" title={t('Remove effect')} onClick={() => removeEffect(strip.id, effect.id)}>
           <IconTrash size={10} />
         </button>
       </div>
@@ -158,6 +161,7 @@ function AutomationEditor({
   fallback: number;
   onChange: (points: AutomationPoint[]) => void;
 }) {
+  const t = useT();
   const ref = useRef<SVGSVGElement>(null);
   const dragId = useRef<string | null>(null);
   const [selectedPoint, setSelectedPoint] = useState<string | null>(null);
@@ -206,9 +210,9 @@ function AutomationEditor({
     ? `${points.length} point${points.length === 1 ? '' : 's'} · ${target === 'pan' ? 'L/R' : '0–125%'} · ${selectedCurve} segment`
     : 'Click the lane to add a point';
   const presets: { id: AutomationPresetId; label: string; disabled: boolean }[] = [
-    { id: 'fade-in', label: 'Fade in · 4 bars', disabled: target === 'pan' },
-    { id: 'tremolo', label: 'Tremolo · 1/8', disabled: false },
-    { id: 'ducking', label: 'Ducking · 1/4', disabled: target === 'pan' },
+    { id: 'fade-in', label: t('Fade in · 4 bars'), disabled: target === 'pan' },
+    { id: 'tremolo', label: t('Tremolo · 1/8'), disabled: false },
+    { id: 'ducking', label: t('Ducking · 1/4'), disabled: target === 'pan' },
   ];
   const applyPreset = (preset: AutomationPresetId) => {
     const next = buildAutomationPreset(target, preset, { length, barSteps });
@@ -291,7 +295,7 @@ function AutomationEditor({
         </text>
       </svg>
       <div className="automation-presets">
-        <span className="lbl">Preset</span>
+        <span className="lbl">{t('Preset')}</span>
         {presets.map((preset) => (
           <button
             key={preset.id}
@@ -310,7 +314,7 @@ function AutomationEditor({
         <span className="tiny-note">replaces lane · tempo-synced</span>
       </div>
       <div className="automation-segment-tools">
-        <span className="lbl">Segment</span>
+        <span className="lbl">{t('Segment')}</span>
         {(['linear', 'hold', 'smooth'] as const).map((curve) => (
           <button
             key={curve}
@@ -335,6 +339,7 @@ function AutomationEditor({
 }
 
 export function Mixer() {
+  const t = useT();
   const project = useApp((s) => s.project);
   const chains = useApp((s) => s.settings.fxChains);
   const [renaming, setRenaming] = useState<number | null>(null);
@@ -402,7 +407,7 @@ export function Mixer() {
   const insertMenu = (e: React.MouseEvent, strip: Strip) => {
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
     const categories = Array.from(new Set(Object.values(EFFECT_DEFS).map((d) => d.category)));
-    const items: MenuItem[] = [{ label: 'Add effect', disabled: true }];
+    const items: MenuItem[] = [{ label: t('Add effect'), disabled: true }];
     categories.forEach((cat) => {
       items.push({ separator: true });
       items.push({ label: cat, disabled: true });
@@ -423,11 +428,11 @@ export function Mixer() {
       },
     ];
     if (chains.length) {
-      items.push({ separator: true }, { label: 'Load saved chain', disabled: true });
+      items.push({ separator: true }, { label: t('Load saved chain'), disabled: true });
       chains.forEach((chain) => {
         items.push({ label: `${chain.name} · ${chain.effects.length} fx`, onClick: () => applyFxChain(strip.id, chain.id) });
       });
-      items.push({ separator: true }, { label: 'Delete saved chain', disabled: true });
+      items.push({ separator: true }, { label: t('Delete saved chain'), disabled: true });
       chains.forEach((chain) => {
         items.push({ label: chain.name, danger: true, onClick: () => removeFxChain(chain.id) });
       });
@@ -438,14 +443,14 @@ export function Mixer() {
   const stripMenu = (e: React.MouseEvent, strip: Strip) => {
     e.preventDefault();
     openMenu(e.clientX, e.clientY, [
-      { label: 'Rename strip', onClick: () => { setRenaming(strip.id); setDraft(strip.name); } },
+      { label: t('Rename strip'), onClick: () => { setRenaming(strip.id); setDraft(strip.name); } },
       { label: strip.collapsed ? 'Expand strip' : 'Collapse strip', onClick: () => updateStrip(strip.id, { collapsed: !strip.collapsed }) },
       { label: strip.id === 0 ? 'Master stays on the output' : 'Route to master', disabled: strip.id === 0, onClick: () => setRoute(strip.id, 0) },
       { separator: true },
-      { label: 'Add effect…', onClick: () => insertMenu(e, strip) },
-      { label: 'Reset fader and pan', onClick: () => updateStrip(strip.id, { gain: 0.8, pan: 0 }) },
+      { label: t('Add effect…'), onClick: () => insertMenu(e, strip) },
+      { label: t('Reset fader and pan'), onClick: () => updateStrip(strip.id, { gain: 0.8, pan: 0 }) },
       { separator: true },
-      { label: 'Delete strip', danger: true, disabled: strip.id === 0, onClick: () => removeStrip(strip.id) },
+      { label: t('Delete strip'), danger: true, disabled: strip.id === 0, onClick: () => removeStrip(strip.id) },
     ]);
   };
 
@@ -471,7 +476,7 @@ export function Mixer() {
     <div className="mixer" data-tour="mixer">
       <div className="toolbar">
         <span className="lbl">inserts</span>
-        <button className="tbtn small" onClick={addStrip} title="Add an insert / bus channel">
+        <button className="tbtn small" onClick={addStrip} title={t('Add an insert / bus channel')}>
           <IconPlus size={10} /> Insert
         </button>
         <button
@@ -479,7 +484,7 @@ export function Mixer() {
           onClick={() => {
             project.strips.forEach((s) => updateStrip(s.id, { collapsed: !s.collapsed }));
           }}
-          title="Collapse or expand every strip"
+          title={t('Collapse or expand every strip')}
         >
           Collapse all
         </button>
@@ -540,13 +545,13 @@ export function Mixer() {
                     e.stopPropagation();
                     if (strip.id === 0) return;
                     openMenu(e.clientX, e.clientY, [
-                      { label: 'Route to', disabled: true },
+                      { label: t('Route to'), disabled: true },
                       ...project.strips
                         .filter((s) => s.id !== strip.id)
                         .map((s) => ({ label: s.id === 0 ? 'Master' : `${s.id}. ${s.name}`, checked: strip.route === s.id, onClick: () => setRoute(strip.id, s.id) })),
                     ]);
                   }}
-                  title="Click to change the output route"
+                  title={t('Click to change the output route')}
                 >
                   → {strip.route === 0 ? 'Master' : `Insert ${strip.route}`}
                 </span>
@@ -583,14 +588,14 @@ export function Mixer() {
                     <button
                       className={`led ${strip.mute ? 'on mute' : ''}`}
                       onClick={(e) => { e.stopPropagation(); updateStrip(strip.id, { mute: !strip.mute }); }}
-                      title="Mute strip"
+                      title={t('Mute strip')}
                     >
                       M
                     </button>
                     <button
                       className={`led ${strip.solo ? 'on solo' : ''}`}
                       onClick={(e) => { e.stopPropagation(); updateStrip(strip.id, { solo: !strip.solo }); }}
-                      title="Solo strip"
+                      title={t('Solo strip')}
                     >
                       S
                     </button>
@@ -622,18 +627,18 @@ export function Mixer() {
                   <div className="strip-btns">
                     <button
                       className="tbtn small flat"
-                      title="Collapse strip"
+                      title={t('Collapse strip')}
                       onClick={(e) => { e.stopPropagation(); updateStrip(strip.id, { collapsed: true }); }}
                     >
                       ‹
                     </button>
-                    <button className="tbtn small flat" title="Add effect" onClick={(e) => { e.stopPropagation(); insertMenu(e, strip); }}>
+                    <button className="tbtn small flat" title={t('Add effect')} onClick={(e) => { e.stopPropagation(); insertMenu(e, strip); }}>
                       fx
                     </button>
                   </div>
                 )}
                 {strip.collapsed && (
-                  <button className="tbtn small flat" title="Expand strip" onClick={(e) => { e.stopPropagation(); updateStrip(strip.id, { collapsed: false }); }}>
+                  <button className="tbtn small flat" title={t('Expand strip')} onClick={(e) => { e.stopPropagation(); updateStrip(strip.id, { collapsed: false }); }}>
                     ›
                   </button>
                 )}
@@ -648,7 +653,7 @@ export function Mixer() {
           <span className="fx-rack-title">
             {selected.id === 0 ? 'Master' : `${selected.id}. ${selected.name}`} — inserts
           </span>
-          <div className="automation-tabs" role="tablist" aria-label="Effects view">
+          <div className="automation-tabs" role="tablist" aria-label={t('Effects view')}>
             <button
               className={`tbtn small flat ${fxView === 'chain' ? 'active' : ''}`}
               role="tab"
@@ -669,7 +674,7 @@ export function Mixer() {
           <button className="tbtn small" onClick={(e) => insertMenu(e, selected)}>
             <IconPlus size={10} /> Effect
           </button>
-          <button className="tbtn small" onClick={(e) => chainMenu(e, selected)} title="Save or load an insert chain template">
+          <button className="tbtn small" onClick={(e) => chainMenu(e, selected)} title={t('Save or load an insert chain template')}>
             Chains
           </button>
           {selected.id !== 0 && (
@@ -724,7 +729,7 @@ export function Mixer() {
                   label={`→ ${project.strips.find((s) => s.id === send.to)?.name ?? send.to}`}
                   format={(v) => `${Math.round(v * 100)}%`}
                 />
-                <button className="tbtn small flat" title="Remove send" onClick={() => removeSend(selected.id, i)}>
+                <button className="tbtn small flat" title={t('Remove send')} onClick={() => removeSend(selected.id, i)}>
                   ×
                 </button>
               </div>
@@ -779,14 +784,14 @@ export function Mixer() {
                   <div className="spacer" />
                   <button
                     className="tbtn small flat"
-                    title="Open CLAP parameter editor"
+                    title={t('Open CLAP parameter editor')}
                     onClick={() => setPluginEditorOpen(true)}
                   >
                     Edit
                   </button>
                   <button
                     className="tbtn small flat"
-                    title="Remove CLAP insert"
+                    title={t('Remove CLAP insert')}
                     onClick={() =>
                       patchProject((project) => {
                         const strip = project.strips.find((candidate) => candidate.id === selected.id);
@@ -813,11 +818,11 @@ export function Mixer() {
         )}
       </div>
 
-      <div className="automation-rack" aria-label="Mixer automation">
+      <div className="automation-rack" aria-label={t('Mixer automation')}>
         <div className="automation-head">
-          <strong>Automation</strong>
+          <strong>{t('Automation')}</strong>
           <span className="tiny-note">{selected.id === 0 ? 'Master' : `${selected.id}. ${selected.name}`}</span>
-          <div className="automation-tabs" role="tablist" aria-label="Automation target">
+          <div className="automation-tabs" role="tablist" aria-label={t('Automation target')}>
             {(['volume', 'pan'] as const).map((target) => (
               <button
                 key={target}
@@ -830,7 +835,7 @@ export function Mixer() {
               </button>
             ))}
           </div>
-          <span className="automation-badge">Web Audio only</span>
+          <span className="automation-badge">{t('Web Audio only')}</span>
           <button
             className="tbtn small flat"
             disabled={laneFor(selected, automationTarget).points.length === 0}

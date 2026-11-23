@@ -1,3 +1,4 @@
+import { useT } from '../i18n/useT';
 import { useState } from 'react';
 import { songLengthSteps, stepsToSeconds } from '../audio/sequencer';
 import { EXPORT_FORMATS, exportFormat, qualityLabel, type ExportFormatId } from '../lib/exportFormats';
@@ -7,6 +8,7 @@ import { useApp } from '../store';
 import { Modal } from '../ui/Modal';
 
 export function ExportDialog() {
+  const t = useT();
   const open = useApp((s) => s.ui.exportOpen);
   const exporting = useApp((s) => s.ui.exporting);
   const project = useApp((s) => s.project);
@@ -89,7 +91,7 @@ export function ExportDialog() {
         <div className="field">
           <div className="field-label">
             Sample rate
-            <small>The render and the encoded file both use this rate.</small>
+            <small>{t('The render and the encoded file both use this rate.')}</small>
           </div>
           <div className="field-control">
             <select
@@ -107,7 +109,7 @@ export function ExportDialog() {
         <div className="field">
           <div className="field-label">
             Mastering
-            <small>Applied to the offline render before encoding.</small>
+            <small>{t('Applied to the offline render before encoding.')}</small>
           </div>
           <div className="field-control">
             <select

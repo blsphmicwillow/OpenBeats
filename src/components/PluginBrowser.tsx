@@ -1,3 +1,4 @@
+import { useT } from '../i18n/useT';
 import { useEffect, useMemo, useState } from 'react';
 import { useApp } from '../store';
 import { Modal } from '../ui/Modal';
@@ -24,6 +25,7 @@ const ISSUE_URL =
 
 /** Registry-backed VST3/CLAP browser. It links downloads but never loads a plugin. */
 export function PluginBrowser() {
+  const t = useT();
   const open = useApp((s) => s.ui.pluginsOpen);
   const setUI = useApp((s) => s.setUI);
   const selectedStrip = useApp((s) => s.project.selectedStrip);
@@ -213,14 +215,14 @@ export function PluginBrowser() {
             ))}
           </div>
           <label className="plugin-category-filter">
-            <span>Category</span>
+            <span>{t('Category')}</span>
             <select
               className="mini-select"
               value={category}
               onChange={(e) => setCategory(e.target.value)}
               aria-label="Filter by plugin category"
             >
-              <option value="all">All categories</option>
+              <option value="all">{t('All categories')}</option>
               {categories.map((value) => (
                 <option key={value} value={value}>
                   {value}
@@ -321,7 +323,7 @@ export function PluginBrowser() {
         </div>
 
         <div className="plugin-detail">
-          {!selected && <div className="plugin-empty">Select a plugin to see its releases.</div>}
+          {!selected && <div className="plugin-empty">{t('Select a plugin to see its releases.')}</div>}
           {selected && (
             <>
               <div className="plugin-hero">
@@ -343,13 +345,13 @@ export function PluginBrowser() {
               <p className="plugin-description">{selected.description}</p>
               <div className="plugin-facts">
                 <span>
-                  <b>Category</b> {selected.category ?? 'Uncategorised'}
+                  <b>{t('Category')}</b> {selected.category ?? 'Uncategorised'}
                 </span>
                 <span>
-                  <b>Platforms</b> {pluginPlatformLabel(selected.platforms)}
+                  <b>{t('Platforms')}</b> {pluginPlatformLabel(selected.platforms)}
                 </span>
                 <span>
-                  <b>Release</b>{' '}
+                  <b>{t('Release')}</b>{' '}
                   {selected.release ? `${selected.release.tag} · ${selected.release.publishedAt.slice(0, 10)}` : 'not published'}
                 </span>
               </div>
@@ -378,7 +380,7 @@ export function PluginBrowser() {
                     </button>
                   </div>
                   {selected.release.assets.length === 0 && (
-                    <div className="plugin-empty">That release has no downloadable plugin bundle yet.</div>
+                    <div className="plugin-empty">{t('That release has no downloadable plugin bundle yet.')}</div>
                   )}
                   {selected.release.assets.map((asset) => (
                     <div className="plugin-asset" key={asset.name}>
@@ -412,7 +414,7 @@ export function PluginBrowser() {
                 </button>
               </div>
               <div className="plugin-security">
-                <b>Native binaries:</b> plugins run with your user permissions. Only download from
+                <b>{t('Native binaries:')}</b> plugins run with your user permissions. Only download from
                 publishers you trust; “reviewed” means provenance was checked, not audited. Linux
                 CLAP inserts run in a separate helper process and are never called from the audio
                 callback.

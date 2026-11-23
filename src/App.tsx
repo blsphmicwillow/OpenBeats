@@ -1,3 +1,4 @@
+import { useT } from './i18n/useT';
 import { lazy, memo, Suspense, useEffect, useRef, useState } from 'react';
 import { previewPitch, useApp } from './store';
 import { themeById, themeVars } from './themes';
@@ -53,6 +54,7 @@ const TABS: { id: WorkspaceTab; label: string; icon: React.ReactNode }[] = [
 ];
 
 export default function App() {
+  const t = useT();
   const settings = useApp((s) => s.settings);
   const ui = useApp((s) => s.ui);
   const project = useApp((s) => s.project);
@@ -411,7 +413,7 @@ export default function App() {
                   }}
                 >
                   {tab.icon}
-                  {tab.label}
+                  {t(tab.label)}
                   {tab.id !== 'changelog' && (
                     <span className="tab-key">
                       {settings.keymap[tab.id === 'playlist' ? 'playlist' : tab.id === 'pianoroll' ? 'pianoRoll' : 'mixer']}

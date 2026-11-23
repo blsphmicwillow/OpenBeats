@@ -1,3 +1,4 @@
+import { useT } from '../i18n/useT';
 import { useRef, useState } from 'react';
 import { useApp } from '../store';
 import { Modal } from '../ui/Modal';
@@ -8,6 +9,7 @@ import { HumRecorder, humToNotes, type HumResult } from '../audio/hum';
  * quantised result into the selected channel's piano roll.
  */
 export function HumToMelody() {
+  const t = useT();
   const open = useApp((s) => s.ui.humOpen);
   const bpm = useApp((s) => s.project.bpm);
   const [recording, setRecording] = useState(false);
@@ -107,15 +109,15 @@ export function HumToMelody() {
           <div className="hum-result">
             <div className="hum-stats">
               <div>
-                <span>Captured</span>
+                <span>{t('Captured')}</span>
                 <b>{result.seconds.toFixed(1)}s</b>
               </div>
               <div>
-                <span>Voiced frames</span>
+                <span>{t('Voiced frames')}</span>
                 <b>{result.frames.filter((f) => f.hz > 0).length}</b>
               </div>
               <div>
-                <span>Notes found</span>
+                <span>{t('Notes found')}</span>
                 <b>{notes.length}</b>
               </div>
             </div>

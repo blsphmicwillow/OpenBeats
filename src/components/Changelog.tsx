@@ -1,3 +1,4 @@
+import { useT } from '../i18n/useT';
 import { useApp } from '../store';
 import { APP_VERSION, APP_TAGLINE } from '../lib/version';
 import { CHANGELOG } from '../lib/changelog';
@@ -10,6 +11,7 @@ import { IconDownload, IconWave } from '../ui/icons';
  * part that needs the network.
  */
 export function Changelog() {
+  const t = useT();
   const update = useApp((s) => s.ui.update);
   const checking = useApp((s) => s.ui.updateChecking);
   const repo = useApp((s) => s.settings.updateRepo);
@@ -20,8 +22,8 @@ export function Changelog() {
     <div className="changelog">
       <div className="cl-head">
         <div>
-          <div className="cl-eyebrow">Release notes</div>
-          <h2>What's new in OpenBeats</h2>
+          <div className="cl-eyebrow">{t('Release notes')}</div>
+          <h2>{t("What's new in OpenBeats")}</h2>
           <p className="cl-sub">
             {APP_TAGLINE} · you are running <b>{APP_VERSION}</b>
           </p>
@@ -38,7 +40,7 @@ export function Changelog() {
 
       {update && (
         <div className="cl-update">
-          <span className="cl-badge">Update available</span>
+          <span className="cl-badge">{t('Update available')}</span>
           <strong>{update.version}</strong>
           <span className="cl-sub">published {update.publishedAt ? new Date(update.publishedAt).toLocaleDateString() : 'recently'}</span>
           <div className="spacer" />

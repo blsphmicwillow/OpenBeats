@@ -1,3 +1,4 @@
+import { useT } from '../i18n/useT';
 import { useEffect, useRef, useState, type MouseEvent } from 'react';
 import { previewChannel, useApp } from '../store';
 import { engine } from '../audio/engine';
@@ -32,6 +33,7 @@ const PACK_FORMAT: Record<NativePackFormat, string> = {
 };
 
 export function BrowserPanel() {
+  const t = useT();
   const ui = useApp((s) => s.ui);
   const project = useApp((s) => s.project);
   const outputId = useApp((s) => s.settings.audio.outputId);
@@ -198,7 +200,7 @@ export function BrowserPanel() {
       <div className="browser-list">
         {tab === 'packs' && (
           <>
-            <div className="browser-group">Imported packs</div>
+            <div className="browser-group">{t('Imported packs')}</div>
             {packs.length === 0 && (
               <div className="browser-empty">
                 No packs yet. Import a folder or a .zip to tag and browse its samples.
@@ -258,7 +260,7 @@ export function BrowserPanel() {
               );
             })}
 
-            <div className="browser-group">Instruments</div>
+            <div className="browser-group">{t('Instruments')}</div>
             {groups.map((group) => (
               <div key={group}>
                 <div className="browser-group">{group}</div>
@@ -310,16 +312,16 @@ export function BrowserPanel() {
 
         {tab === 'projects' && (
           <>
-            <div className="browser-group">Current</div>
+            <div className="browser-group">{t('Current')}</div>
             <div className="browser-item" onDoubleClick={() => setUI({ tab: 'playlist' })}>
               <span className="dot" style={{ background: 'var(--accent)' }} />
               <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{project.name}</span>
               <span className="bi-meta">{Math.round(project.bpm)} BPM</span>
             </div>
-            <div className="browser-group">Actions</div>
+            <div className="browser-group">{t('Actions')}</div>
             <div className="browser-item" onClick={saveProjectFile}>
               <IconDownload size={12} />
-              <span>Save this project</span>
+              <span>{t('Save this project')}</span>
               <span className="bi-meta">.obeats</span>
             </div>
             <div className="browser-item" onClick={() => projectInput.current?.click()}>
@@ -330,10 +332,10 @@ export function BrowserPanel() {
               <IconWave size={12} />
               <span>Export audio…</span>
             </div>
-            <div className="browser-group">Start fresh</div>
+            <div className="browser-group">{t('Start fresh')}</div>
             <div className="browser-item" onClick={() => newProject('blank')}>
               <IconPlus size={12} />
-              <span>Empty project</span>
+              <span>{t('Empty project')}</span>
             </div>
             <div className="browser-item" onClick={() => newProject('demo')}>
               <IconWave size={12} />
@@ -375,8 +377,8 @@ export function BrowserPanel() {
                 )}
               </>
             )}
-            <div className="browser-group">Your samples</div>
-            {Array.from(SAMPLE_BANK.keys()).length === 0 && <div className="browser-empty">No samples loaded yet.<br />Drop in a one-shot below.</div>}
+            <div className="browser-group">{t('Your samples')}</div>
+            {Array.from(SAMPLE_BANK.keys()).length === 0 && <div className="browser-empty">{t('No samples loaded yet.')}<br />{t('Drop in a one-shot below.')}</div>}
             {Array.from(SAMPLE_BANK.entries()).map(([id, buffer]) => {
               const channel = project.channels.find((c) => c.sample?.id === id);
               return (
@@ -401,7 +403,7 @@ export function BrowserPanel() {
                 </div>
               );
             })}
-            <div className="browser-group">Built-in drums</div>
+            <div className="browser-group">{t('Built-in drums')}</div>
             {PRESETS.filter((p) => p.category === 'Drums').map((p) => (
               <div key={p.id} className="browser-item" onClick={() => {
                 const ch = project.channels.find((c) => c.id === project.selectedChannel) ?? project.channels[0];

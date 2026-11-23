@@ -1,3 +1,4 @@
+import { useT } from '../i18n/useT';
 import { useState } from 'react';
 import { Modal } from '../ui/Modal';
 import type { NativePack, NativePackFormat, NativePackReport } from '../lib/nativeAudio';
@@ -25,6 +26,7 @@ export function PackImportReport({
   report: NativePackReport;
   onClose: () => void;
 }) {
+  const t = useT();
   const [showLog, setShowLog] = useState(false);
   const categories = Object.entries(report.categories).sort((a, b) => b[1] - a[1]);
   const previewOnly = (pack.presets ?? []).filter((preset) => !preset.playable).length;
@@ -91,7 +93,7 @@ export function PackImportReport({
 
         {(pack.presets ?? []).length > 0 && (
           <>
-            <div className="browser-group">Preset metadata</div>
+            <div className="browser-group">{t('Preset metadata')}</div>
             {pack.presets?.map((preset, index) => (
               <div className="pack-preset" key={`${preset.source}-${index}`}>
                 <div>
@@ -108,7 +110,7 @@ export function PackImportReport({
 
         {report.skipped.length > 0 && (
           <>
-            <div className="browser-group">Skipped files</div>
+            <div className="browser-group">{t('Skipped files')}</div>
             {report.skipped.map((skip) => (
               <div className="pack-skip" key={`${skip.file}-${skip.reason}`}>
                 <span>{skip.file}</span>

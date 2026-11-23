@@ -1,3 +1,4 @@
+import { useT } from '../i18n/useT';
 import { useSyncExternalStore } from 'react';
 import { useApp } from '../store';
 import {
@@ -17,6 +18,7 @@ import { IconWave } from '../ui/icons';
  * long detour. Snapshots are in memory for this session.
  */
 export function HistoryPanel() {
+  const t = useT();
   const entries = useSyncExternalStore(subscribe, getSnapshots, getSnapshots);
   const project = useApp((s) => s.project);
   const patchProject = useApp((s) => s.patchProject);
@@ -40,8 +42,8 @@ export function HistoryPanel() {
     <div className="changelog">
       <div className="cl-head">
         <div>
-          <div className="cl-eyebrow">History</div>
-          <h2>Project snapshots</h2>
+          <div className="cl-eyebrow">{t('History')}</div>
+          <h2>{t('Project snapshots')}</h2>
           <p className="cl-sub">
             {entries.length === 0
               ? 'Nothing captured yet. One is taken automatically as you edit, or save one now.'
@@ -66,7 +68,7 @@ export function HistoryPanel() {
       </div>
 
       {entries.length === 0 ? (
-        <p className="cl-sub">Snapshots stay in memory for this session.</p>
+        <p className="cl-sub">{t('Snapshots stay in memory for this session.')}</p>
       ) : (
         <ul className="cl-list">
           {entries.map((entry) => (

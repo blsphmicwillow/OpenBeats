@@ -1,3 +1,4 @@
+import { useT } from '../i18n/useT';
 import { useCallback, useEffect, useState } from 'react';
 import { useApp } from '../store';
 import {
@@ -24,6 +25,7 @@ function noteName(midi: number): string {
 
 /** Input monitoring, one-take recording and the tuner, plus the Dev Mode view. */
 export function InputPanel() {
+  const t = useT();
   const toast = useApp((s) => s.ui.toast);
   const audio = useApp((s) => s.settings.audio);
   const patchSettings = useApp((s) => s.patchSettings);
@@ -161,8 +163,8 @@ export function InputPanel() {
             aria-label="Input device"
             disabled={inputs.length === 0}
           >
-            {inputs.length === 0 && <option value="">No inputs found</option>}
-            <option value="">System default</option>
+            {inputs.length === 0 && <option value="">{t('No inputs found')}</option>}
+            <option value="">{t('System default')}</option>
             {savedMissing && (
               <option value={device}>{audio.inputId} · unavailable</option>
             )}

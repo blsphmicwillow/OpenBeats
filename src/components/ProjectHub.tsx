@@ -1,3 +1,4 @@
+import { useT } from '../i18n/useT';
 import { useState } from 'react';
 import { useApp } from '../store';
 import { Modal } from '../ui/Modal';
@@ -5,6 +6,7 @@ import { IconFolder, IconPlus, IconSave } from '../ui/icons';
 
 /** New project / old project library. The Tutorial project is seeded on first run. */
 export function ProjectHub() {
+  const t = useT();
   const open = useApp((s) => s.ui.projectHubOpen);
   const saved = useApp((s) => s.savedProjects);
   const current = useApp((s) => s.project);
@@ -87,7 +89,7 @@ export function ProjectHub() {
         })}
       </div>
       <p className="hinttext" style={{ marginTop: 14 }}>
-        First run opens <b>Tutorial</b>, not a blank song. The current song is also restored automatically the next time you
+        First run opens <b>{t('Tutorial')}</b>, not a blank song. The current song is also restored automatically the next time you
         launch OpenBeats.
       </p>
     </Modal>

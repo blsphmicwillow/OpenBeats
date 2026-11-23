@@ -1,3 +1,4 @@
+import { useT } from '../i18n/useT';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { channelNotes, currentPattern, previewChannel, useApp } from '../store';
 import { Knob } from '../ui/Knob';
@@ -29,6 +30,7 @@ type Drag =
   | { kind: 'velocity'; noteId: string; startY: number; origVel: number };
 
 export function PianoRoll() {
+  const t = useT();
   const project = useApp((s) => s.project);
   const settings = useApp((s) => s.settings);
   const transport = useApp((s) => s.transport);
@@ -199,15 +201,15 @@ export function PianoRoll() {
     e.stopPropagation();
     if (!channel) return;
     openMenu(e.clientX, e.clientY, [
-      { label: 'Delete note', danger: true, onClick: () => removeNote(channel.id, noteId) },
+      { label: t('Delete note'), danger: true, onClick: () => removeNote(channel.id, noteId) },
       { separator: true },
-      { label: 'Transpose channel +1', onClick: () => transposeChannel(channel.id, 1) },
-      { label: 'Transpose channel −1', onClick: () => transposeChannel(channel.id, -1) },
+      { label: t('Transpose channel +1'), onClick: () => transposeChannel(channel.id, 1) },
+      { label: t('Transpose channel −1'), onClick: () => transposeChannel(channel.id, -1) },
     ]);
   };
 
   if (!channel) {
-    return <div className="empty-state">Add a channel to start writing notes.</div>;
+    return <div className="empty-state">{t('Add a channel to start writing notes.')}</div>;
   }
 
   return (
@@ -239,7 +241,7 @@ export function PianoRoll() {
           <option value="1">1/16</option>
           <option value="0.5">1/32</option>
           <option value="0.25">1/64</option>
-          <option value="0">Off</option>
+          <option value="0">{t('Off')}</option>
         </select>
         <div className="sep" />
         <span className="lbl">key</span>

@@ -1,3 +1,4 @@
+import { useT } from '../i18n/useT';
 import { useRef, useState } from 'react';
 import { useApp } from '../store';
 import { Modal } from '../ui/Modal';
@@ -29,6 +30,7 @@ const FORMATS = [
 ] as const;
 
 export function ExchangeDialog() {
+  const t = useT();
   const open = useApp((s) => s.ui.exchangeOpen);
   const [tab, setTab] = useState<Tab>('import');
   const [busy, setBusy] = useState(false);
@@ -85,7 +87,7 @@ export function ExchangeDialog() {
 
       {tab === 'import' && (
         <>
-          <h3>Open a song</h3>
+          <h3>{t('Open a song')}</h3>
           <p className="hinttext">
             Pick a file and OpenBeats rebuilds it as channels, patterns and playlist clips. Everything is parsed locally —
             nothing is uploaded.
@@ -109,15 +111,15 @@ export function ExchangeDialog() {
             ))}
             <button className="exchange-card" onClick={() => fileRef.current?.click()} disabled={busy}>
               <div className="exchange-card-head">
-                <b>OpenBeats project</b>
+                <b>{t('OpenBeats project')}</b>
                 <span className="exchange-badge">.obeats</span>
               </div>
               <small>Reopen a native project with mixer, effects and theme settings intact.</small>
-              <span className="exchange-works">OpenBeats</span>
+              <span className="exchange-works">{t('OpenBeats')}</span>
             </button>
           </div>
           <p className="exchange-note">
-            <b>FL Studio:</b> .flp is a proprietary binary format with plugin state, so it is not parsed directly. Export
+            <b>{t('FL Studio:')}</b> .flp is a proprietary binary format with plugin state, so it is not parsed directly. Export
             MIDI here and use <i>File → Import → MIDI</i> in FL Studio; every note, track and the tempo arrive. Exporting
             from FL Studio to OpenBeats works the same way.
           </p>
@@ -129,7 +131,7 @@ export function ExchangeDialog() {
 
       {tab === 'export' && (
         <>
-          <h3>Send this song out</h3>
+          <h3>{t('Send this song out')}</h3>
           <p className="hinttext">
             The arrangement is flattened onto a timeline: each channel becomes one track, notes keep their bar positions,
             and the project tempo is written into the file.
@@ -137,7 +139,7 @@ export function ExchangeDialog() {
           <div className="exchange-grid">
             <button className="exchange-card" onClick={() => void exportMidi()}>
               <div className="exchange-card-head">
-                <b>Multi-track MIDI</b>
+                <b>{t('Multi-track MIDI')}</b>
                 <span className="exchange-badge">.mid</span>
               </div>
               <small>Type 1 MIDI with one track per channel — imports as separate tracks in FL Studio, Ableton, Logic, Cubase, Studio One, Bitwig and REAPER.</small>
@@ -145,23 +147,23 @@ export function ExchangeDialog() {
             </button>
             <button className="exchange-card" onClick={() => void exportRpp()}>
               <div className="exchange-card-head">
-                <b>REAPER project</b>
+                <b>{t('REAPER project')}</b>
                 <span className="exchange-badge">.rpp</span>
               </div>
               <small>Native text project with tracks and MIDI items. Open it directly in REAPER.</small>
-              <span className="exchange-works">REAPER</span>
+              <span className="exchange-works">{t('REAPER')}</span>
             </button>
             <button className="exchange-card" onClick={() => void saveProjectFile()}>
               <div className="exchange-card-head">
-                <b>OpenBeats project</b>
+                <b>{t('OpenBeats project')}</b>
                 <span className="exchange-badge">.obeats</span>
               </div>
               <small>The full session: channels, patterns, clips, mixer, effects, routing and settings.</small>
-              <span className="exchange-works">OpenBeats</span>
+              <span className="exchange-works">{t('OpenBeats')}</span>
             </button>
             <button className="exchange-card" onClick={() => setUI({ exchangeOpen: false, exportOpen: true })}>
               <div className="exchange-card-head">
-                <b>Audio export</b>
+                <b>{t('Audio export')}</b>
                 <span className="exchange-badge">.wav · .flac · .mp3</span>
               </div>
               <small>Render the song to WAV, FLAC, MP3, OGG or M4A, optionally mastered for a streaming target.</small>
@@ -169,7 +171,7 @@ export function ExchangeDialog() {
             </button>
           </div>
           <p className="exchange-note">
-            Ableton Live reads this MIDI as separate tracks (<b>Live accepts SMF type 1</b>). To go the other way, import
+            Ableton Live reads this MIDI as separate tracks (<b>{t('Live accepts SMF type 1')}</b>). To go the other way, import
             the Live Set or export MIDI from Live and open it here.
           </p>
         </>

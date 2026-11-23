@@ -1,8 +1,10 @@
+import { useT } from '../i18n/useT';
 import { APP_NAME, APP_TAGLINE, APP_VERSION } from '../lib/version';
 import { IconLogo } from '../ui/icons';
 
 /** Short branded startup screen. It is decorative and never blocks input. */
 export function SplashScreen({ leaving }: { leaving: boolean }) {
+  const t = useT();
   return (
     <div
       className={`splash-screen ${leaving ? 'leaving' : ''}`}
@@ -15,7 +17,7 @@ export function SplashScreen({ leaving }: { leaving: boolean }) {
           <IconLogo size={40} />
         </div>
         <h1 className="splash-title">
-          Open<span>Beats</span>
+          Open<span>{t('Beats')}</span>
         </h1>
         <p className="splash-tagline">{APP_TAGLINE}</p>
         <div className="splash-eq" aria-hidden="true">

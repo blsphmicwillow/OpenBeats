@@ -1,3 +1,4 @@
+import { useT } from '../i18n/useT';
 import { useMemo, useState } from 'react';
 import { useApp } from '../store';
 import { Modal } from '../ui/Modal';
@@ -150,6 +151,7 @@ function writeProgress(value: Record<string, boolean>) {
 }
 
 export function LearnDialog() {
+  const t = useT();
   const setUI = useApp((s) => s.setUI);
   const [done, setDone] = useState<Record<string, boolean>>(readProgress);
   const [activeId, setActiveId] = useState(() => MODULES.find((item) => !readProgress()[item.id])?.id ?? MODULES[0].id);
@@ -269,10 +271,10 @@ export function LearnDialog() {
             <button className="btn primary" onClick={run}>
               {active.actionLabel}
             </button>
-            {allDone && <span className="tiny-note">All modules marked complete. Keep making things.</span>}
+            {allDone && <span className="tiny-note">{t('All modules marked complete. Keep making things.')}</span>}
           </div>
           <div className="learn-tip">
-            <strong>Tip</strong>
+            <strong>{t('Tip')}</strong>
             <span>
               The guided tour is the fast version. Learn is the reference you can return to while working on a real song.
             </span>

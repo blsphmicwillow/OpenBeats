@@ -1,3 +1,4 @@
+import { useT } from '../i18n/useT';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { patternById, transportNow, useApp } from '../store';
 import { songLengthSteps } from '../audio/sequencer';
@@ -35,6 +36,7 @@ type DragState =
 import { AudioClipWave } from './AudioClipWave';
 
 export function Playlist() {
+  const t = useT();
   const project = useApp((s) => s.project);
   const settings = useApp((s) => s.settings);
   const transport = useApp((s) => s.transport);
@@ -486,29 +488,29 @@ export function Playlist() {
     const pat = patternById(project, clip.pattern);
     openMenu(e.clientX, e.clientY, [
       {
-        label: 'Open in piano roll',
+        label: t('Open in piano roll'),
         onClick: () => {
           selectPattern(clip.pattern);
           setUI({ tab: 'pianoroll' });
         },
       },
       {
-        label: 'Clone clip',
+        label: t('Clone clip'),
         onClick: () => addClip(clip.pattern, clip.track, clip.start + clip.len, clip.len),
       },
-      { label: 'Copy clip', shortcut: 'Ctrl+C', onClick: () => copyClip(clip.id) },
-      { label: 'Cut clip', shortcut: 'Ctrl+X', onClick: () => {
+      { label: t('Copy clip'), shortcut: 'Ctrl+C', onClick: () => copyClip(clip.id) },
+      { label: t('Cut clip'), shortcut: 'Ctrl+X', onClick: () => {
         cutClip(clip.id);
         setSelectedClips((current) => current.filter((id) => id !== clip.id));
       } },
       { separator: true },
       {
-        label: 'Move up a track',
+        label: t('Move up a track'),
         disabled: clip.track === 0,
         onClick: () => updateClip(clip.id, { track: clip.track - 1 }),
       },
       {
-        label: 'Move down a track',
+        label: t('Move down a track'),
         disabled: clip.track >= project.tracks.length - 1,
         onClick: () => updateClip(clip.id, { track: clip.track + 1 }),
       },
@@ -518,40 +520,40 @@ export function Playlist() {
         disabled: true,
       },
       {
-        label: 'Clip gain +1 dB',
+        label: t('Clip gain +1 dB'),
         onClick: () => updateClip(clip.id, { gain: Math.min(4, (clip.gain ?? 1) * 1.122) }),
       },
       {
-        label: 'Clip gain −1 dB',
+        label: t('Clip gain −1 dB'),
         onClick: () => updateClip(clip.id, { gain: Math.max(0, (clip.gain ?? 1) / 1.122) }),
       },
-      { label: 'Reset clip gain', onClick: () => updateClip(clip.id, { gain: 1 }) },
+      { label: t('Reset clip gain'), onClick: () => updateClip(clip.id, { gain: 1 }) },
       { separator: true },
       {
         label: `Pan: ${(clip.pan ?? 0) === 0 ? 'center' : (clip.pan ?? 0) < 0 ? `${Math.round(Math.abs(clip.pan ?? 0) * 100)}% left` : `${Math.round((clip.pan ?? 0) * 100)}% right`}`,
         disabled: true,
       },
       {
-        label: 'Pan left',
+        label: t('Pan left'),
         onClick: () => updateClip(clip.id, { pan: Math.max(-1, (clip.pan ?? 0) - 0.1) }),
       },
       {
-        label: 'Pan right',
+        label: t('Pan right'),
         onClick: () => updateClip(clip.id, { pan: Math.min(1, (clip.pan ?? 0) + 0.1) }),
       },
-      { label: 'Center pan', onClick: () => updateClip(clip.id, { pan: 0 }) },
+      { label: t('Center pan'), onClick: () => updateClip(clip.id, { pan: 0 }) },
       { separator: true },
       { label: `Pitch: ${clip.pitch ?? 0} st`, disabled: true },
-      { label: 'Pitch +1', onClick: () => updateClip(clip.id, { pitch: (clip.pitch ?? 0) + 1 }) },
-      { label: 'Pitch −1', onClick: () => updateClip(clip.id, { pitch: (clip.pitch ?? 0) - 1 }) },
-      { label: 'Reset pitch', onClick: () => updateClip(clip.id, { pitch: 0 }) },
+      { label: t('Pitch +1'), onClick: () => updateClip(clip.id, { pitch: (clip.pitch ?? 0) + 1 }) },
+      { label: t('Pitch −1'), onClick: () => updateClip(clip.id, { pitch: (clip.pitch ?? 0) - 1 }) },
+      { label: t('Reset pitch'), onClick: () => updateClip(clip.id, { pitch: 0 }) },
       { separator: true },
       {
         label: `Stretch: ${(clip.stretch ?? 1).toFixed(2)}×`,
         onClick: () => updateClip(clip.id, { stretch: Math.min(4, (clip.stretch ?? 1) * 1.1) }),
       },
       {
-        label: 'Reset stretch',
+        label: t('Reset stretch'),
         onClick: () => updateClip(clip.id, { stretch: 1 }),
       },
       { separator: true },
@@ -564,7 +566,7 @@ export function Playlist() {
         onClick: () => updateClip(clip.id, { fadeOut: ((clip.fadeOut ?? 0) + 2) % 18 }),
       },
       {
-        label: 'Clear fades',
+        label: t('Clear fades'),
         onClick: () => updateClip(clip.id, { fadeIn: 0, fadeOut: 0 }),
       },
       (() => {
@@ -586,12 +588,12 @@ export function Playlist() {
       })(),
       { separator: true },
       {
-        label: 'Split at playhead',
+        label: t('Split at playhead'),
         disabled: transport.step <= clip.start || transport.step >= clip.start + clip.len,
         onClick: () => splitClipAt(clip.id, transport.step) && hint('Clip split at the playhead'),
       },
       {
-        label: 'Paste at playhead',
+        label: t('Paste at playhead'),
         shortcut: 'Ctrl+V',
         disabled: !clipClipboard,
         onClick: () => {
@@ -600,7 +602,7 @@ export function Playlist() {
         },
       },
       { label: `Pattern: ${pat?.name ?? 'unknown'}`, disabled: true },
-      { label: 'Delete clip', danger: true, onClick: () => removeClip(clip.id) },
+      { label: t('Delete clip'), danger: true, onClick: () => removeClip(clip.id) },
     ]);
   };
 
@@ -611,20 +613,20 @@ export function Playlist() {
     if (!clip) return;
     openMenu(e.clientX, e.clientY, [
       { label: `${clip.name} — audio clip`, disabled: true },
-      { label: 'Copy clip', shortcut: 'Ctrl+C', onClick: () => copyClip(clip.id) },
-      { label: 'Cut clip', shortcut: 'Ctrl+X', onClick: () => {
+      { label: t('Copy clip'), shortcut: 'Ctrl+C', onClick: () => copyClip(clip.id) },
+      { label: t('Cut clip'), shortcut: 'Ctrl+X', onClick: () => {
         cutClip(clip.id);
         setSelectedClips((current) => current.filter((id) => id !== clip.id));
       } },
       { separator: true },
       { label: `Gain ${(20 * Math.log10(Math.max(0.001, clip.gain))).toFixed(1)} dB`, disabled: true },
-      { label: 'Gain +1 dB', onClick: () => updateAudioClip(clip.id, { gain: Math.min(4, clip.gain * 1.122) }) },
-      { label: 'Gain −1 dB', onClick: () => updateAudioClip(clip.id, { gain: Math.max(0, clip.gain / 1.122) }) },
-      { label: 'Reset gain', onClick: () => updateAudioClip(clip.id, { gain: 1 }) },
+      { label: t('Gain +1 dB'), onClick: () => updateAudioClip(clip.id, { gain: Math.min(4, clip.gain * 1.122) }) },
+      { label: t('Gain −1 dB'), onClick: () => updateAudioClip(clip.id, { gain: Math.max(0, clip.gain / 1.122) }) },
+      { label: t('Reset gain'), onClick: () => updateAudioClip(clip.id, { gain: 1 }) },
       { separator: true },
-      { label: 'Pan left', onClick: () => updateAudioClip(clip.id, { pan: Math.max(-1, clip.pan - 0.1) }) },
-      { label: 'Pan right', onClick: () => updateAudioClip(clip.id, { pan: Math.min(1, clip.pan + 0.1) }) },
-      { label: 'Center pan', onClick: () => updateAudioClip(clip.id, { pan: 0 }) },
+      { label: t('Pan left'), onClick: () => updateAudioClip(clip.id, { pan: Math.max(-1, clip.pan - 0.1) }) },
+      { label: t('Pan right'), onClick: () => updateAudioClip(clip.id, { pan: Math.min(1, clip.pan + 0.1) }) },
+      { label: t('Center pan'), onClick: () => updateAudioClip(clip.id, { pan: 0 }) },
       { separator: true },
       {
         label: `Loop the file: ${clip.loop_mode === 'loop' ? 'on' : 'off'}`,
@@ -644,7 +646,7 @@ export function Playlist() {
         disabled: true,
       },
       {
-        label: 'Reset slip to source start',
+        label: t('Reset slip to source start'),
         disabled: (clip.source_offset_ticks ?? 0) === 0,
         onClick: () => updateAudioClip(clip.id, { source_offset_ticks: 0 }),
       },
@@ -667,12 +669,12 @@ export function Playlist() {
       })(),
       { separator: true },
       {
-        label: 'Split at playhead',
+        label: t('Split at playhead'),
         disabled: transport.step * TICKS_PER_STEP <= clip.start_tick || transport.step * TICKS_PER_STEP >= clip.start_tick + clip.length_ticks,
         onClick: () => splitClipAt(clip.id, transport.step) && hint('Audio clip split at the playhead'),
       },
       {
-        label: 'Paste at playhead',
+        label: t('Paste at playhead'),
         shortcut: 'Ctrl+V',
         disabled: !clipClipboard,
         onClick: () => {
@@ -680,7 +682,7 @@ export function Playlist() {
           if (id) setSelectedClips([id]);
         },
       },
-      { label: 'Delete clip', danger: true, onClick: () => removeAudioClip(clip.id) },
+      { label: t('Delete clip'), danger: true, onClick: () => removeAudioClip(clip.id) },
     ]);
   };
 
@@ -688,9 +690,9 @@ export function Playlist() {
     e.preventDefault();
     const track = project.tracks[index];
     openMenu(e.clientX, e.clientY, [
-      { label: 'Rename track', onClick: () => { setRenaming(index); setDraft(track.name); } },
-      { label: 'Add track', onClick: addTrack },
-      { label: 'Move up', disabled: index === 0, onClick: () => {
+      { label: t('Rename track'), onClick: () => { setRenaming(index); setDraft(track.name); } },
+      { label: t('Add track'), onClick: addTrack },
+      { label: t('Move up'), disabled: index === 0, onClick: () => {
         const other = project.tracks[index - 1];
         patchProject((p) => {
           p.tracks[index - 1] = p.tracks[index];
@@ -702,7 +704,7 @@ export function Playlist() {
         });
       } },
       { separator: true },
-      { label: 'Delete track', danger: true, disabled: project.tracks.length <= 1, onClick: () => removeTrack(index) },
+      { label: t('Delete track'), danger: true, disabled: project.tracks.length <= 1, onClick: () => removeTrack(index) },
     ]);
   };
 
@@ -712,11 +714,11 @@ export function Playlist() {
     const marker = project.markers.find((m) => m.id === id);
     if (!marker) return;
     openMenu(e.clientX, e.clientY, [
-      { label: 'Rename marker', onClick: () => { setRenamingMarker(id); setMarkerDraft(marker.name); } },
-      { label: 'Move to playhead', onClick: () => updateMarker(id, { start: transport.step }) },
-      { label: 'Loop to next marker', onClick: () => loopFromMarker(id) },
+      { label: t('Rename marker'), onClick: () => { setRenamingMarker(id); setMarkerDraft(marker.name); } },
+      { label: t('Move to playhead'), onClick: () => updateMarker(id, { start: transport.step }) },
+      { label: t('Loop to next marker'), onClick: () => loopFromMarker(id) },
       { separator: true },
-      { label: 'Delete marker', danger: true, onClick: () => removeMarker(id) },
+      { label: t('Delete marker'), danger: true, onClick: () => removeMarker(id) },
     ]);
   };
 
@@ -847,7 +849,7 @@ export function Playlist() {
           className="mini-select"
           value={project.currentPattern}
           onChange={(e) => selectPattern(e.target.value)}
-          title="Pattern used when you double-click an empty lane"
+          title={t('Pattern used when you double-click an empty lane')}
         >
           {project.patterns.map((p, i) => (
             <option key={p.id} value={p.id}>
@@ -855,10 +857,10 @@ export function Playlist() {
             </option>
           ))}
         </select>
-        <button className="tbtn small" onClick={() => addClip(project.currentPattern, 0, transport.step, (patternById(project, project.currentPattern)?.bars ?? 2) * barSteps)} title="Add a clip at the playhead">
+        <button className="tbtn small" onClick={() => addClip(project.currentPattern, 0, transport.step, (patternById(project, project.currentPattern)?.bars ?? 2) * barSteps)} title={t('Add a clip at the playhead')}>
           <IconPlus size={10} /> Clip
         </button>
-        <button className="tbtn small" disabled={!selectedCanSplit} onClick={splitSelected} title="Split the selected clip at the playhead">
+        <button className="tbtn small" disabled={!selectedCanSplit} onClick={splitSelected} title={t('Split the selected clip at the playhead')}>
           Split
         </button>
         <button
@@ -868,15 +870,15 @@ export function Playlist() {
             const id = pasteClipAt(transport.step);
             if (id) setSelectedClips([id]);
           }}
-          title="Paste the copied clip at the playhead (Ctrl/Cmd+V)"
+          title={t('Paste the copied clip at the playhead (Ctrl/Cmd+V)')}
         >
           Paste
         </button>
-        <button className="tbtn small" onClick={() => addMarker()} title="Add a marker at the playhead (M)">
+        <button className="tbtn small" onClick={() => addMarker()} title={t('Add a marker at the playhead (M)')}>
           <IconPlus size={10} /> Marker
         </button>
         <div className="sep" />
-        <button className="tbtn small" onClick={addTrack} title="Add playlist track">
+        <button className="tbtn small" onClick={addTrack} title={t('Add playlist track')}>
           <IconPlus size={10} /> Track
         </button>
         <button
@@ -884,7 +886,7 @@ export function Playlist() {
           onClick={() =>
             hint(`${project.tracks.length} tracks · ${project.clips.length} clips · snap ${snap || 'off'} step${snap === 1 ? '' : 's'}`)
           }
-          title="Arrangement info"
+          title={t('Arrangement info')}
         >
           <IconGrid size={11} /> {project.tracks.length} × {project.clips.length}
         </button>
@@ -898,7 +900,7 @@ export function Playlist() {
           <option value="1">1/16</option>
           <option value="0.5">1/32</option>
           <option value="0.25">1/64</option>
-          <option value="0">Off</option>
+          <option value="0">{t('Off')}</option>
         </select>
         <span className="lbl">zoom</span>
         <input
@@ -908,20 +910,20 @@ export function Playlist() {
           value={zoom}
           onChange={(e) => setZoom(Number(e.target.value))}
           style={{ width: 90 }}
-          title="Horizontal zoom"
+          title={t('Horizontal zoom')}
         />
         <div className="sep" />
         <button
           className={`tbtn small ${project.loop ? 'active' : ''}`}
           onClick={() => patchProject((p) => (p.loop = !p.loop))}
-          title="Loop the song section"
+          title={t('Loop the song section')}
         >
           Loop
         </button>
         <span className="tiny-note">
           Loop bars {Math.floor(project.loopStart / barSteps) + 1}–{Math.max(1, Math.ceil(project.loopEnd / barSteps))}
         </span>
-        <span className="tiny-note" title="Which engine plays audio clips">
+        <span className="tiny-note" title={t('Which engine plays audio clips')}>
           Playlist audio: Web Audio in browser · Rust/CPAL on desktop. Drag the right edge to trim.
         </span>
         <div className="spacer" />
@@ -931,7 +933,7 @@ export function Playlist() {
             selectPattern(project.currentPattern);
             setUI({ tab: 'pianoroll' });
           }}
-          title="Edit this pattern's notes"
+          title={t("Edit this pattern's notes")}
         >
           <IconPiano size={11} /> Piano roll
         </button>
@@ -953,7 +955,7 @@ export function Playlist() {
             <input type="number" min={0} max={16} step={1} value={batchFadeOut} onChange={(e) => applyBatchFade('out', Number(e.target.value))} />
           </label>
           <div className="batch-actions">
-            <button className="tbtn small" disabled={!snap} onClick={quantizeSelected} title="Snap every selected clip start to the current grid">
+            <button className="tbtn small" disabled={!snap} onClick={quantizeSelected} title={t('Snap every selected clip start to the current grid')}>
               Quantize
             </button>
             <button className="tbtn small" onClick={() => setSelectedClips([])}>
@@ -996,7 +998,7 @@ export function Playlist() {
                   step={0.01}
                   value={selectedSlip}
                   onChange={(e) => setSelectedSlip(Number(e.target.value))}
-                  title="Move the source window without moving the clip"
+                  title={t('Move the source window without moving the clip')}
                 />
               </label>
               <label className="clip-toggle">
@@ -1038,7 +1040,7 @@ export function Playlist() {
               seek(Math.max(0, snapStep((e.clientX - rect.left) / zoom)));
               beginDrag(e, { kind: 'playhead', startX: e.clientX, rulerLeft: rect.left });
             }}
-            title="Click or drag to move the playhead"
+            title={t('Click or drag to move the playhead')}
           >
             {Array.from({ length: bars }, (_, bar) => (
               <div
@@ -1063,7 +1065,7 @@ export function Playlist() {
                   origEnd: project.loopEnd,
                 });
               }}
-              title="Drag to slide the loop bar, or grab an edge to resize it"
+              title={t('Drag to slide the loop bar, or grab an edge to resize it')}
             />
             <div
               className={`loop-handle ${dragging === 'loop' ? 'dragging' : ''}`}
@@ -1074,7 +1076,7 @@ export function Playlist() {
                 pushHistory();
                 beginDrag(e, { kind: 'loop', edge: 'start', startX: e.clientX, orig: project.loopStart });
               }}
-              title="Drag the loop start"
+              title={t('Drag the loop start')}
             />
             <div
               className={`loop-handle ${dragging === 'loop' ? 'dragging' : ''}`}
@@ -1085,7 +1087,7 @@ export function Playlist() {
                 pushHistory();
                 beginDrag(e, { kind: 'loop', edge: 'end', startX: e.clientX, orig: project.loopEnd });
               }}
-              title="Drag the loop end"
+              title={t('Drag the loop end')}
             />
             {(dragging === 'loop' || dragging === 'loop-move') && (
               <div
@@ -1107,7 +1109,7 @@ export function Playlist() {
                 const ruler = (e.currentTarget.parentElement as HTMLElement).getBoundingClientRect();
                 beginDrag(e, { kind: 'playhead', startX: e.clientX, rulerLeft: ruler.left });
               }}
-              title="Drag the playhead"
+              title={t('Drag the playhead')}
             />
             {dragging === 'playhead' && (
               <div
@@ -1147,7 +1149,7 @@ export function Playlist() {
                   <input
                     autoFocus
                     value={markerDraft}
-                    aria-label="Marker name"
+                    aria-label={t('Marker name')}
                     onChange={(e) => setMarkerDraft(e.target.value)}
                     onBlur={() => {
                       updateMarker(marker.id, { name: markerDraft.trim() || marker.name });
@@ -1196,14 +1198,14 @@ export function Playlist() {
                     <button
                       className={`led ${track.mute ? 'on mute' : ''}`}
                       onClick={() => updateTrack(index, { mute: !track.mute })}
-                      title="Mute track"
+                      title={t('Mute track')}
                     >
                       M
                     </button>
                     <button
                       className={`led ${track.solo ? 'on solo' : ''}`}
                       onClick={() => updateTrack(index, { solo: !track.solo })}
-                      title="Solo track"
+                      title={t('Solo track')}
                     >
                       S
                     </button>
@@ -1213,7 +1215,7 @@ export function Playlist() {
                       onClick={() => patchProject((p) => {
                         p.tracks[index].height = track.height > 70 ? 46 : 92;
                       })}
-                      title="Collapse / expand lane"
+                      title={t('Collapse / expand lane')}
                     >
                       {track.height > 70 ? '▾' : '▸'}
                     </button>
@@ -1374,7 +1376,7 @@ export function Playlist() {
                             <div
                               className="fade-handle fade-in"
                               style={{ left: Math.max(2, Math.min(clipWidth - 4, (clip.fadeIn ?? 0) * zoom)) }}
-                              title="Drag to set fade in (steps)"
+                              title={t('Drag to set fade in (steps)')}
                               onPointerDown={(e) => {
                                 e.preventDefault();
                                 e.stopPropagation();
@@ -1386,7 +1388,7 @@ export function Playlist() {
                             <div
                               className="fade-handle fade-out"
                               style={{ left: Math.max(2, Math.min(clipWidth - 4, clipWidth - (clip.fadeOut ?? 0) * zoom)) }}
-                              title="Drag to set fade out (steps)"
+                              title={t('Drag to set fade out (steps)')}
                               onPointerDown={(e) => {
                                 e.preventDefault();
                                 e.stopPropagation();
@@ -1468,13 +1470,13 @@ export function Playlist() {
                           className="slip-handle"
                           role="slider"
                           tabIndex={0}
-                          aria-label="Slip source audio"
+                          aria-label={t('Slip source audio')}
                           aria-orientation="horizontal"
                           aria-valuemin={0}
                           aria-valuemax={ticksToSteps(clampSourceOffset(Number.MAX_SAFE_INTEGER, clip.length_ticks, sourceDurationTicksFor(clip)))}
                           aria-valuenow={ticksToSteps(clip.source_offset_ticks ?? 0)}
                           aria-valuetext={`${ticksToSteps(clip.source_offset_ticks ?? 0)} steps`}
-                          title="Drag to slip the source audio (arrow keys for fine steps)"
+                          title={t('Drag to slip the source audio (arrow keys for fine steps)')}
                           onPointerDown={(e) => {
                             e.preventDefault();
                             e.stopPropagation();
@@ -1511,7 +1513,7 @@ export function Playlist() {
                             <div
                               className="fade-handle fade-in"
                               style={{ left: Math.max(2, Math.min(width - 4, ticksToSteps(clip.fade_in) * zoom)) }}
-                              title="Drag to set audio fade in"
+                              title={t('Drag to set audio fade in')}
                               onPointerDown={(e) => {
                                 e.preventDefault();
                                 e.stopPropagation();
@@ -1523,7 +1525,7 @@ export function Playlist() {
                             <div
                               className="fade-handle fade-out"
                               style={{ left: Math.max(2, Math.min(width - 4, width - ticksToSteps(clip.fade_out) * zoom)) }}
-                              title="Drag to set audio fade out"
+                              title={t('Drag to set audio fade out')}
                               onPointerDown={(e) => {
                                 e.preventDefault();
                                 e.stopPropagation();
@@ -1536,7 +1538,7 @@ export function Playlist() {
                         )}
                         <div
                           className="clip-resize"
-                          title="Drag to trim the audio clip"
+                          title={t('Drag to trim the audio clip')}
                           onPointerDown={(e) => {
                             e.preventDefault();
                             e.stopPropagation();

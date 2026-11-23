@@ -1,3 +1,4 @@
+import { useT } from '../i18n/useT';
 import { useState } from 'react';
 import { channelNotes, currentPattern, previewChannel, useApp } from '../store';
 import { Knob } from '../ui/Knob';
@@ -7,6 +8,7 @@ import { PRESETS } from '../model/defaults';
 import type { Channel, PresetId } from '../model/types';
 
 export function ChannelRack() {
+  const t = useT();
   const project = useApp((s) => s.project);
   const transport = useApp((s) => s.transport);
   const ui = useApp((s) => s.ui);
@@ -62,7 +64,7 @@ export function ChannelRack() {
     e.preventDefault();
     openMenu(e.clientX, e.clientY, [
       {
-        label: 'Rename channel',
+        label: t('Rename channel'),
         onClick: () => {
           selectChannel(channel.id);
           setEditing(channel.id);
@@ -70,27 +72,27 @@ export function ChannelRack() {
         },
       },
       {
-        label: 'Open in piano roll',
+        label: t('Open in piano roll'),
         shortcut: 'F7',
         onClick: () => {
           selectChannel(channel.id);
           setUI({ tab: 'pianoroll' });
         },
       },
-      { label: 'Clone channel', onClick: () => duplicateChannel(channel.id) },
-      { label: 'Relink to new track + mixer strip', onClick: () => relinkChannel(channel.id) },
+      { label: t('Clone channel'), onClick: () => duplicateChannel(channel.id) },
+      { label: t('Relink to new track + mixer strip'), onClick: () => relinkChannel(channel.id) },
       { separator: true },
-      { label: 'Clear notes in this pattern', onClick: () => clearChannelSteps(channel.id) },
-      { label: 'Transpose +1 semitone', onClick: () => transposeChannel(channel.id, 1) },
-      { label: 'Transpose −1 semitone', onClick: () => transposeChannel(channel.id, -1) },
+      { label: t('Clear notes in this pattern'), onClick: () => clearChannelSteps(channel.id) },
+      { label: t('Transpose +1 semitone'), onClick: () => transposeChannel(channel.id, 1) },
+      { label: t('Transpose −1 semitone'), onClick: () => transposeChannel(channel.id, -1) },
       { separator: true },
       {
         label: channel.unloaded ? 'Load instrument' : 'Unload instrument (save CPU)',
         onClick: () => updateChannel(channel.id, { unloaded: !channel.unloaded }),
       },
-      { label: 'Reset levels', onClick: () => updateChannel(channel.id, { gain: 0.8, pan: 0 }) },
+      { label: t('Reset levels'), onClick: () => updateChannel(channel.id, { gain: 0.8, pan: 0 }) },
       { separator: true },
-      { label: 'Delete channel', danger: true, onClick: () => removeChannel(channel.id) },
+      { label: t('Delete channel'), danger: true, onClick: () => removeChannel(channel.id) },
     ]);
   };
 
@@ -102,7 +104,7 @@ export function ChannelRack() {
   };
 
   return (
-    <div className="rack" data-tour="rack" style={{ width: `min(${ui.rackWidth}px, 48vw)` }} role="region" aria-label="Channel rack">
+    <div className="rack" data-tour="rack" style={{ width: `min(${ui.rackWidth}px, 48vw)` }} role="region" aria-label={t('Channel rack')}>
       <div className="rack-head">
         <span className="rack-title">
           <IconGear size={12} /> Rack
@@ -111,8 +113,8 @@ export function ChannelRack() {
           className="mini-select"
           value={project.currentPattern}
           onChange={(e) => selectPattern(e.target.value)}
-          title="Pattern being edited"
-          aria-label="Pattern being edited"
+          title={t('Pattern being edited')}
+          aria-label={t('Pattern being edited')}
         >
           {project.patterns.map((p, i) => (
             <option key={p.id} value={p.id}>
@@ -124,8 +126,8 @@ export function ChannelRack() {
           className="mini-select"
           value={pattern?.bars ?? 2}
           onChange={(e) => pattern && setPatternBars(pattern.id, Number(e.target.value))}
-          title="Pattern length in bars"
-          aria-label="Pattern length in bars"
+          title={t('Pattern length in bars')}
+          aria-label={t('Pattern length in bars')}
         >
           {[1, 2, 4, 8].map((b) => (
             <option key={b} value={b}>
@@ -134,10 +136,10 @@ export function ChannelRack() {
           ))}
         </select>
         <div className="spacer" />
-        <button className="tbtn small" onClick={addPattern} title="New pattern">
+        <button className="tbtn small" onClick={addPattern} title={t('New pattern')}>
           <IconPlus size={10} />
         </button>
-        <button className="tbtn small rack-clone" onClick={() => duplicatePattern()} title="Clone pattern">
+        <button className="tbtn small rack-clone" onClick={() => duplicatePattern()} title={t('Clone pattern')}>
           Clone
         </button>
         <button
@@ -151,20 +153,20 @@ export function ChannelRack() {
                 onClick: () => selectPattern(p.id),
               })),
               { separator: true },
-              { label: 'Delete current pattern', danger: true, onClick: () => pattern && removePattern(pattern.id) },
+              { label: t('Delete current pattern'), danger: true, onClick: () => pattern && removePattern(pattern.id) },
             ]);
           }}
-          title="All patterns"
+          title={t('All patterns')}
         >
           ▾
         </button>
-        <button className="tbtn small" onClick={addMenu} title="Add channel">
+        <button className="tbtn small" onClick={addMenu} title={t('Add channel')}>
           <IconPlus size={10} /> Ch
         </button>
         <button
           className="tbtn small rack-linked"
           onClick={linkedMenu}
-          title="Add a channel with its own playlist track and mixer strip, routed automatically"
+          title={t('Add a channel with its own playlist track and mixer strip, routed automatically')}
         >
           Linked
         </button>
@@ -226,7 +228,7 @@ export function ChannelRack() {
                         e.stopPropagation();
                         updateChannel(channel.id, { mute: !channel.mute });
                       }}
-                      title="Mute channel"
+                      title={t('Mute channel')}
                       aria-label={`Mute ${channel.name}`}
                       aria-pressed={channel.mute}
                     >
@@ -238,7 +240,7 @@ export function ChannelRack() {
                         e.stopPropagation();
                         updateChannel(channel.id, { solo: !channel.solo });
                       }}
-                      title="Solo channel"
+                      title={t('Solo channel')}
                       aria-label={`Solo ${channel.name}`}
                       aria-pressed={channel.solo}
                     >
@@ -301,14 +303,14 @@ export function ChannelRack() {
                 selectChannel(selected.id);
                 setUI({ tab: 'pianoroll' });
               }}
-              title="Edit notes in the piano roll"
+              title={t('Edit notes in the piano roll')}
             >
               <IconPiano size={11} />
             </button>
-            <button className="tbtn small" onClick={() => audition(selected)} title="Audition this instrument">
+            <button className="tbtn small" onClick={() => audition(selected)} title={t('Audition this instrument')}>
               ♪
             </button>
-            <button className="tbtn small flat" onClick={() => setSettingsOpen(false)} title="Collapse settings" aria-label="Collapse channel settings">
+            <button className="tbtn small flat" onClick={() => setSettingsOpen(false)} title={t('Collapse settings')} aria-label={t('Collapse channel settings')}>
               ▾
             </button>
           </div>
@@ -401,7 +403,7 @@ export function ChannelRack() {
             />
             <div className="rs-selects">
               <label>
-                <span>Instrument</span>
+                <span>{t('Instrument')}</span>
                 <select
                   className="mini-select"
                   value={selected.preset}
@@ -415,7 +417,7 @@ export function ChannelRack() {
                 </select>
               </label>
               <label>
-                <span>Mixer route</span>
+                <span>{t('Mixer route')}</span>
                 <select
                   className="mini-select"
                   value={selected.mixer}

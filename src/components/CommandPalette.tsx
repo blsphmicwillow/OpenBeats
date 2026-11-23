@@ -1,3 +1,4 @@
+import { useT } from '../i18n/useT';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { applyParsedCommand } from '../lib/commandActions';
 import { nativeParseCommand, type ParsedCommand } from '../lib/nativeAudio';
@@ -14,6 +15,7 @@ interface Command {
 
 /** Ctrl/Cmd+K spotlight for every action in the studio. */
 export function CommandPalette() {
+  const t = useT();
   const open = useApp((s) => s.ui.paletteOpen);
   const [query, setQuery] = useState('');
   const [active, setActive] = useState(0);
@@ -31,34 +33,34 @@ export function CommandPalette() {
   const commands = useMemo<Command[]>(() => {
     const s = useApp.getState();
     return [
-      { id: 'tab-playlist', section: 'View', label: 'Go to Playlist', hint: 'F5', run: () => s.setUI({ tab: 'playlist' }) },
-      { id: 'tab-piano', section: 'View', label: 'Go to Piano roll', hint: 'F7', run: () => s.setUI({ tab: 'pianoroll' }) },
-      { id: 'tab-mixer', section: 'View', label: 'Go to Mixer', hint: 'F9', run: () => s.setUI({ tab: 'mixer' }) },
-      { id: 'tab-changelog', section: 'View', label: 'What’s new (Changelog)', run: () => s.setUI({ tab: 'changelog' }) },
+      { id: 'tab-playlist', section: 'View', label: t('Go to Playlist'), hint: 'F5', run: () => s.setUI({ tab: 'playlist' }) },
+      { id: 'tab-piano', section: 'View', label: t('Go to Piano roll'), hint: 'F7', run: () => s.setUI({ tab: 'pianoroll' }) },
+      { id: 'tab-mixer', section: 'View', label: t('Go to Mixer'), hint: 'F9', run: () => s.setUI({ tab: 'mixer' }) },
+      { id: 'tab-changelog', section: 'View', label: t('What’s new (Changelog)'), run: () => s.setUI({ tab: 'changelog' }) },
       { id: 'mode', section: 'View', label: s.settings.uiMode === 'classic' ? 'Switch to Modern interface' : 'Switch to Classic interface', run: () => s.patchSettings({ uiMode: s.settings.uiMode === 'classic' ? 'modern' : 'classic' }) },
-      { id: 'settings', section: 'View', label: 'Open Settings', hint: 'F11', run: () => s.setUI({ settingsOpen: true }) },
-      { id: 'learn', section: 'View', label: 'Learn OpenBeats — modules and first-song path', run: () => s.setUI({ learnOpen: true }) },
-      { id: 'browser', section: 'View', label: 'Toggle Browser', hint: 'F10', run: () => s.setUI({ browserOpen: !s.ui.browserOpen }) },
-      { id: 'plugins', section: 'View', label: 'Open plugin library', run: () => s.setUI({ pluginsOpen: true }) },
+      { id: 'settings', section: 'View', label: t('Open Settings'), hint: 'F11', run: () => s.setUI({ settingsOpen: true }) },
+      { id: 'learn', section: 'View', label: t('Learn OpenBeats — modules and first-song path'), run: () => s.setUI({ learnOpen: true }) },
+      { id: 'browser', section: 'View', label: t('Toggle Browser'), hint: 'F10', run: () => s.setUI({ browserOpen: !s.ui.browserOpen }) },
+      { id: 'plugins', section: 'View', label: t('Open plugin library'), run: () => s.setUI({ pluginsOpen: true }) },
       { id: 'play', section: 'Transport', label: s.transport.playing ? 'Stop' : 'Play', hint: 'Space', run: () => s.togglePlay() },
-      { id: 'songmode', section: 'Transport', label: 'Toggle pattern / song mode', hint: 'L', run: () => s.toggleSongMode() },
-      { id: 'metronome', section: 'Transport', label: 'Toggle metronome', hint: 'C', run: () => s.toggleMetronome() },
-      { id: 'bounce', section: 'Audio', label: 'Export audio (WAV, FLAC, MP3, OGG, M4A)', run: () => s.setUI({ exportOpen: true }) },
-      { id: 'exchange', section: 'Project', label: 'Import / export song (MIDI, Ableton, REAPER)', run: () => s.setUI({ exchangeOpen: true }) },
-      { id: 'export-midi', section: 'Project', label: 'Export multi-track MIDI', run: () => void s.exportMidi() },
-      { id: 'export-rpp', section: 'Project', label: 'Export REAPER project', run: () => void s.exportRpp() },
-      { id: 'fixmix', section: 'Audio', label: 'Fix My Mix — analyse the master', run: () => s.setUI({ fixMixOpen: true }) },
-      { id: 'hum', section: 'Audio', label: 'Hum to Melody — record a melody', run: () => s.setUI({ humOpen: true }) },
-      { id: 'inspire', section: 'Audio', label: 'Inspire Me — generate a chord progression', run: () => s.setUI({ inspireOpen: true }) },
-      { id: 'updates', section: 'Audio', label: 'Check for updates', run: () => void s.checkUpdates() },
-      { id: 'save', section: 'Project', label: 'Save project file', hint: 'Ctrl+S', run: () => void s.saveProjectFile() },
-      { id: 'open', section: 'Project', label: 'Open project…', run: () => void s.openProjectNative() },
-      { id: 'projects', section: 'Project', label: 'Projects — new or old project', run: () => s.setUI({ projectHubOpen: true }) },
-      { id: 'new', section: 'Project', label: 'New empty project', run: () => s.newProject('blank') },
-      { id: 'demo', section: 'Project', label: 'Load the “Neon Drift” demo', run: () => s.newProject('demo') },
-      { id: 'undo', section: 'Edit', label: 'Undo', hint: 'Ctrl+Z', run: () => s.undo() },
-      { id: 'redo', section: 'Edit', label: 'Redo', hint: 'Ctrl+Shift+Z', run: () => s.redo() },
-      { id: 'pattern', section: 'Edit', label: 'New pattern', run: () => s.addPattern() },
+      { id: 'songmode', section: 'Transport', label: t('Toggle pattern / song mode'), hint: 'L', run: () => s.toggleSongMode() },
+      { id: 'metronome', section: 'Transport', label: t('Toggle metronome'), hint: 'C', run: () => s.toggleMetronome() },
+      { id: 'bounce', section: 'Audio', label: t('Export audio (WAV, FLAC, MP3, OGG, M4A)'), run: () => s.setUI({ exportOpen: true }) },
+      { id: 'exchange', section: 'Project', label: t('Import / export song (MIDI, Ableton, REAPER)'), run: () => s.setUI({ exchangeOpen: true }) },
+      { id: 'export-midi', section: 'Project', label: t('Export multi-track MIDI'), run: () => void s.exportMidi() },
+      { id: 'export-rpp', section: 'Project', label: t('Export REAPER project'), run: () => void s.exportRpp() },
+      { id: 'fixmix', section: 'Audio', label: t('Fix My Mix — analyse the master'), run: () => s.setUI({ fixMixOpen: true }) },
+      { id: 'hum', section: 'Audio', label: t('Hum to Melody — record a melody'), run: () => s.setUI({ humOpen: true }) },
+      { id: 'inspire', section: 'Audio', label: t('Inspire Me — generate a chord progression'), run: () => s.setUI({ inspireOpen: true }) },
+      { id: 'updates', section: 'Audio', label: t('Check for updates'), run: () => void s.checkUpdates() },
+      { id: 'save', section: 'Project', label: t('Save project file'), hint: 'Ctrl+S', run: () => void s.saveProjectFile() },
+      { id: 'open', section: 'Project', label: t('Open project…'), run: () => void s.openProjectNative() },
+      { id: 'projects', section: 'Project', label: t('Projects — new or old project'), run: () => s.setUI({ projectHubOpen: true }) },
+      { id: 'new', section: 'Project', label: t('New empty project'), run: () => s.newProject('blank') },
+      { id: 'demo', section: 'Project', label: t('Load the “Neon Drift” demo'), run: () => s.newProject('demo') },
+      { id: 'undo', section: 'Edit', label: t('Undo'), hint: 'Ctrl+Z', run: () => s.undo() },
+      { id: 'redo', section: 'Edit', label: t('Redo'), hint: 'Ctrl+Shift+Z', run: () => s.redo() },
+      { id: 'pattern', section: 'Edit', label: t('New pattern'), run: () => s.addPattern() },
       ...PRESETS.map((p) => ({
         id: `add-${p.id}`,
         section: 'Add channel',
@@ -144,7 +146,7 @@ export function CommandPalette() {
           />
         </div>
         <div className="palette-list">
-          {filtered.length === 0 && <div className="palette-empty">No matching action</div>}
+          {filtered.length === 0 && <div className="palette-empty">{t('No matching action')}</div>}
           {filtered.map((cmd, i) => (
             <button
               key={cmd.id}

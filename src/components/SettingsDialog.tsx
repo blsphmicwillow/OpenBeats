@@ -744,7 +744,7 @@ export function SettingsDialog() {
               <p className="hinttext" style={{ marginTop: 12 }}>
                 {t('Editing:')} <span className="code">Z–M</span> {t('and')} <span className="code">Q–U</span> {t('play notes,')}{' '}
                 <span className="code">+</span>/<span className="code">−</span> {t('transpose the selected channel,')}{' '}
-                <span className="code">Delete</span> {t('is not bound (use right-click) so nothing disappears by accident.')}
+                <span className="code">{t('Delete')}</span> {t('is not bound (use right-click) so nothing disappears by accident.')}
               </p>
             </>
           )}
@@ -813,6 +813,7 @@ export function SettingsDialog() {
 }
 
 function AudioTab() {
+  const t = useT();
   const project = useApp((s) => s.project);
   const audioReady = useApp((s) => s.audioReady);
   const [state, setState] = useState<{ state: string; rate: number; base: number } | null>(null);
@@ -827,7 +828,7 @@ function AudioTab() {
 
   return (
     <>
-      <h3>Native audio device</h3>
+      <h3>{t('Native audio device')}</h3>
       <p className="hinttext">
         The desktop build plays through the Rust engine and CPAL. Pick a device here if the default one is silent — on
         Linux the PulseAudio/PipeWire bridge is preferred automatically, because ALSA’s default device can point at a
@@ -836,13 +837,13 @@ function AudioTab() {
       </p>
       <NativeDevicePanel />
       <InputPanel />
-      <h3>Audio engine</h3>
+      <h3>{t('Audio engine')}</h3>
       <p className="hinttext">
         OpenBeats renders everything with Web Audio: instruments are synthesised per note, effects run as native nodes, and
         the WAV bounce reuses the same graph in an offline context.
       </p>
       <div className="field">
-        <div className="field-label">Engine</div>
+        <div className="field-label">{t('Engine')}</div>
         <div className="field-control">
           <span className={`chip`} style={{ background: audioReady ? undefined : 'color-mix(in srgb,#ef4444 20%,transparent)' }}>
             {state ? `${state.state} · ${Math.round(state.rate / 1000)} kHz` : 'not started'}
@@ -866,7 +867,7 @@ function AudioTab() {
         <div className="field-control tiny-note">Master → Compressor → Limiter → Output</div>
       </div>
       <div className="field">
-        <div className="field-label">Test the engine</div>
+        <div className="field-label">{t('Test the engine')}</div>
         <div className="field-control">
           <button
             className="btn"
@@ -886,7 +887,7 @@ function AudioTab() {
       <div className="field">
         <div className="field-label">
           Metronome
-          <small>Also available from the transport bar (C).</small>
+          <small>{t('Also available from the transport bar (C).')}</small>
         </div>
         <div className="field-control">
           <input
@@ -914,6 +915,7 @@ function errorText(err: unknown): string {
  * device list is empty and the panel explains why.
  */
 function NativeDevicePanel() {
+  const t = useT();
   const audio = useApp((s) => s.settings.audio);
   const patchSettings = useApp((s) => s.patchSettings);
   const [devices, setDevices] = useState<AudioDevices>({ inputs: [], outputs: [] });
@@ -1154,7 +1156,7 @@ function NativeDevicePanel() {
                 {isNative() ? 'No output devices found' : 'No native devices (browser build)'}
               </option>
             )}
-            <option value="">System default</option>
+            <option value="">{t('System default')}</option>
             {savedMissing && (
               <option value={savedOutput}>{audio.outputLabel ?? 'Saved device'} · unavailable</option>
             )}

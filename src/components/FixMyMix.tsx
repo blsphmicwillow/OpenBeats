@@ -1,3 +1,4 @@
+import { useT } from '../i18n/useT';
 import { useEffect, useRef, useState } from 'react';
 import { useApp } from '../store';
 import { Modal } from '../ui/Modal';
@@ -20,6 +21,7 @@ const BAND_LABELS: Record<string, string> = {
  * corrections. “A/B” flips between the original master chain and the fix.
  */
 export function FixMyMix() {
+  const t = useT();
   const open = useApp((s) => s.ui.fixMixOpen);
   const project = useApp((s) => s.project);
   const [report, setReport] = useState<MixReport | null>(null);
@@ -117,19 +119,19 @@ export function FixMyMix() {
         <div className="mix">
           <div className="mix-metrics">
             <div>
-              <span>Peak</span>
+              <span>{t('Peak')}</span>
               <b>{report.peakDb.toFixed(1)} dB</b>
             </div>
             <div>
-              <span>Loudness</span>
+              <span>{t('Loudness')}</span>
               <b>{report.loudness.toFixed(1)} LUFS</b>
             </div>
             <div>
-              <span>Crest</span>
+              <span>{t('Crest')}</span>
               <b>{report.crest.toFixed(1)} dB</b>
             </div>
             <div>
-              <span>Stereo</span>
+              <span>{t('Stereo')}</span>
               <b>{report.stereo.toFixed(2)}</b>
             </div>
           </div>
@@ -147,7 +149,7 @@ export function FixMyMix() {
           </div>
 
           <div className="mix-suggestion">
-            <b>Suggested master curve</b>
+            <b>{t('Suggested master curve')}</b>
             <span>{report.suggestion}</span>
           </div>
 
@@ -165,7 +167,7 @@ export function FixMyMix() {
 
           {applied && (
             <div className="mix-applied">
-              Corrections are live on the Master strip. Use <b>A/B</b> to compare, or undo to remove them.
+              Corrections are live on the Master strip. Use <b>{t('A/B')}</b> to compare, or undo to remove them.
             </div>
           )}
         </div>
