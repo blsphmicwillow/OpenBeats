@@ -2927,7 +2927,7 @@ checksum = "9f7c3e4beb33f85d45ae3e3a1792185706c8e16d043238c593331cc7cd313b50"
 name = "openbeats"
 version = "1.1.0"
 dependencies = [
- "base64 0.22.1",
+ "base64 0.23.1",
  "discord-rich-presence",
  "hound",
  "openbeats-audio",
@@ -2945,7 +2945,7 @@ dependencies = [
 
 [[package]]
 name = "openbeats-audio"
-version = "1.0.9"
+version = "1.1.0"
 dependencies = [
  "cpal",
  "crossbeam-queue",
@@ -2961,7 +2961,7 @@ dependencies = [
 
 [[package]]
 name = "openbeats-clap-helper"
-version = "1.0.9"
+version = "1.1.0"
 dependencies = [
  "clack-extensions",
  "clack-host",
