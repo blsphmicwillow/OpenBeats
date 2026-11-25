@@ -309,7 +309,7 @@ jobs:
           echo 'AppImage contains the GStreamer audio runtime.'
 
       - name: Upload platform installers
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ matrix.artifact }}
           path: ${{ matrix.path }}
@@ -433,7 +433,7 @@ jobs:
 
       - name: Upload the stripped AppImage
         if: matrix.platform == 'ubuntu-22.04' && steps.verify-nolibva.outputs.ok == '1'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: openbeats-linux-nolibva
           path: ${{ github.workspace }}/openbeats-nolibva.AppImage
