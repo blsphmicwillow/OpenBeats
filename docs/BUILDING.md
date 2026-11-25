@@ -6,7 +6,7 @@ OpenBeats is a Tauri 2 application: a Rust host process (`src-tauri/`) that owns
 
 ### All platforms
 - Node.js 20 or newer, npm 10+
-- Rust stable 1.77+ (`rustup default stable`)
+- Rust stable 1.92+ (`rustup default stable`)
 - The Tauri CLI comes from `devDependencies`; no global install needed.
 
 ### Linux (Debian/Ubuntu)
@@ -27,7 +27,7 @@ sudo pacman -S --needed base-devel webkit2gtk-4.1 gtk3 libayatana-appindicator \
   gst-plugins-bad gst-plugins-ugly gst-libav libpulse alsa-lib
 ```
 
-To install the released 1.0.0 build rather than compile it, use the package in
+To install the released build rather than compile it, use the package in
 [`packaging/arch`](../packaging/arch) (`cd packaging/arch && yay -Bi .`). The complete
 end-user guide is [INSTALL.md](INSTALL.md).
 

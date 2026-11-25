@@ -5,6 +5,8 @@
 [![Latest release](https://img.shields.io/github/v/release/blsphmicwillow/OpenBeats?label=release&color=ffa31a)](https://github.com/blsphmicwillow/OpenBeats/releases/latest)
 [![Release build](https://github.com/blsphmicwillow/OpenBeats/actions/workflows/release.yml/badge.svg?branch=v1.1.0)](https://github.com/blsphmicwillow/OpenBeats/actions/workflows/release.yml)
 [![License: GPL-3.0-or-later](https://img.shields.io/badge/license-GPL--3.0--or--later-blue)](LICENSE)
+[![Discussions](https://img.shields.io/badge/community-discussions-blue)](https://github.com/blsphmicwillow/OpenBeats/discussions)
+[![Good first issues](https://img.shields.io/github/issues/blsphmicwillow/OpenBeats/good%20first%20issue?label=good%20first%20issues&color=7057ff)](https://github.com/blsphmicwillow/OpenBeats/contribute)
 [![Platforms](https://img.shields.io/badge/platform-linux%20%7C%20windows%20%7C%20macOS-lightgrey)](#install-openbeats-110)
 
 ![OpenBeats studio](docs/screenshots/studio-default.png)
@@ -13,12 +15,12 @@
 
 ## Who builds this
 
-OpenBeats is designed, built and maintained by **[blsphmicwillow](https://github.com/blsphmicwillow)**, a solo project, with no team and no company behind it.
+OpenBeats was started by **[blsphmicwillow](https://github.com/blsphmicwillow)**, who still maintains it, and it is meant to be community-sustained rather than a one-person project. There is no company behind it. The code is GPL-3.0-or-later, decisions and the maintainer ladder are documented in [GOVERNANCE.md](GOVERNANCE.md), and maintainer access is open to anyone who contributes consistently. [CONTRIBUTING.md](CONTRIBUTING.md) explains how to join the [contributors](https://github.com/blsphmicwillow/OpenBeats/graphs/contributors).
 
 The code is **AI-assisted**. Large parts are written with AI coding tools working under my direction, then reviewed, tested and debugged by me. Nothing ships because a generated suggestion looked plausible:
 
 - **Reviewed.** Every change gets a line-by-line review of the diff before it lands, plus an independent review pass that hunts for regressions, real-time-safety violations in the audio callback, and claims the tests cannot back up.
-- **Tested.** CI typechecks and builds the web app and compiles the native and desktop crates on Linux and Windows. The Rust audio engine has 291 unit tests and the front end has 80. Audio changes are also checked against real devices by testers.
+- **Tested.** CI typechecks and builds the web app and compiles the native and desktop crates on Linux and Windows. The Rust audio engine has its own unit-test suite and the front end has 99 tests, all run by CI. Audio changes are also checked against real devices by testers.
 - **Debugged.** 1.0.9 exists because an Arch + PipeWire + Bluetooth A2DP user sent logs that proved a stall-and-reopen loop; the fix is traced in the changelog, and the hardware report , not the test suite , is treated as the final word.
 - **Released by CI.** Linux, Windows and macOS installers are built from the tag, and a release is published only when all three jobs pass.
 
@@ -315,6 +317,7 @@ The version is bumped in the app, Tauri bundle and all Rust crates.
 ### Projects
 - **Projects** dialog (File → Projects…): open old songs, start a new one, save the current song and delete entries.
 - First launch opens a saved **Tutorial** project, not a blank song; the last project is restored after that.
+- **Project snapshots** in the **History** tab: named restore points for the current session, captured automatically at most every 20 seconds, with the last 40 kept. Capture, restore or delete one without touching the undo stack.
 
 ### Interchange with other DAWs
 - **Multi-track MIDI import/export** , one track per channel, tempo and program changes, readable by other DAWs including Ableton, Logic, Cubase, Studio One, Bitwig and REAPER.
@@ -380,7 +383,7 @@ The full map is in **Help → Shortcuts**.
 
 ## Development
 
-Requirements: **Node 20+**, **Rust 1.77+**, and on Linux the Tauri system packages. Full per-OS instructions: [docs/BUILDING.md](docs/BUILDING.md).
+Requirements: **Node 20+**, **Rust 1.92+**, and on Linux the Tauri system packages. Full per-OS instructions: [docs/BUILDING.md](docs/BUILDING.md).
 
 ```bash
 npm install
@@ -429,15 +432,33 @@ scripts/        icon generation and plugin validation/fetching
 - The desktop build plays through the **native Rust engine**; the browser build uses Web Audio. The two are not sample-identical yet. Per-strip inserts, volume automation, mixer routing and sends are wired into the native callback; sidechain, the modular graph, pan automation and plugin inserts are still not.
 - **VST3/CLAP hosting** runs out of process on Windows and macOS. Linux has a separate CLAP-only sidecar that scans and loads plugins. On every platform, **plugin inserts** are still not routed into the CPAL callback, so loading a plugin does not yet change playback.
 - The assistants are deterministic local DSP, not a hosted language model. Nothing is uploaded.
-- Not implemented yet: stem separation, a WASM wavetable synth, mixer folders, track freeze, PDC, per-clip effects, project snapshots, dockable panels, a spectral editor and a live-performance mode. See [ROADMAP.md](ROADMAP.md).
+- Not implemented yet: stem separation, a WASM wavetable synth, mixer folders, track freeze, PDC, per-clip effects, dockable panels, a spectral editor and a live-performance mode. See [ROADMAP.md](ROADMAP.md).
+
+## Community
+
+OpenBeats is built in public. Bug reports, hardware testing, translations, themes, documentation and code are all useful, and none of them require permission.
+
+| Where | What it is for |
+| --- | --- |
+| [Discussions](https://github.com/blsphmicwillow/OpenBeats/discussions) | Questions, workflow ideas and showing what you made |
+| [Issues](https://github.com/blsphmicwillow/OpenBeats/issues) | Reproducible bugs and scoped feature requests |
+| [Good first issues](https://github.com/blsphmicwillow/OpenBeats/contribute) | Small, well-described tasks for a first contribution |
+| [Roadmap](ROADMAP.md) | What is planned, and what is explicitly not |
+| [Governance](GOVERNANCE.md) | How decisions are made and how to become a maintainer |
+| [Code of Conduct](CODE_OF_CONDUCT.md) | The standards every project space follows |
+| [Security policy](SECURITY.md) | Private vulnerability reports, not public issues |
+| [Support](SUPPORT.md) | Where to ask for help before opening an issue |
+| [Contributors](https://github.com/blsphmicwillow/OpenBeats/graphs/contributors) | Everyone who has contributed |
+
+Thanks to everyone who has filed a bug, tested a release on hardware the maintainer does not own, corrected a translation or sent a patch.
 
 ## Contributing
 
-Issues and pull requests are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) first; `npm run build` and a manual smoke test are expected before a PR.
+Issues and pull requests are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) first. Every commit needs a Developer Certificate of Origin sign-off (`git commit -s`), and all participants follow the [Code of Conduct](CODE_OF_CONDUCT.md). `npm run build`, `npm test` and a manual smoke test are expected before a PR.
 
 ## License
 
-GPL-3.0-or-later. See [LICENSE](LICENSE). The demo song and all instrument presets are original and generated procedurally.
+GPL-3.0-or-later for the application and interface, with the native audio engine and plugin host crates under MIT. See [LICENSE](LICENSE) and [LICENSING.md](LICENSING.md). The demo song and all instrument presets are original and generated procedurally.
 
 ## Troubleshooting
 

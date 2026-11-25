@@ -12,14 +12,19 @@ Ordered by impact, not by promise. Nothing here has a date.
 ## Later
 - Per-clip effects and clip automation.
 - Plugin delay compensation and a latency budget readout.
-- Project snapshots/version history with diffing.
+- Snapshot diffing and side-by-side project comparison.
 - Dockable panels and a second window for the mixer.
 - Spectral editor for audio clips.
 - Live performance mode (clip launcher, scene triggering).
 - MIDI 2.0 input and MPE.
 - ARA-style integration is **not** planned: it depends on closed host APIs.
+- Native-speaker review of the Spanish, French and German translations.
 
 ## Known gaps
 - Installers are unsigned unless signing secrets are configured; macOS and Windows will warn.
 - No cloud sync, accounts or telemetry. Projects are local JSON.
 - Assistants are local heuristics, not generative models; they explain and correct, they do not compose full songs.
+
+## How to help
+
+Pick an item above, or a [good first issue](https://github.com/blsphmicwillow/OpenBeats/contribute). A hardware report for Windows or macOS audio, or for plugin routing, is as useful as a patch. See [CONTRIBUTING.md](CONTRIBUTING.md).

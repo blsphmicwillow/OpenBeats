@@ -1,5 +1,11 @@
 blank_issues_enabled: true
 contact_links:
+  - name: Questions and ideas
+    url: https://github.com/blsphmicwillow/OpenBeats/discussions
+    about: Ask for help, share a workflow or discuss an idea before opening an issue.
+  - name: Support guide
+    url: https://github.com/blsphmicwillow/OpenBeats/blob/main/SUPPORT.md
+    about: Where to ask for help, and what to include in a report.
   - name: Install and troubleshooting guide
     url: https://github.com/blsphmicwillow/OpenBeats/blob/main/docs/INSTALL.md
     about: Download links, platform requirements and common fixes.
