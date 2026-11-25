@@ -3,6 +3,8 @@ name = "openbeats-gui-fixture"
 version = "0.1.0"
 edition = "2021"
 publish = false
+license = "GPL-3.0-or-later"
+repository = "https://github.com/blsphmicwillow/OpenBeats"
 
 [lib]
 crate-type = ["cdylib"]

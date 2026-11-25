@@ -4,6 +4,14 @@
   "version": "1.1.0",
   "description": "OpenBeats — an open-source beatmaking studio with an FL-style workflow",
   "license": "GPL-3.0-or-later",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/blsphmicwillow/OpenBeats.git"
+  },
+  "homepage": "https://github.com/blsphmicwillow/OpenBeats#readme",
+  "bugs": {
+    "url": "https://github.com/blsphmicwillow/OpenBeats/issues"
+  },
   "type": "module",
   "scripts": {
     "dev": "vite",

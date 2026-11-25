@@ -15,6 +15,19 @@ src-tauri/gen/
 coverage/
 artifacts/*.tmp
 artifacts/release/
+
+# Local scratch: extracted AppImages, captures and working notes.
+/squashfs-root/
+/artifacts/apt/
+/artifacts/final/
+/artifacts/final2/
+/artifacts/gui/
+/artifacts/shelly*/
+/artifacts/updates/
+/artifacts/*.wav
+/discord-*.txt
+/faq.txt
+/roadmap.txt
 packaging/arch/*.AppImage
 packaging/arch/*.pkg.tar.zst
 
